@@ -60,3 +60,28 @@ export interface ProductDetail {
   specs: ProductSpec[];
   technical: ({ kind: string } & Record<string, unknown>) | null;
 }
+export type RoleName = 'CUSTOMER' | 'ADMIN';
+
+export interface AuthUser {
+  id: number;
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string | null;
+  role: RoleName;
+  language: 'FR' | 'EN';
+  createdAt: string;
+}
+
+export interface AuthResponse {
+  accessToken: string;
+  user: AuthUser;
+}
+
+export interface RegisterInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  password: string;
+}
