@@ -1,0 +1,371 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// Enumerations
+// ============================================================
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum Language {
+  FR
+  EN
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH_ON_DELIVERY
+  BANK_TRANSFER
+  CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum StockReason {
+  RESTOCK
+  SALE
+  RETURN
+  ADJUSTMENT
+}
+
+enum RamType {
+  DDR4
+  DDR5
+}
+
+enum FormFactor {
+  ATX
+  MICRO_ATX
+  MINI_ITX
+  E_ATX
+}
+
+// ============================================================
+// Utilisateurs, panier, commandes, configurations
+// ============================================================
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  role         Role     @default(CUSTOMER)
+  language     Language @default(FR)
+  createdAt    DateTime @default(now())
+
+  addresses      Address[]
+  cart           Cart?
+  orders         Order[]
+  configurations Configuration[]
+  stockMovements StockMovement[]
+}
+
+model Address {
+  id            Int     @id @default(autoincrement())
+  label         String
+  recipientName String
+  phone         String
+  street        String
+  city          String
+  governorate   String
+  postalCode    String
+  isDefault     Boolean @default(false)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Cart {
+  id        Int      @id @default(autoincrement())
+  updatedAt DateTime @updatedAt
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items CartItem[]
+}
+
+model CartItem {
+  id       Int @id @default(autoincrement())
+  quantity Int @default(1)
+
+  cartId    Int
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@unique([cartId, productId])
+  @@index([productId])
+}
+
+model Order {
+  id              Int           @id @default(autoincrement())
+  reference       String        @unique
+  status          OrderStatus   @default(PENDING)
+  paymentMethod   PaymentMethod
+  paymentStatus   PaymentStatus @default(PENDING)
+  subtotal        Decimal       @db.Decimal(12, 3)
+  shippingFee     Decimal       @db.Decimal(12, 3)
+  total           Decimal       @db.Decimal(12, 3)
+  shippingName    String
+  shippingPhone   String
+  shippingAddress String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  paidAt          DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+
+  items OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id          Int     @id @default(autoincrement())
+  productName String
+  unitPrice   Decimal @db.Decimal(12, 3)
+  quantity    Int
+
+  orderId   Int
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Configuration {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items ConfigurationItem[]
+
+  @@index([userId])
+}
+
+model ConfigurationItem {
+  id       Int @id @default(autoincrement())
+  quantity Int @default(1)
+
+  configurationId Int
+  configuration   Configuration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+  productId       Int
+  product         Product       @relation(fields: [productId], references: [id])
+
+  @@unique([configurationId, productId])
+  @@index([productId])
+}
+
+// ============================================================
+// Catalogue et stock
+// ============================================================
+
+model Category {
+  id        Int    @id @default(autoincrement())
+  slug      String @unique
+  nameFr    String
+  nameEn    String
+  sortOrder Int    @default(0)
+
+  parentId Int?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+
+  products Product[]
+
+  @@index([parentId])
+}
+
+model Brand {
+  id      Int     @id @default(autoincrement())
+  name    String  @unique
+  slug    String  @unique
+  logoUrl String?
+
+  products Product[]
+}
+
+model Product {
+  id            Int      @id @default(autoincrement())
+  sku           String   @unique
+  slug          String   @unique
+  name          String
+  descriptionFr String
+  descriptionEn String
+  price         Decimal  @db.Decimal(12, 3)
+  stockQuantity Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id])
+  brandId    Int
+  brand      Brand    @relation(fields: [brandId], references: [id])
+
+  images             ProductImage[]
+  specs              ProductSpec[]
+  stockMovements     StockMovement[]
+  cartItems          CartItem[]
+  orderItems         OrderItem[]
+  configurationItems ConfigurationItem[]
+
+  // Specialisations (une seule est renseignee selon le type de composant)
+  cpu         Cpu?
+  motherboard Motherboard?
+  ram         Ram?
+  gpu         Gpu?
+  powerSupply PowerSupply?
+  pcCase      PcCase?
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([isActive])
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  url       String
+  altText   String?
+  position  Int     @default(0)
+  isPrimary Boolean @default(false)
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model ProductSpec {
+  id          Int      @id @default(autoincrement())
+  name        String
+  valueText   String
+  valueNumber Decimal? @db.Decimal(14, 3)
+  unit        String?
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([name])
+}
+
+model StockMovement {
+  id             Int         @id @default(autoincrement())
+  quantityChange Int
+  reason         StockReason
+  note           String?
+  createdAt      DateTime    @default(now())
+
+  productId     Int
+  product       Product @relation(fields: [productId], references: [id])
+  performedById Int?
+  performedBy   User?   @relation(fields: [performedById], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([performedById])
+}
+
+// ============================================================
+// Composants du configurateur (heritage de Product)
+// Chaque table partage l'identifiant du produit (relation 1-1).
+// ============================================================
+
+model Cpu {
+  productId             Int     @id
+  product               Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  socket                String
+  cores                 Int
+  threads               Int
+  baseClockGHz          Decimal @db.Decimal(4, 2)
+  boostClockGHz         Decimal? @db.Decimal(4, 2)
+  tdpWatts              Int
+  hasIntegratedGraphics Boolean
+
+  @@index([socket])
+}
+
+model Motherboard {
+  productId  Int        @id
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  socket     String
+  chipset    String
+  formFactor FormFactor
+  ramType    RamType
+  ramSlots   Int
+  maxRamGB   Int
+
+  @@index([socket])
+}
+
+model Ram {
+  productId  Int     @id
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type       RamType
+  capacityGB Int
+  modules    Int
+  speedMHz   Int
+}
+
+model Gpu {
+  productId           Int     @id
+  product             Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  chipset             String
+  vramGB              Int
+  tdpWatts            Int
+  lengthMm            Int
+  recommendedPsuWatts Int?
+}
+
+model PowerSupply {
+  productId  Int     @id
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  wattage    Int
+  efficiency String
+  isModular  Boolean
+}
+
+model PcCase {
+  productId            Int          @id
+  product              Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supportedFormFactors FormFactor[]
+  maxGpuLengthMm       Int
+}
