@@ -1,23 +1,17 @@
-import { Component, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { Component, inject } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 @Component({
   selector: 'app-root',
-  template: `
-    <h1>ByteBazaar</h1>
-    <p>Backend : {{ status() }}</p>
-  `,
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  templateUrl: './app.html',
+  styleUrl: './app.css',
 })
 export class App {
-  private http = inject(HttpClient);
-  status = signal('chargement...');
+  private router = inject(Router);
 
-  constructor() {
-    this.http
-      .get<{ status: string; database: string }>('http://localhost:3000/health')
-      .subscribe({
-        next: (r) => this.status.set(`${r.status} (base ${r.database})`),
-        error: () => this.status.set('injoignable'),
-      });
+  search(event: Event, value: string) {
+    event.preventDefault();
+    this.router.navigate(['/produits'], { queryParams: { q: value.trim() || null } });
   }
 }
