@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth-service';
+import { CartStateService } from './core/cart.service';
 
 @Component({
   selector: 'app-root',
@@ -9,8 +10,9 @@ import { AuthService } from './core/auth-service';
   styleUrl: './app.css',
 })
 export class App {
-  private router = inject(Router);
   readonly auth = inject(AuthService);
+  readonly cartState = inject(CartStateService);
+  private router = inject(Router);
 
   search(event: Event, value: string) {
     event.preventDefault();

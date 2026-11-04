@@ -5,6 +5,9 @@ import { ProductDetailPage } from './pages/product-detail';
 import { LoginPage } from './pages/login';
 import { RegisterPage } from './pages/register';
 import { AccountPage } from './pages/account';
+import { CartPage } from './pages/cart';
+import { CheckoutPage } from './pages/checkout';
+import { OrderDetailPage } from './pages/order-detail';
 import { authGuard } from './core/auth-guard';
 
 export const routes: Routes = [
@@ -14,5 +17,8 @@ export const routes: Routes = [
   { path: 'connexion', component: LoginPage, title: 'Connexion · ByteBazaar' },
   { path: 'inscription', component: RegisterPage, title: 'Inscription · ByteBazaar' },
   { path: 'compte', component: AccountPage, canActivate: [authGuard], title: 'Mon compte · ByteBazaar' },
+  { path: 'panier', component: CartPage, title: 'Mon Panier · ByteBazaar' },
+  { path: 'checkout', component: CheckoutPage, canActivate: [authGuard], title: 'Commande · ByteBazaar' },
+  { path: 'commandes/:id', component: OrderDetailPage, canActivate: [authGuard], title: 'Confirmation · ByteBazaar' },
   { path: '**', redirectTo: '' },
 ];

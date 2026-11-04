@@ -5,7 +5,7 @@
       <span>Byte<b>Bazaar</b></span>
     </a>
 
-    <nav>
+    <nav class="nav-links">
       <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Accueil</a>
       <a routerLink="/produits" routerLinkActive="active">Catalogue</a>
       <span class="soon" title="Bientôt disponible">Configurateur</span>
@@ -15,13 +15,20 @@
       <input #q type="search" placeholder="Rechercher une référence…" />
     </form>
 
-    <div class="account">
-      @if (auth.isLoggedIn()) {
-        <a routerLink="/compte" class="who">{{ auth.user()?.firstName ?? 'Mon compte' }}</a>
-        <button class="linkbtn" (click)="auth.logout()">Déconnexion</button>
+    <div class="user-actions">
+      <a routerLink="/panier" class="cart-btn" title="Voir mon panier">
+        🛒
+        @if (cartState.itemCount() > 0) {
+          <span class="cart-badge">{{ cartState.itemCount() }}</span>
+        }
+      </a>
+
+      @if (auth.user(); as u) {
+        <span class="user-name">Bonjour, <b>{{ u.firstName }}</b></span>
+        <button class="btn-sm danger" (click)="auth.logout(); cartState.clearLocal()">Déconnexion</button>
       } @else {
-        <a routerLink="/connexion">Connexion</a>
-        <a routerLink="/inscription" class="btn primary small">Inscription</a>
+        <a routerLink="/connexion" class="btn-sm">Connexion</a>
+        <a routerLink="/inscription" class="btn-sm primary">Inscription</a>
       }
     </div>
   </div>

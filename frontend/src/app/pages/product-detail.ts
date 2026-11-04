@@ -1,11 +1,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { CatalogApi } from '../core/catalog-api';
 import { ProductDetail } from '../core/models';
 import { TndPipe } from '../core/tnd.pipe';
+import { AuthService } from '../core/auth-service';
+import { CartStateService } from '../core/cart.service';
 
 type State =
   | { status: 'loading' | 'notfound' | 'error'; product: null }
@@ -74,8 +76,17 @@ function formatValue(value: unknown): string {
               <span class="badge" [class.ok]="p.isAvailable">
                 {{ p.isAvailable ? 'En stock (' + p.stockQuantity + ')' : 'Rupture de stock' }}
               </span>
-              <button class="btn primary" disabled title="Bientôt disponible">Ajouter au panier</button>
+              <button
+                class="btn primary"
+                [disabled]="!p.isAvailable || adding()"
+                (click)="addToCart(p.id)"
+              >
+                {{ adding() ? 'Ajout...' : 'Ajouter au panier' }}
+              </button>
             </div>
+            @if (feedbackMsg()) {
+              <p class="badge ok" style="margin-top:0.8rem; display:inline-block;">{{ feedbackMsg() }}</p>
+            }
           </div>
         </div>
 
@@ -121,9 +132,13 @@ function formatValue(value: unknown): string {
 })
 export class ProductDetailPage {
   private api = inject(CatalogApi);
+  private auth = inject(AuthService);
+  private cartState = inject(CartStateService);
+  private router = inject(Router);
 
-  // Alimenté par l'URL /produits/:slug grâce à withComponentInputBinding()
   slug = input.required<string>();
+  adding = signal(false);
+  feedbackMsg = signal<string | null>(null);
 
   readonly state = toSignal<State, State>(
     toObservable(this.slug).pipe(
@@ -147,4 +162,21 @@ export class ProductDetailPage {
       .filter(([key, value]) => key !== 'kind' && value !== null && value !== undefined)
       .map(([key, value]) => ({ label: LABELS[key] ?? key, value: formatValue(value) }));
   });
+
+  addToCart(productId: number) {
+    if (!this.auth.isLoggedIn()) {
+      this.router.navigate(['/connexion']);
+      return;
+    }
+
+    this.adding.set(true);
+    this.cartState.addItem(productId, 1).subscribe({
+      next: () => {
+        this.adding.set(false);
+        this.feedbackMsg.set('Produit ajouté au panier !');
+        setTimeout(() => this.feedbackMsg.set(null), 3000);
+      },
+      error: () => this.adding.set(false),
+    });
+  }
 }
