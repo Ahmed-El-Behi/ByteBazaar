@@ -15,6 +15,7 @@ export interface Category {
 }
 
 export interface CategoryNode extends Category {
+  _count: { products: number };
   children: (Category & { _count: { products: number } })[];
 }
 

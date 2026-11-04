@@ -47,12 +47,12 @@ import { TndPipe } from '../core/tnd.pipe';
     .page { display: flex; justify-content: center; padding-block: 3rem; }
     .confirm-box { width: min(520px, 100%); padding: 2rem; text-align: center; }
     .icon { font-size: 3rem; }
-    .details { text-align: left; background: var(--surface-2); padding: 1rem; border-radius: 8px; margin-block: 1rem; }
+    .details { text-align: left; background: var(--surface-2); padding: 1rem; border-radius: 14px; margin-block: 1rem; }
     .row { margin-bottom: 0.4rem; }
     .items-table { width: 100%; border-collapse: collapse; margin-block: 1rem; text-align: left; }
     .items-table td { padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
     .total-row { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; font-size: 1.1rem; }
-    .price { color: var(--orange); }
+    .price { color: var(--accent); }
   `,
 })
 export class OrderDetailPage {

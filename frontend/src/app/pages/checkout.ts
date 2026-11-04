@@ -85,15 +85,15 @@ import { toSignal } from '@angular/core/rxjs-interop';
     .page { padding-block: 2rem; }
     .checkout-layout { display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; margin-top: 1rem; }
     .form-section { padding: 1.5rem; }
-    .addr-card { display: flex; gap: 0.8rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.6rem; cursor: pointer; }
-    .addr-card.selected { border-color: var(--orange); background: var(--surface-2); }
+    .addr-card { display: flex; gap: 0.8rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: 14px; margin-bottom: 0.6rem; cursor: pointer; }
+    .addr-card.selected { border-color: var(--accent); background: var(--surface-2); }
     .addr-form { display: flex; flex-direction: column; gap: 0.8rem; margin-top: 0.8rem; }
     .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.8rem; }
-    input { padding: 0.6rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
-    .pay-option { display: flex; gap: 0.6rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: 8px; margin-top: 0.6rem; }
+    input { padding: 0.6rem; border-radius: 14px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+    .pay-option { display: flex; gap: 0.6rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: 14px; margin-top: 0.6rem; }
     .summary { padding: 1.5rem; height: fit-content; }
     .sum-row { display: flex; justify-content: space-between; margin-bottom: 0.8rem; }
-    .sum-row.total { font-size: 1.2rem; color: var(--orange); }
+    .sum-row.total { font-size: 1.2rem; color: var(--accent); }
     .divider { border: 0; border-top: 1px solid var(--border); margin-block: 1rem; }
     .full { width: 100%; margin-top: 1rem; }
     @media (max-width: 800px) { .checkout-layout { grid-template-columns: 1fr; } }

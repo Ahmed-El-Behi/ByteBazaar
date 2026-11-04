@@ -94,9 +94,7 @@ function formatValue(value: unknown): string {
 
               <span class="badge" [class.ok]="p.isAvailable">
                 {{
-                  p.isAvailable
-                    ? 'En stock (' + p.stockQuantity + ')'
-                    : 'Rupture de stock'
+                  p.isAvailable ? 'En stock' : 'Rupture de stock'
                 }}
               </span>
 
@@ -169,7 +167,7 @@ function formatValue(value: unknown): string {
     }
 
     .crumbs a:hover {
-      color: var(--orange);
+      color: var(--accent);
     }
 
     /* Organisation générale */
@@ -193,7 +191,8 @@ function formatValue(value: unknown): string {
       justify-content: center;
 
       overflow: hidden;
-      border-radius: 16px;
+      border-radius: 36px;
+      background: var(--ph-bg);
       box-sizing: border-box;
     }
 
@@ -204,6 +203,7 @@ function formatValue(value: unknown): string {
       height: 100%;
       object-fit: contain;
       object-position: center center;
+      mix-blend-mode: multiply;
     }
 
     .info {
@@ -230,12 +230,13 @@ function formatValue(value: unknown): string {
       gap: 1rem;
       padding: 1rem 1.2rem;
       margin-top: 1.2rem;
-      border-radius: 15px;
+      border-radius: 999px;
+      padding: 0.8rem 0.8rem 0.8rem 1.6rem;
     }
 
     .price {
       font-size: 1.7rem;
-      color: var(--orange);
+      color: var(--accent);
       margin-right: auto;
     }
 
@@ -243,7 +244,7 @@ function formatValue(value: unknown): string {
     .specs {
       margin-top: 2rem;
       padding: 1.2rem 1.4rem;
-      border-radius: 15px;
+      border-radius: 28px;
     }
 
     table {

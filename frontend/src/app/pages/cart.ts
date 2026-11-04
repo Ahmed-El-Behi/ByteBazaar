@@ -78,7 +78,7 @@ import { TndPipe } from '../core/tnd.pipe';
     .btn-del { background: none; border: none; cursor: pointer; font-size: 1.1rem; }
     .summary { padding: 1.5rem; height: fit-content; }
     .sum-row { display: flex; justify-content: space-between; margin-bottom: 0.8rem; }
-    .sum-row.total { font-size: 1.2rem; color: var(--orange); margin-top: 0.8rem; }
+    .sum-row.total { font-size: 1.2rem; color: var(--accent); margin-top: 0.8rem; }
     .divider { border: 0; border-top: 1px solid var(--border); margin-block: 1rem; }
     .full { width: 100%; text-align: center; margin-top: 1rem; }
     .empty { padding: 3rem; text-align: center; margin-top: 1rem; }

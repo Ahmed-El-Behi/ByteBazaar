@@ -64,6 +64,7 @@ export class CatalogService {
       orderBy: { sortOrder: 'asc' },
       select: {
         ...fields,
+        _count: { select: { products: true } },
         children: {
           orderBy: { sortOrder: 'asc' },
           select: { ...fields, _count: { select: { products: true } } },

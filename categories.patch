@@ -1,0 +1,88 @@
+diff --git a/backend/src/catalog/catalog.service.ts b/backend/src/catalog/catalog.service.ts
+index 5395f57..df3b34d 100644
+--- a/backend/src/catalog/catalog.service.ts
++++ b/backend/src/catalog/catalog.service.ts
+@@ -64,6 +64,7 @@ export class CatalogService {
+       orderBy: { sortOrder: 'asc' },
+       select: {
+         ...fields,
++        _count: { select: { products: true } },
+         children: {
+           orderBy: { sortOrder: 'asc' },
+           select: { ...fields, _count: { select: { products: true } } },
+diff --git a/frontend/src/app/core/models.ts b/frontend/src/app/core/models.ts
+index fced320..ce904c4 100644
+--- a/frontend/src/app/core/models.ts
++++ b/frontend/src/app/core/models.ts
+@@ -15,6 +15,7 @@ export interface Category {
+ }
+ 
+ export interface CategoryNode extends Category {
++  _count: { products: number };
+   children: (Category & { _count: { products: number } })[];
+ }
+ 
+diff --git a/frontend/src/app/pages/home.ts b/frontend/src/app/pages/home.ts
+index 08f831a..e5685ca 100644
+--- a/frontend/src/app/pages/home.ts
++++ b/frontend/src/app/pages/home.ts
+@@ -27,8 +27,11 @@ import { ProductCard } from '../components/product-card';
+       <div class="tiles">
+         @for (c of tiles(); track c.id) {
+           <a class="card tile" routerLink="/produits" [queryParams]="{ category: c.slug }">
+-            <strong>{{ c.nameFr }}</strong>
+-            <small class="muted">{{ c._count.products }} produit(s)</small>
++            <span class="icon" aria-hidden="true">{{ icon(c.slug) }}</span>
++            <span class="txt">
++              <strong>{{ c.nameFr }}</strong>
++              <small class="muted">{{ c._count.products }} {{ c._count.products > 1 ? 'produits' : 'produit' }}</small>
++            </span>
+           </a>
+         }
+       </div>
+@@ -56,8 +59,10 @@ import { ProductCard } from '../components/product-card';
+     h1 span { color: inherit; }
+     .lead { color: rgba(255,255,255,0.85); max-width: 56ch; margin-bottom: 1.8rem; }
+     .hero .btn.primary { background: #fff; color: var(--accent); border-color: #fff; }
+-    .tiles { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+-    .tile { padding: 1.1rem 1.3rem; border-radius: 24px; display: flex; flex-direction: column; gap: 0.2rem; transition: border-color 0.15s, box-shadow 0.2s; }
++    .tiles { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
++    .tile { padding: 0.9rem 1.1rem; border-radius: 26px; display: flex; align-items: center; gap: 0.9rem; transition: border-color 0.15s, box-shadow 0.2s; }
++    .icon { flex: none; width: 52px; height: 52px; display: grid; place-items: center; font-size: 1.5rem; border-radius: 18px; background: var(--accent-soft); }
++    .txt { display: flex; flex-direction: column; min-width: 0; }
+     .tile:hover { border-color: var(--accent); box-shadow: var(--shadow-lift); }
+   `,
+ })
+@@ -68,7 +73,31 @@ export class HomePage {
+     this.api.categories().pipe(catchError(() => of([] as CategoryNode[]))),
+     { initialValue: [] as CategoryNode[] },
+   );
+-  readonly tiles = computed(() => this.categories().flatMap((root) => root.children));
++  // Toutes les vraies catégories (feuilles) qui contiennent des produits, les plus fournies d'abord
++  readonly tiles = computed(() =>
++    this.categories()
++      .flatMap((root) => (root.children.length ? root.children : [root]))
++      .filter((c) => c._count.products > 0)
++      .sort((a, b) => b._count.products - a._count.products),
++  );
++
++  private readonly icons: Record<string, string> = {
++    processeurs: '🧠',
++    refroidissement: '❄️',
++    'cartes-meres': '🔌',
++    'memoire-ram': '🧩',
++    stockage: '💾',
++    'cartes-graphiques': '🎮',
++    alimentations: '⚡',
++    boitiers: '🗄️',
++    souris: '🖱️',
++    claviers: '⌨️',
++    ecrans: '🖥️',
++  };
++
++  icon(slug: string) {
++    return this.icons[slug] ?? '🛠️';
++  }
+ 
+   readonly latest = toSignal<Paginated<ProductListItem> | null>(
+     this.api.products({ limit: '4' }).pipe(catchError(() => of(null))),

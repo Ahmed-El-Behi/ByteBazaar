@@ -27,8 +27,11 @@ import { ProductCard } from '../components/product-card';
       <div class="tiles">
         @for (c of tiles(); track c.id) {
           <a class="card tile" routerLink="/produits" [queryParams]="{ category: c.slug }">
-            <strong>{{ c.nameFr }}</strong>
-            <small class="muted">{{ c._count.products }} produit(s)</small>
+            <span class="icon" aria-hidden="true">{{ icon(c.slug) }}</span>
+            <span class="txt">
+              <strong>{{ c.nameFr }}</strong>
+              <small class="muted">{{ c._count.products }} {{ c._count.products > 1 ? 'produits' : 'produit' }}</small>
+            </span>
           </a>
         }
       </div>
@@ -48,14 +51,19 @@ import { ProductCard } from '../components/product-card';
     </section>
   `,
   styles: `
-    .hero { padding: 4rem 0 3rem; background: radial-gradient(circle at 80% 0%, rgba(245, 158, 11, 0.15), transparent 55%); }
-    .eyebrow { color: var(--cyan); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-size: 0.8rem; }
+    .hero { position: relative; overflow: hidden; width: min(1200px, 100% - 2rem); margin: 1.5rem auto 0; padding: 4.5rem 3rem; border-radius: 40px; color: var(--hero-ink); background: var(--hero-bg); }
+    .hero::after { content: ''; position: absolute; right: -90px; top: -90px; width: 340px; height: 340px; border-radius: 50%; background: var(--hero-circle); }
+    .hero .container { position: relative; z-index: 1; width: 100%; margin: 0; }
+    .eyebrow { display: inline-block; padding: 0.3rem 0.9rem; border-radius: 999px; background: var(--hero-chip); font-weight: 600; font-size: 0.85rem; margin: 0 0 1rem; }
     h1 { font-size: clamp(2rem, 5vw, 3.2rem); max-width: 18ch; }
-    h1 span { color: var(--orange); }
-    .lead { color: var(--muted); max-width: 60ch; margin-bottom: 1.5rem; }
-    .tiles { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
-    .tile { padding: 1rem; display: flex; flex-direction: column; gap: 0.2rem; transition: border-color 0.15s; }
-    .tile:hover { border-color: var(--cyan); }
+    h1 span { color: inherit; }
+    .lead { color: var(--hero-lead); max-width: 56ch; margin-bottom: 1.8rem; }
+    .hero .btn.primary { background: var(--hero-btn-bg); color: var(--hero-btn-ink); border-color: var(--hero-btn-bg); }
+    .tiles { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+    .tile { padding: 0.9rem 1.1rem; border-radius: 26px; display: flex; align-items: center; gap: 0.9rem; transition: border-color 0.15s, box-shadow 0.2s; }
+    .icon { flex: none; width: 52px; height: 52px; display: grid; place-items: center; font-size: 1.5rem; border-radius: 18px; background: var(--accent-soft); }
+    .txt { display: flex; flex-direction: column; min-width: 0; }
+    .tile:hover { border-color: var(--accent); box-shadow: var(--shadow-lift); }
   `,
 })
 export class HomePage {
@@ -65,7 +73,31 @@ export class HomePage {
     this.api.categories().pipe(catchError(() => of([] as CategoryNode[]))),
     { initialValue: [] as CategoryNode[] },
   );
-  readonly tiles = computed(() => this.categories().flatMap((root) => root.children));
+  // Toutes les vraies catégories (feuilles) qui contiennent des produits, les plus fournies d'abord
+  readonly tiles = computed(() =>
+    this.categories()
+      .flatMap((root) => (root.children.length ? root.children : [root]))
+      .filter((c) => c._count.products > 0)
+      .sort((a, b) => b._count.products - a._count.products),
+  );
+
+  private readonly icons: Record<string, string> = {
+    processeurs: '🧠',
+    refroidissement: '❄️',
+    'cartes-meres': '🔌',
+    'memoire-ram': '🧩',
+    stockage: '💾',
+    'cartes-graphiques': '🎮',
+    alimentations: '⚡',
+    boitiers: '🗄️',
+    souris: '🖱️',
+    claviers: '⌨️',
+    ecrans: '🖥️',
+  };
+
+  icon(slug: string) {
+    return this.icons[slug] ?? '🛠️';
+  }
 
   readonly latest = toSignal<Paginated<ProductListItem> | null>(
     this.api.products({ limit: '4' }).pipe(catchError(() => of(null))),

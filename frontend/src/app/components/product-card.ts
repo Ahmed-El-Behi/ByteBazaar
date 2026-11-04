@@ -28,12 +28,13 @@ import { TndPipe } from '../core/tnd.pipe';
     </a>
   `,
   styles: `
-    .product { display: block; overflow: hidden; transition: border-color 0.15s, transform 0.15s; height: 100%; }
-    .product:hover { border-color: var(--orange); transform: translateY(-2px); }
-    .body { padding: 0.9rem 1rem 1rem; }
-    h3 { font-size: 1rem; margin: 0.25rem 0 0.7rem; min-height: 2.4em; }
+    .product { display: block; padding: 0.6rem; height: 100%; transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s; }
+    .product:hover { box-shadow: var(--shadow-lift); transform: translateY(-3px); border-color: var(--accent); }
+    .ph { border-radius: 22px; }
+    .body { padding: 0.9rem 0.6rem 0.6rem; }
+    h3 { font-size: 0.98rem; font-weight: 600; margin: 0.25rem 0 0.8rem; min-height: 2.5em; }
     .row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
-    .price { color: var(--orange); font-size: 1.05rem; }
+    .price { color: var(--accent); font-family: var(--font-display); font-size: 1.1rem; }
   `,
 })
 export class ProductCard {
