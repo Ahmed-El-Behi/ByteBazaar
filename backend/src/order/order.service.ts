@@ -1,7 +1,26 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CartService } from '../cart/cart.service';
 import { CheckoutDto } from './order.dto';
+
+type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>;
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+// Convertit les Decimal en nombres et ajoute lineTotal (calculé, non stocké en base)
+function toOrderDto(order: OrderWithItems) {
+  return {
+    ...order,
+    subtotal: Number(order.subtotal),
+    shippingFee: Number(order.shippingFee),
+    total: Number(order.total),
+    items: order.items.map((item) => {
+      const unitPrice = Number(item.unitPrice);
+      return { ...item, unitPrice, lineTotal: round3(unitPrice * item.quantity) };
+    }),
+  };
+}
 
 @Injectable()
 export class OrderService {
@@ -62,7 +81,7 @@ export class OrderService {
     }
 
     // Transaction atomique : vérification stock, création commande, mouvement de stock, vidage panier
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       // 1. Vérification stricte des stocks
       for (const item of cart.items) {
         const prod = await tx.product.findUnique({ where: { id: item.productId } });
@@ -93,14 +112,13 @@ export class OrderService {
           shippingPhone: address.phone,
           shippingAddress: `${address.street}, ${address.city}, ${address.governorate} ${address.postalCode}`,
           items: {
-  create: cart.items.map((i) => ({
-    productId: i.productId,
-    productName: i.product.name,
-    unitPrice: i.unitPrice,
-    quantity: i.quantity,
-    lineTotal: i.lineTotal,
-  })),
-},
+            create: cart.items.map((i) => ({
+              productId: i.productId,
+              productName: i.product.name,
+              unitPrice: i.unitPrice,
+              quantity: i.quantity,
+            })),
+          },
         },
         include: { items: true },
       });
@@ -127,16 +145,17 @@ export class OrderService {
 
       return order;
     });
+
+    return toOrderDto(created);
   }
 
   async getMyOrders(userId: number) {
-    return this.prisma.order.findMany({
+    const orders = await this.prisma.order.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      include: {
-        items: true,
-      },
+      include: { items: true },
     });
+    return orders.map(toOrderDto);
   }
 
   async getOrderDetails(userId: number, orderId: number) {
@@ -145,6 +164,6 @@ export class OrderService {
       include: { items: true },
     });
     if (!order) throw new NotFoundException('Commande non trouvée');
-    return order;
+    return toOrderDto(order);
   }
 }
