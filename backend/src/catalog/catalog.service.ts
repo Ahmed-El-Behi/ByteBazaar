@@ -57,20 +57,24 @@ function describeTechnical(kind: string, row: object) {
 export class CatalogService {
   constructor(private readonly prisma: PrismaService) {}
 
-  listCategories() {
+  // Seules les catégories qui contiennent des produits sont renvoyées
+  // (une racine vide sans sous-catégorie utile est masquée).
+  async listCategories() {
     const fields = { id: true, slug: true, nameFr: true, nameEn: true } as const;
-    return this.prisma.category.findMany({
+    const count = { _count: { select: { products: true } } } as const;
+    const roots = await this.prisma.category.findMany({
       where: { parentId: null },
       orderBy: { sortOrder: 'asc' },
       select: {
         ...fields,
-        _count: { select: { products: true } },
-        children: {
-          orderBy: { sortOrder: 'asc' },
-          select: { ...fields, _count: { select: { products: true } } },
-        },
+        ...count,
+        children: { orderBy: { sortOrder: 'asc' }, select: { ...fields, ...count } },
       },
     });
+
+    return roots
+      .map((root) => ({ ...root, children: root.children.filter((c) => c._count.products > 0) }))
+      .filter((root) => root._count.products > 0 || root.children.length > 0);
   }
 
   listBrands() {

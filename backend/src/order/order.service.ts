@@ -2,7 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CartService } from '../cart/cart.service';
-import { CheckoutDto } from './order.dto';
+import { CheckoutDto, CreateAddressDto } from './order.dto';
+
+const PAYMENT_METHODS = ['CASH_ON_DELIVERY', 'CARD', 'PAYPAL', 'BANK_TRANSFER'] as const;
+const ADDRESS_FIELDS = ['recipientName', 'phone', 'street', 'city', 'governorate', 'postalCode'] as const;
 
 type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>;
 
@@ -37,7 +40,12 @@ export class OrderService {
     });
   }
 
-  async createAddress(userId: number, dto: any) {
+  async createAddress(userId: number, dto: CreateAddressDto) {
+    const missing = ADDRESS_FIELDS.filter((key) => typeof dto?.[key] !== 'string' || !dto[key].trim());
+    if (missing.length) {
+      throw new BadRequestException(`Adresse incomplète : ${missing.join(', ')}`);
+    }
+
     if (dto.isDefault) {
       await this.prisma.address.updateMany({
         where: { userId },
@@ -62,6 +70,11 @@ export class OrderService {
 
   // --- PASSAGE DE COMMANDE ---
   async checkout(userId: number, dto: CheckoutDto) {
+    const paymentMethod = dto.paymentMethod ?? 'CASH_ON_DELIVERY';
+    if (!PAYMENT_METHODS.includes(paymentMethod)) {
+      throw new BadRequestException('Mode de paiement invalide');
+    }
+
     const cart = await this.cartService.getCart(userId);
     if (!cart.items.length) {
       throw new BadRequestException('Votre panier est vide');
@@ -103,7 +116,7 @@ export class OrderService {
           userId,
           reference,
           status: 'PENDING',
-          paymentMethod: dto.paymentMethod || 'CASH_ON_DELIVERY',
+          paymentMethod,
           paymentStatus: 'PENDING',
           subtotal,
           shippingFee,
