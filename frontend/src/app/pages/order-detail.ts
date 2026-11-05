@@ -2,7 +2,7 @@ import { Component, inject, input } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
-import { CartApi, Order } from '../core/cart-api';
+import { CartApi, Order, PAYMENT_LABELS, STATUS_LABELS } from '../core/cart-api';
 import { TndPipe } from '../core/tnd.pipe';
 
 @Component({
@@ -17,7 +17,8 @@ import { TndPipe } from '../core/tnd.pipe';
           <p class="muted">Référence : <strong>{{ o.reference }}</strong></p>
 
           <div class="details">
-            <div class="row"><span>Statut :</span> <strong>{{ o.status }}</strong></div>
+            <div class="row"><span>Statut :</span> <strong>{{ status[o.status] ?? o.status }}</strong></div>
+            <div class="row"><span>Paiement :</span> {{ payment[o.paymentMethod] ?? o.paymentMethod }}</div>
             <div class="row"><span>Destinataire :</span> {{ o.shippingName }} ({{ o.shippingPhone }})</div>
             <div class="row"><span>Adresse :</span> {{ o.shippingAddress }}</div>
           </div>
@@ -58,6 +59,8 @@ import { TndPipe } from '../core/tnd.pipe';
 export class OrderDetailPage {
   private api = inject(CartApi);
   id = input.required<string>();
+  readonly status = STATUS_LABELS;
+  readonly payment = PAYMENT_LABELS;
 
   readonly order = toSignal<Order>(
     toObservable(this.id).pipe(switchMap((id) => this.api.getOrder(Number(id)))),

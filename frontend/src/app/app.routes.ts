@@ -9,6 +9,7 @@ import { CartPage } from './pages/cart';
 import { CheckoutPage } from './pages/checkout';
 import { OrderDetailPage } from './pages/order-detail';
 import { authGuard } from './core/auth-guard';
+import { adminGuard } from './core/admin.guard';
 
 export const routes: Routes = [
   { path: '', component: HomePage, title: 'ByteBazaar · Composants PC en Tunisie' },
@@ -20,5 +21,24 @@ export const routes: Routes = [
   { path: 'panier', component: CartPage, title: 'Mon Panier · ByteBazaar' },
   { path: 'checkout', component: CheckoutPage, canActivate: [authGuard], title: 'Commande · ByteBazaar' },
   { path: 'commandes/:id', component: OrderDetailPage, canActivate: [authGuard], title: 'Confirmation · ByteBazaar' },
+  
+  // --- ROUTES ADMINISTRATION ---
+  {
+    path: 'admin/commandes',
+    loadComponent: () => import('./pages/admin-orders').then((m) => m.AdminOrdersPage),
+    canActivate: [adminGuard],
+    title: 'Gestion des commandes · Admin ByteBazaar',
+  },
+  {
+    path: 'admin/stock',
+    loadComponent: () => import('./pages/admin-stock').then((m) => m.AdminStockPage),
+    canActivate: [adminGuard],
+    title: 'Gestion des stocks · Admin ByteBazaar',
+  },
+
   { path: '**', redirectTo: '' },
+  {
+  path: 'mes-commandes',
+  loadComponent: () => import('./pages/account').then(m => m.AccountPage) // ou le nom de la classe dans account.ts
+}
 ];

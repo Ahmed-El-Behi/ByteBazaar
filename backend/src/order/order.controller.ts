@@ -24,7 +24,8 @@ export class OrderController {
     return this.orderService.checkout(req.user!.id, dto);
   }
 
-  @Get()
+  // Accepte à la fois GET /orders et GET /orders/my-orders
+  @Get(['', 'my-orders'])
   getMyOrders(@Req() req: AuthedRequest) {
     return this.orderService.getMyOrders(req.user!.id);
   }

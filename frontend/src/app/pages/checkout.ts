@@ -1,142 +1,436 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
+import {
+  AbstractControl,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { FormsModule } from '@angular/forms';
-import { CartApi, Address } from '../core/cart-api';
+import { AuthService } from '../core/auth-service';
+import { Address, CartApi } from '../core/cart-api';
 import { CartStateService } from '../core/cart.service';
+import { SHIPPING_FEE } from '../core/models';
 import { TndPipe } from '../core/tnd.pipe';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { apiErrors } from '../core/utils';
+
+type PayMethod = 'CARD' | 'PAYPAL' | 'BANK_TRANSFER' | 'CASH_ON_DELIVERY';
+
+const GOVERNORATES = [
+  'Ariana', 'Béja', 'Ben Arous', 'Bizerte', 'Gabès', 'Gafsa', 'Jendouba', 'Kairouan',
+  'Kasserine', 'Kébili', 'Le Kef', 'Mahdia', 'La Manouba', 'Médenine', 'Monastir', 'Nabeul',
+  'Sfax', 'Sidi Bouzid', 'Siliana', 'Sousse', 'Tataouine', 'Tozeur', 'Tunis', 'Zaghouan',
+];
+
+const cardNumberValid = (c: AbstractControl): ValidationErrors | null => {
+  const d = String(c.value ?? '').replace(/\D/g, '');
+  if (d.length < 13 || d.length > 19) return { card: true };
+  let sum = 0;
+  let double = false;
+  for (let i = d.length - 1; i >= 0; i--) {
+    let n = Number(d[i]);
+    if (double) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    double = !double;
+  }
+  return sum % 10 === 0 ? null : { card: true };
+};
+
+const expiryValid = (c: AbstractControl): ValidationErrors | null => {
+  const m = /^(\d{2})\/(\d{2})$/.exec(String(c.value ?? ''));
+  if (!m || Number(m[1]) < 1 || Number(m[1]) > 12) return { expiry: true };
+  return new Date(2000 + Number(m[2]), Number(m[1]), 1) > new Date() ? null : { expiry: true };
+};
+
+const MESSAGES: Record<string, string> = {
+  recipientName: 'Indique le nom du destinataire.',
+  phone: 'Numéro invalide (8 chiffres, ex. 22 123 456).',
+  street: 'Indique ton adresse.',
+  governorate: 'Choisis un gouvernorat.',
+  city: 'Indique ta ville.',
+  postalCode: 'Code postal à 4 chiffres.',
+  number: 'Numéro de carte invalide.',
+  holder: 'Indique le nom inscrit sur la carte.',
+  expiry: 'Date invalide (MM/AA).',
+  cvc: 'Code à 3 ou 4 chiffres.',
+};
 
 @Component({
-  selector: 'app-checkout-page',
-  imports: [FormsModule, TndPipe],
+  selector: 'app-checkout',
+  imports: [ReactiveFormsModule, RouterLink, TndPipe],
   template: `
     <div class="container page">
-      <h2>Passer la commande</h2>
+      <h1>Finaliser la commande</h1>
 
-      <div class="checkout-layout">
-        <div class="card form-section">
-          <h3>1. Adresse de livraison</h3>
+      @if (cartState.cart(); as c) {
+        @if (!c.items.length) {
+          <div class="card empty">
+            <p>Ton panier est vide.</p>
+            <a routerLink="/produits" class="btn primary">Voir le catalogue</a>
+          </div>
+        } @else {
+          <div class="layout">
+            <div class="steps">
+              <!-- 1. Livraison -->
+              <section class="card block">
+                <header><span class="num">1</span><h2>Livraison</h2></header>
 
-          @if (addresses(); as addrList) {
-            @if (addrList.length) {
-              <div class="addr-selector">
-                @for (a of addrList; track a.id) {
-                  <label class="addr-card" [class.selected]="selectedAddressId === a.id">
-                    <input type="radio" name="address" [value]="a.id" [(ngModel)]="selectedAddressId" />
-                    <div>
-                      <strong>{{ a.recipientName }}</strong> ({{ a.label }})
-                      <p class="muted">{{ a.street }}, {{ a.city }} - {{ a.governorate }} ({{ a.phone }})</p>
+                @if (addresses(); as list) {
+                  @if (list.length) {
+                    <div class="choices">
+                      @for (a of list; track a.id) {
+                        <label class="choice" [class.on]="!useNew() && selectedId() === a.id">
+                          <input type="radio" name="addr" [checked]="!useNew() && selectedId() === a.id" (change)="pickAddress(a.id)" />
+                          <span class="body">
+                            <strong>{{ a.recipientName }} <span class="tag">{{ a.label }}</span></strong>
+                            <small class="muted">{{ a.street }}, {{ a.city }}, {{ a.governorate }} {{ a.postalCode }}</small>
+                            <small class="muted">{{ a.phone }}</small>
+                          </span>
+                        </label>
+                      }
+                      <label class="choice" [class.on]="useNew()">
+                        <input type="radio" name="addr" [checked]="useNew()" (change)="useNew.set(true)" />
+                        <span class="body"><strong>Utiliser une nouvelle adresse</strong></span>
+                      </label>
                     </div>
-                  </label>
+                  }
+                } @else {
+                  <p class="muted">Chargement de tes adresses…</p>
                 }
-              </div>
-            }
-          }
 
-          <h4 style="margin-top: 1.5rem;">Ou ajouter une nouvelle adresse :</h4>
-          <form class="addr-form">
-            <div class="row">
-              <input type="text" [(ngModel)]="newAddress.recipientName" name="recipientName" placeholder="Nom du destinataire" required />
-              <input type="tel" [(ngModel)]="newAddress.phone" name="phone" placeholder="Téléphone" required />
-            </div>
-            <input type="text" [(ngModel)]="newAddress.street" name="street" placeholder="Adresse rue" required />
-            <div class="row">
-              <input type="text" [(ngModel)]="newAddress.city" name="city" placeholder="Ville" required />
-              <input type="text" [(ngModel)]="newAddress.governorate" name="governorate" placeholder="Gouvernorat" required />
-              <input type="text" [(ngModel)]="newAddress.postalCode" name="postalCode" placeholder="Code postal" required />
-            </div>
-          </form>
+                @if (useNew()) {
+                  <div class="grid" [formGroup]="form">
+                    <div class="field s3">
+                      <label for="recipientName">Nom du destinataire</label>
+                      <input id="recipientName" formControlName="recipientName" autocomplete="name" />
+                      @if (err(form, 'recipientName'); as m) { <small class="err">{{ m }}</small> }
+                    </div>
+                    <div class="field s3">
+                      <label for="phone">Téléphone</label>
+                      <input id="phone" formControlName="phone" inputmode="tel" autocomplete="tel" placeholder="22 123 456" />
+                      @if (err(form, 'phone'); as m) { <small class="err">{{ m }}</small> }
+                    </div>
+                    <div class="field s6">
+                      <label for="street">Adresse</label>
+                      <input id="street" formControlName="street" autocomplete="street-address" placeholder="N°, rue, immeuble…" />
+                      @if (err(form, 'street'); as m) { <small class="err">{{ m }}</small> }
+                    </div>
+                    <div class="field s2">
+                      <label for="governorate">Gouvernorat</label>
+                      <select id="governorate" formControlName="governorate">
+                        <option value="" disabled>Choisir…</option>
+                        @for (g of governorates; track g) { <option [value]="g">{{ g }}</option> }
+                      </select>
+                      @if (err(form, 'governorate'); as m) { <small class="err">{{ m }}</small> }
+                    </div>
+                    <div class="field s2">
+                      <label for="city">Ville</label>
+                      <input id="city" formControlName="city" autocomplete="address-level2" />
+                      @if (err(form, 'city'); as m) { <small class="err">{{ m }}</small> }
+                    </div>
+                    <div class="field s2">
+                      <label for="postalCode">Code postal</label>
+                      <input id="postalCode" formControlName="postalCode" inputmode="numeric" maxlength="4" autocomplete="postal-code" />
+                      @if (err(form, 'postalCode'); as m) { <small class="err">{{ m }}</small> }
+                    </div>
+                    <div class="field s3">
+                      <label for="label">Enregistrer sous</label>
+                      <select id="label" formControlName="label">
+                        <option>Domicile</option>
+                        <option>Bureau</option>
+                        <option>Autre</option>
+                      </select>
+                    </div>
+                  </div>
+                }
+              </section>
 
-          <h3 style="margin-top: 2rem;">2. Mode de paiement</h3>
-          <label class="pay-option">
-            <input type="radio" name="pay" value="CASH_ON_DELIVERY" checked />
-            Paiement à la livraison (Espèces)
-          </label>
-        </div>
+              <!-- 2. Paiement -->
+              <section class="card block">
+                <header><span class="num">2</span><h2>Paiement</h2></header>
 
-        <div class="card summary">
-          <h3>Commande</h3>
-          @if (cartState.cart(); as c) {
-            <div class="sum-row">
-              <span>Articles ({{ c.itemCount }})</span>
-              <strong>{{ c.total | tnd }}</strong>
+                <div class="choices">
+                  @for (m of methods; track m.value) {
+                    <label class="choice" [class.on]="payment() === m.value">
+                      <input type="radio" name="pay" [checked]="payment() === m.value" (change)="payment.set(m.value)" />
+                      <span class="body">
+                        <strong>{{ m.label }}</strong>
+                        <small class="muted">{{ m.hint }}</small>
+                      </span>
+                      <span class="brands">
+                        @switch (m.value) {
+                          @case ('CARD') {
+                            <span class="brand visa">VISA</span>
+                            <span class="brand mc" aria-label="Mastercard"><i></i><i></i></span>
+                          }
+                          @case ('PAYPAL') {
+                            <span class="brand pp"><b>Pay</b>Pal</span>
+                          }
+                        }
+                      </span>
+                    </label>
+
+                    @if (payment() === m.value) {
+                      <div class="detail">
+                        @switch (m.value) {
+                          @case ('CARD') {
+                            <div class="grid" [formGroup]="card">
+                              <div class="field s6">
+                                <label for="cardNumber">Numéro de carte</label>
+                                <input id="cardNumber" formControlName="number" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456" (input)="onNumber($event)" />
+                                @if (err(card, 'number'); as e) { <small class="err">{{ e }}</small> }
+                              </div>
+                              <div class="field s6">
+                                <label for="cardHolder">Nom sur la carte</label>
+                                <input id="cardHolder" formControlName="holder" autocomplete="cc-name" />
+                                @if (err(card, 'holder'); as e) { <small class="err">{{ e }}</small> }
+                              </div>
+                              <div class="field s3">
+                                <label for="cardExpiry">Expiration</label>
+                                <input id="cardExpiry" formControlName="expiry" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA" maxlength="5" (input)="onExpiry($event)" />
+                                @if (err(card, 'expiry'); as e) { <small class="err">{{ e }}</small> }
+                              </div>
+                              <div class="field s3">
+                                <label for="cardCvc">Code de sécurité</label>
+                                <input id="cardCvc" formControlName="cvc" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4" (input)="onCvc($event)" />
+                                @if (err(card, 'cvc'); as e) { <small class="err">{{ e }}</small> }
+                              </div>
+                            </div>
+                            <p class="note">Mode démonstration : les informations de carte sont vérifiées dans le navigateur, puis ni envoyées ni enregistrées.</p>
+                          }
+                          @case ('PAYPAL') {
+                            <p class="note">Tu seras redirigé vers PayPal pour valider le paiement (démonstration : aucune redirection réelle).</p>
+                          }
+                          @case ('BANK_TRANSFER') {
+                            <p class="note">Les coordonnées bancaires te seront communiquées après validation de la commande. Elle est expédiée à réception du virement.</p>
+                          }
+                          @case ('CASH_ON_DELIVERY') {
+                            <p class="note">Tu paies en espèces au livreur, à la réception de ton colis.</p>
+                          }
+                        }
+                      </div>
+                    }
+                  }
+                </div>
+              </section>
             </div>
-            <div class="sum-row">
-              <span>Livraison</span>
-              <span>7,000 TND</span>
-            </div>
-            <hr class="divider" />
-            <div class="sum-row total">
-              <span>Total à payer</span>
-              <strong>{{ (c.total + 7) | tnd }}</strong>
-            </div>
-            <button class="btn primary full" [disabled]="submitting()" (click)="confirmOrder()">
-              {{ submitting() ? 'Validation...' : 'Confirmer la commande' }}
-            </button>
-            @if (errorMsg()) {
-              <p class="badge" style="margin-top:0.8rem;">{{ errorMsg() }}</p>
-            }
-          }
-        </div>
-      </div>
+
+            <!-- Récapitulatif -->
+            <aside class="card summary">
+              <h2>Récapitulatif</h2>
+              <ul>
+                @for (i of c.items; track i.id) {
+                  <li>
+                    <span>{{ i.product.name }} <small class="muted">× {{ i.quantity }}</small></span>
+                    <span>{{ i.lineTotal | tnd }}</span>
+                  </li>
+                }
+              </ul>
+              <div class="row"><span>Sous-total</span><span>{{ c.total | tnd }}</span></div>
+              <div class="row"><span>Livraison</span><span>{{ shipping | tnd }}</span></div>
+              <div class="row total"><span>Total</span><span>{{ c.total + shipping | tnd }}</span></div>
+
+              @if (errorMsg()) {
+                <div class="alert"><p>{{ errorMsg() }}</p></div>
+              }
+
+              <button class="btn primary block" type="button" [disabled]="submitting()" (click)="confirmOrder()">
+                {{ submitting() ? 'Validation…' : 'Confirmer la commande' }}
+              </button>
+              <a routerLink="/panier" class="back">← Modifier le panier</a>
+            </aside>
+          </div>
+        }
+      } @else {
+        <p class="muted">Chargement…</p>
+      }
     </div>
   `,
   styles: `
-    .page { padding-block: 2rem; }
-    .checkout-layout { display: grid; grid-template-columns: 1fr 340px; gap: 1.5rem; margin-top: 1rem; }
-    .form-section { padding: 1.5rem; }
-    .addr-card { display: flex; gap: 0.8rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: 14px; margin-bottom: 0.6rem; cursor: pointer; }
-    .addr-card.selected { border-color: var(--accent); background: var(--surface-2); }
-    .addr-form { display: flex; flex-direction: column; gap: 0.8rem; margin-top: 0.8rem; }
-    .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.8rem; }
-    input { padding: 0.6rem; border-radius: 14px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
-    .pay-option { display: flex; gap: 0.6rem; padding: 0.8rem; border: 1px solid var(--border); border-radius: 14px; margin-top: 0.6rem; }
-    .summary { padding: 1.5rem; height: fit-content; }
-    .sum-row { display: flex; justify-content: space-between; margin-bottom: 0.8rem; }
-    .sum-row.total { font-size: 1.2rem; color: var(--accent); }
-    .divider { border: 0; border-top: 1px solid var(--border); margin-block: 1rem; }
-    .full { width: 100%; margin-top: 1rem; }
-    @media (max-width: 800px) { .checkout-layout { grid-template-columns: 1fr; } }
+    .page { padding-block: 2rem 3rem; }
+    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    .layout { display: grid; gap: 1.5rem; grid-template-columns: 1fr 360px; align-items: start; }
+    .steps { display: grid; gap: 1.2rem; }
+    .block { padding: 1.5rem; }
+    .block header { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1.1rem; }
+    .block h2 { margin: 0; font-size: 1.2rem; }
+    .num { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 0.9rem; }
+
+    .choices { display: grid; gap: 0.6rem; }
+    .choice { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 1.1rem; border: 1.5px solid var(--border); border-radius: 18px; background: var(--bg); transition: border-color 0.15s, background 0.15s; }
+    .choice:hover { border-color: var(--accent); }
+    .choice.on { border-color: var(--accent); background: var(--accent-soft); }
+    .choice input { accent-color: var(--accent); width: 18px; height: 18px; flex: none; margin: 0; }
+    .body { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0; }
+    .body small { font-size: 0.85rem; }
+    .tag { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.55rem; margin-left: 0.3rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+
+    .brands { display: flex; align-items: center; gap: 0.4rem; }
+    .brand { display: inline-flex; align-items: center; justify-content: center; height: 26px; padding: 0 0.6rem; border-radius: 7px; background: #fff; border: 1px solid #dfe5f3; font-size: 0.75rem; }
+    .visa { color: #1a1f71; font-weight: 800; font-style: italic; letter-spacing: 0.02em; }
+    .mc { width: 38px; padding: 0; }
+    .mc i { width: 16px; height: 16px; border-radius: 50%; background: #eb001b; }
+    .mc i + i { background: #f79e1b; margin-left: -6px; mix-blend-mode: multiply; }
+    .pp { color: #009cde; font-weight: 800; font-style: italic; }
+    .pp b { color: #003087; }
+
+    .detail { padding: 0.4rem 0.2rem 0.6rem 2.2rem; }
+    .note { font-size: 0.85rem; color: var(--muted); margin: 0.6rem 0 0; }
+
+    .grid { display: grid; gap: 0.2rem 0.9rem; grid-template-columns: repeat(6, 1fr); margin-top: 1rem; }
+    .detail .grid { margin-top: 0.4rem; }
+    .field { margin-bottom: 0.6rem; }
+    .s2 { grid-column: span 2; } .s3 { grid-column: span 3; } .s6 { grid-column: span 6; }
+    .field select { padding: 0.7rem 1rem; border-radius: 14px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+    .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+    .err { color: var(--red); font-size: 0.8rem; }
+
+    .summary { padding: 1.5rem; position: sticky; top: 90px; }
+    .summary h2 { font-size: 1.2rem; }
+    .summary ul { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: 0.5rem; }
+    .summary li { display: flex; justify-content: space-between; gap: 0.8rem; font-size: 0.92rem; }
+    .row { display: flex; justify-content: space-between; padding: 0.35rem 0; }
+    .total { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; border-top: 1px solid var(--border); margin-top: 0.4rem; padding-top: 0.8rem; color: var(--accent); }
+    .summary .btn { margin-top: 1rem; }
+    .back { display: block; text-align: center; margin-top: 0.9rem; font-size: 0.9rem; color: var(--muted); }
+    .empty { padding: 2.5rem; text-align: center; display: grid; gap: 1rem; justify-items: center; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .summary { position: static; }
+      .s2, .s3 { grid-column: span 6; }
+      .detail { padding-left: 0; }
+    }
   `,
 })
 export class CheckoutPage {
   private api = inject(CartApi);
-  readonly cartState = inject(CartStateService);
   private router = inject(Router);
+  private auth = inject(AuthService);
+  readonly cartState = inject(CartStateService);
 
-  readonly addresses = toSignal(this.api.getAddresses(), { initialValue: [] as Address[] });
-  selectedAddressId: number | null = null;
+  readonly shipping = SHIPPING_FEE;
+  readonly governorates = GOVERNORATES;
+  readonly methods: { value: PayMethod; label: string; hint: string }[] = [
+    { value: 'CARD', label: 'Carte bancaire', hint: 'Visa, Mastercard' },
+    { value: 'PAYPAL', label: 'PayPal', hint: 'Paiement en ligne sécurisé' },
+    { value: 'BANK_TRANSFER', label: 'Virement bancaire', hint: 'Expédition après réception du virement' },
+    { value: 'CASH_ON_DELIVERY', label: 'Paiement à la livraison', hint: 'Espèces à la réception' },
+  ];
 
-  newAddress = {
-    label: 'Domicile',
-    recipientName: '',
-    phone: '',
-    street: '',
-    city: '',
-    governorate: '',
-    postalCode: '',
-  };
+  readonly addresses = signal<Address[] | null>(null);
+  readonly selectedId = signal<number | null>(null);
+  readonly useNew = signal(false);
+  readonly payment = signal<PayMethod>('CASH_ON_DELIVERY');
+  readonly submitting = signal(false);
+  readonly errorMsg = signal<string | null>(null);
 
-  submitting = signal(false);
-  errorMsg = signal<string | null>(null);
+  readonly form = new FormGroup({
+    recipientName: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    phone: new FormControl('', {
+      nonNullable: true,
+      validators: [Validators.required, Validators.pattern(/^(?:\+?216[\s.-]?)?\d{2}[\s.-]?\d{3}[\s.-]?\d{3}$/)],
+    }),
+    street: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    governorate: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    city: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    postalCode: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(/^\d{4}$/)] }),
+    label: new FormControl('Domicile', { nonNullable: true }),
+  });
 
-  confirmOrder() {
-    this.submitting.set(true);
-    this.errorMsg.set(null);
+  // Les infos de carte restent dans le navigateur : elles ne sont jamais envoyées au backend
+  readonly card = new FormGroup({
+    number: new FormControl('', { nonNullable: true, validators: [cardNumberValid] }),
+    holder: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    expiry: new FormControl('', { nonNullable: true, validators: [expiryValid] }),
+    cvc: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(/^\d{3,4}$/)] }),
+  });
 
-    const payload = this.selectedAddressId
-      ? { addressId: this.selectedAddressId }
-      : { newAddress: this.newAddress };
+  constructor() {
+    // Pré-remplit le nom et le téléphone avec ceux du compte
+    effect(() => {
+      const u = this.auth.user();
+      if (u && !this.form.controls.recipientName.value) {
+        this.form.patchValue({ recipientName: `${u.firstName} ${u.lastName}`, phone: u.phone ?? '' });
+      }
+    });
 
-    this.api.checkout(payload).subscribe({
-      next: (order) => {
-        this.cartState.clearLocal();
-        this.router.navigate(['/commandes', order.id]);
+    this.api.getAddresses().subscribe({
+      next: (list) => {
+        this.addresses.set(list);
+        if (list.length) this.selectedId.set((list.find((a) => a.isDefault) ?? list[0]).id);
+        else this.useNew.set(true);
       },
-      error: (err) => {
-        this.submitting.set(false);
-        this.errorMsg.set(err.error?.message || 'Erreur lors de la commande');
+      error: () => {
+        this.addresses.set([]);
+        this.useNew.set(true);
       },
     });
+  }
+
+  pickAddress(id: number) {
+    this.useNew.set(false);
+    this.selectedId.set(id);
+  }
+
+  err(group: FormGroup, name: string): string | null {
+    const c = group.get(name);
+    return c && c.touched && c.invalid ? MESSAGES[name] : null;
+  }
+
+  onNumber(e: Event) {
+    const digits = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 19);
+    this.card.controls.number.setValue(digits.replace(/(.{4})(?=.)/g, '$1 '));
+  }
+
+  onExpiry(e: Event) {
+    const d = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 4);
+    this.card.controls.expiry.setValue(d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d);
+  }
+
+  onCvc(e: Event) {
+    this.card.controls.cvc.setValue((e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 4));
+  }
+
+  confirmOrder() {
+    this.errorMsg.set(null);
+
+    const address = !this.useNew() && this.selectedId() !== null ? { addressId: this.selectedId()! } : null;
+    if (!address) {
+      this.form.markAllAsTouched();
+      if (this.form.invalid) {
+        this.errorMsg.set("Vérifie l'adresse de livraison.");
+        return;
+      }
+    }
+
+    if (this.payment() === 'CARD') {
+      this.card.markAllAsTouched();
+      if (this.card.invalid) {
+        this.errorMsg.set('Vérifie les informations de ta carte.');
+        return;
+      }
+    }
+
+    this.submitting.set(true);
+    this.api
+      .checkout({
+        ...(address ?? { newAddress: this.form.getRawValue() }),
+        paymentMethod: this.payment(),
+      })
+      .subscribe({
+        next: (order) => {
+          this.cartState.clearLocal();
+          this.router.navigate(['/commandes', order.id]);
+        },
+        error: (e) => {
+          this.submitting.set(false);
+          this.errorMsg.set(apiErrors(e).join(' '));
+        },
+      });
   }
 }

@@ -58,6 +58,22 @@ export interface Order {
   }[];
 }
 
+export const PAYMENT_LABELS: Record<string, string> = {
+  CASH_ON_DELIVERY: 'Paiement à la livraison',
+  CARD: 'Carte bancaire',
+  PAYPAL: 'PayPal',
+  BANK_TRANSFER: 'Virement bancaire',
+};
+
+export const STATUS_LABELS: Record<string, string> = {
+  PENDING: 'En attente',
+  CONFIRMED: 'Confirmée',
+  PREPARING: 'En préparation',
+  SHIPPED: 'Expédiée',
+  DELIVERED: 'Livrée',
+  CANCELLED: 'Annulée',
+};
+
 @Injectable({ providedIn: 'root' })
 export class CartApi {
   private http = inject(HttpClient);

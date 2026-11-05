@@ -1,4 +1,5 @@
 export const API_URL = 'http://localhost:3000';
+export const SHIPPING_FEE = 7; // TND, doit rester identique à order.service.ts côté backend
 
 export interface Brand {
   id: number;

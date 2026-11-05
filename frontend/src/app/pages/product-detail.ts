@@ -2,13 +2,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { CatalogApi } from '../core/catalog-api';
 import { ProductDetail } from '../core/models';
 import { TndPipe } from '../core/tnd.pipe';
-import { AuthService } from '../core/auth-service';
 import { CartStateService } from '../core/cart.service';
+import { apiErrors } from '../core/utils';
 
 type State =
   | { status: 'loading' | 'notfound' | 'error'; product: null }
@@ -101,7 +101,7 @@ function formatValue(value: unknown): string {
               <button
                 class="btn primary"
                 [disabled]="!p.isAvailable || adding()"
-                (click)="addToCart(p.id)"
+                (click)="addToCart(p)"
               >
                 {{ adding() ? 'Ajout...' : 'Ajouter au panier' }}
               </button>
@@ -114,6 +114,10 @@ function formatValue(value: unknown): string {
               >
                 {{ feedbackMsg() }}
               </p>
+            }
+
+            @if (errorMsg()) {
+              <p class="badge" style="margin-top:0.8rem; display:inline-block;">{{ errorMsg() }}</p>
             }
           </div>
         </div>
@@ -310,14 +314,13 @@ function formatValue(value: unknown): string {
 })
 export class ProductDetailPage {
   private api = inject(CatalogApi);
-  private auth = inject(AuthService);
   private cartState = inject(CartStateService);
-  private router = inject(Router);
 
   slug = input.required<string>();
 
   adding = signal(false);
   feedbackMsg = signal<string | null>(null);
+  errorMsg = signal<string | null>(null);
 
   readonly state = toSignal<State, State>(
     toObservable(this.slug).pipe(
@@ -368,26 +371,29 @@ export class ProductDetailPage {
       }));
   });
 
-  addToCart(productId: number) {
-    if (!this.auth.isLoggedIn()) {
-      this.router.navigate(['/connexion']);
-      return;
-    }
-
+  addToCart(p: ProductDetail) {
     this.adding.set(true);
+    this.errorMsg.set(null);
 
-    this.cartState.addItem(productId, 1).subscribe({
+    const product = {
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      price: p.price,
+      stockQuantity: p.stockQuantity,
+      image: p.images[0] ? { url: p.images[0].url, altText: p.images[0].altText } : null,
+    };
+
+    this.cartState.addItem(product, 1).subscribe({
       next: () => {
         this.adding.set(false);
         this.feedbackMsg.set('Produit ajouté au panier !');
-
-        setTimeout(
-          () => this.feedbackMsg.set(null),
-          3000,
-        );
+        setTimeout(() => this.feedbackMsg.set(null), 3000);
       },
-
-      error: () => this.adding.set(false),
+      error: (e) => {
+        this.adding.set(false);
+        this.errorMsg.set(apiErrors(e)[0]);
+      },
     });
   }
 }

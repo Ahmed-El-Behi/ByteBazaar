@@ -1,6 +1,8 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../core/auth-service';
 import { CartStateService } from '../core/cart.service';
+import { SHIPPING_FEE } from '../core/models';
 import { TndPipe } from '../core/tnd.pipe';
 
 @Component({
@@ -43,14 +45,19 @@ import { TndPipe } from '../core/tnd.pipe';
               </div>
               <div class="sum-row">
                 <span>Frais de livraison</span>
-                <span>7,000 TND</span>
+                <span>{{ shipping | tnd }}</span>
               </div>
               <hr class="divider" />
               <div class="sum-row total">
                 <span>Total</span>
-                <strong>{{ (c.total + 7) | tnd }}</strong>
+                <strong>{{ (c.total + shipping) | tnd }}</strong>
               </div>
-              <a routerLink="/checkout" class="btn primary full">Passer la commande</a>
+              @if (auth.isLoggedIn()) {
+                <a routerLink="/checkout" class="btn primary full">Passer la commande</a>
+              } @else {
+                <a routerLink="/connexion" [queryParams]="{ redirect: '/checkout' }" class="btn primary full">Se connecter pour commander</a>
+                <p class="muted note">Ton panier est conservé : tu le retrouveras après connexion.</p>
+              }
             </div>
           </div>
         } @else {
@@ -81,12 +88,15 @@ import { TndPipe } from '../core/tnd.pipe';
     .sum-row.total { font-size: 1.2rem; color: var(--accent); margin-top: 0.8rem; }
     .divider { border: 0; border-top: 1px solid var(--border); margin-block: 1rem; }
     .full { width: 100%; text-align: center; margin-top: 1rem; }
+    .note { font-size: 0.85rem; text-align: center; margin: 0.8rem 0 0; }
     .empty { padding: 3rem; text-align: center; margin-top: 1rem; }
     @media (max-width: 800px) { .cart-layout { grid-template-columns: 1fr; } }
   `,
 })
 export class CartPage {
   readonly cartState = inject(CartStateService);
+  readonly auth = inject(AuthService);
+  readonly shipping = SHIPPING_FEE;
 
   updateQty(itemId: number, newQty: number) {
     this.cartState.updateItem(itemId, newQty).subscribe();

@@ -18,9 +18,10 @@ const KEYS = ['category', 'brand', 'minPrice', 'maxPrice', 'inStock', 'sort', 'q
         <button class="link" [class.active]="!param('category')" (click)="go({ category: null })">
           Tout le catalogue
         </button>
-        @for (root of categories(); track root.id) {
+        @for (root of filteredCategories(); track root.id) {
           <button class="link root" [class.active]="param('category') === root.slug" (click)="go({ category: root.slug })">
             {{ root.nameFr }}
+            @if (!root.children.length) { <small>{{ root._count.products }}</small> }
           </button>
           @for (c of root.children; track c.id) {
             <button class="link child" [class.active]="param('category') === c.slug" (click)="go({ category: c.slug })">
@@ -129,10 +130,28 @@ export class ProductListPage {
   private params = toSignal(this.route.queryParamMap, { requireSync: true });
   readonly loading = signal(true);
 
-  readonly categories = toSignal(
+  private rawCategories = toSignal(
     this.api.categories().pipe(catchError(() => of([] as CategoryNode[]))),
     { initialValue: [] as CategoryNode[] },
   );
+
+  private excludedKeywords = ['souris', 'clavier', 'ecran', 'ecrans', 'moniteur', 'moniteurs', 'peripheriques', 'peripherique', 'mouse', 'keyboard', 'screen', 'peripherals'];
+
+  private isExcluded(slug: string): boolean {
+    const s = slug.toLowerCase();
+    return this.excludedKeywords.some((keyword) => s.includes(keyword));
+  }
+
+  // Filtrage des catégories principales et des sous-catégories pour masquer les périphériques
+  readonly filteredCategories = computed(() => {
+    return this.rawCategories()
+      .filter((root) => !this.isExcluded(root.slug))
+      .map((root) => ({
+        ...root,
+        children: root.children.filter((child) => !this.isExcluded(child.slug)),
+      }));
+  });
+
   readonly brands = toSignal(
     this.api.brands().pipe(catchError(() => of([] as Brand[]))),
     { initialValue: [] as Brand[] },
