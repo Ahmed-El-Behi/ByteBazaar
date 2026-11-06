@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { RolesGuard } from './roles';
+import { MailModule } from '../mail/mail.module'; // <-- Import du MailModule
 
 const secret = process.env.JWT_SECRET;
 if (!secret) {
@@ -12,7 +13,10 @@ if (!secret) {
 }
 
 @Module({
-  imports: [JwtModule.register({ global: true, secret, signOptions: { expiresIn: '7d' } })],
+  imports: [
+    MailModule, // <-- Ajouté dans les imports pour injecter MailService dans AuthService
+    JwtModule.register({ global: true, secret, signOptions: { expiresIn: '7d' } }),
+  ],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard, RolesGuard],
   exports: [JwtAuthGuard, RolesGuard],

@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f4f4f7; padding: 20px; color: #333; }
+    .card { background: #ffffff; border-radius: 8px; padding: 30px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+    .header { text-align: center; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+    .header h1 { color: #4F46E5; margin: 0; }
+    .content { padding: 20px 0; line-height: 1.6; }
+    .btn-container { text-align: center; margin-top: 25px; }
+    .btn { background-color: #4F46E5; color: white !important; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold; }
+    .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #888; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>ByteBazaar</h1>
+    </div>
+    <div class="content">
+      <h2>Bienvenue {{ firstName }} ! 👋</h2>
+      <p>Nous sommes ravis de vous compter parmi les membres de ByteBazaar.</p>
+      <p>Votre compte a été créé avec succès. Vous pouvez désormais explorer notre catalogue et passer vos premières commandes.</p>
+      <div class="btn-container">
+        <a href="http://localhost:4200/login" class="btn">Accéder à mon compte</a>
+      </div>
+    </div>
+    <div class="footer">
+      <p>Merci de votre confiance,<br>L'équipe ByteBazaar</p>
+    </div>
+  </div>
+</body>
+</html>

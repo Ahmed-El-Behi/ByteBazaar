@@ -6,11 +6,11 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { hashPassword, verifyPassword } from './password';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// Champs renvoyés au client : jamais passwordHash
 const PUBLIC_USER = {
   id: true,
   email: true,
@@ -35,6 +35,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly mailService: MailService,
   ) {}
 
   async register(body: unknown) {
@@ -70,6 +71,18 @@ export class AuthService {
       },
       select: PUBLIC_USER,
     });
+
+    // Déclenchement asynchrone de l'e-mail de bienvenue en arrière-plan
+    console.log(`[Mail] Tentative d'envoi de mail de bienvenue à : ${user.email}`);
+    this.mailService
+      .sendWelcomeEmail(user.email, user.firstName || 'Membre')
+      .then(() => {
+        console.log(`[Mail] Mail de bienvenue envoyé avec succès à ${user.email}`);
+      })
+      .catch((err) => {
+        console.error(`[Mail] Erreur lors de l'envoi du mail de bienvenue :`, err);
+      });
+
     return this.session(user);
   }
 

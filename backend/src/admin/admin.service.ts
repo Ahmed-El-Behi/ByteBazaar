@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { UpdateOrderStatusDto, UpdateProductStatusDto, UpdateStockDto } from './admin.dto';
 
 type OrderWithDetails = Prisma.OrderGetPayload<{
@@ -23,7 +24,10 @@ function formatOrder(order: OrderWithDetails) {
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   // --- GESTION DU STOCK ET PRODUITS ---
 
@@ -74,7 +78,6 @@ export class AdminService {
         data: { stockQuantity: newQuantity },
       });
 
-      // Stocke l'ID dynamique de l'administrateur connecté
       await tx.stockMovement.create({
         data: {
           productId,
@@ -164,7 +167,7 @@ export class AdminService {
 
   async updateOrderStatus(adminUserId: number, orderId: number, dto: UpdateOrderStatusDto) {
     const id = Number.parseInt(String(orderId), 10);
-    return this.prisma.$transaction(async (tx) => {
+    const formattedResult = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({
         where: { id },
         include: { items: true },
@@ -197,7 +200,7 @@ export class AdminService {
                 performedById: adminUserId,
                 quantityChange: item.quantity,
                 reason: 'RETURN',
-                note: `Annulation commande ${order.reference}`,
+                note: `Annulation commande ${order.reference || `#${order.id}`}`,
               },
             });
           }
@@ -222,5 +225,31 @@ export class AdminService {
 
       return formatOrder(updated);
     });
+
+    // Déclenchement de la notification de commande en arrière-plan
+    if (dto.status && formattedResult.user && formattedResult.user.email) {
+      const targetEmail = formattedResult.user.email;
+      const clientName = formattedResult.user.firstName || 'Client';
+      const reference = formattedResult.reference || `#${formattedResult.id}`;
+
+      console.log(`[Mail] Tentative d'envoi de notification à : ${targetEmail}`);
+
+      this.mailService
+        .sendOrderStatusNotification(
+          targetEmail,
+          clientName,
+          formattedResult.id,
+          reference,
+          dto.status,
+        )
+        .then(() => {
+          console.log(`[Mail] Notification envoyée avec succès pour la commande ${reference}`);
+        })
+        .catch((err) => {
+          console.error(`[Mail] Erreur lors de l'envoi du mail de commande :`, err);
+        });
+    }
+
+    return formattedResult;
   }
 }
