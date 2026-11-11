@@ -10,9 +10,9 @@
     <nav class="nav-links">
       <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Accueil</a>
       <a routerLink="/produits" routerLinkActive="active">Catalogue</a>
+      <a routerLink="/configurateur" routerLinkActive="active">Configurateur</a>
       <a routerLink="/a-propos" routerLinkActive="active">À propos</a>
       <a routerLink="/contact" routerLinkActive="active">Contact</a>
-      <span class="soon" title="Bientôt disponible">Configurateur</span>
 
       <!-- LIENS RESERVES AUX ADMINISTRATEURS -->
       @if (auth.isLoggedIn() && auth.isAdmin()) {
@@ -143,7 +143,7 @@
         <h4>Boutique</h4>
         <a routerLink="/produits">Catalogue</a>
         <a routerLink="/a-propos">À propos</a>
-        <span class="f-soon" title="Bientôt disponible">Configurateur PC</span>
+        <a routerLink="/configurateur">Configurateur PC</a>
       </div>
 
       <div class="footer-col">
@@ -159,8 +159,8 @@
         } @else {
           <a routerLink="/connexion">Connexion / Inscription</a>
         }
-        <a routerLink="/compte">Mes commandes</a>
-        <span class="f-soon" title="Bientôt disponible">Mes configurations</span>
+        <a routerLink="/compte/commandes">Mes commandes</a>
+        <a routerLink="/compte/configurations">Mes configurations</a>
         <a routerLink="/panier">Panier</a>
       </div>
     </div>
