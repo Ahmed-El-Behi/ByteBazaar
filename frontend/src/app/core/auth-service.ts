@@ -5,6 +5,14 @@ import { tap } from 'rxjs';
 import { API_URL, AuthResponse, AuthUser, RegisterInput } from './models';
 import { readToken, writeToken } from './token-storage';
 
+export interface UpdateProfileInput {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  currentPassword?: string;
+  newPassword?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private http = inject(HttpClient);
@@ -31,6 +39,31 @@ export class AuthService {
     return this.http
       .post<AuthResponse>(`${API_URL}/auth/login`, { email, password })
       .pipe(tap((res) => this.setSession(res)));
+  }
+
+  // Demande d'envoi du mail de réinitialisation de mot de passe
+  forgotPassword(email: string) {
+    return this.http.post<{ message: string }>(`${API_URL}/auth/forgot-password`, { email });
+  }
+
+  // Validation du nouveau mot de passe via le token reçu par mail
+  resetPassword(token: string, newPassword: string) {
+    return this.http.post<{ message: string }>(`${API_URL}/auth/reset-password`, {
+      token,
+      newPassword,
+    });
+  }
+
+  // Mise à jour du profil et persistance PostgreSQL/Prisma
+  updateProfile(data: UpdateProfileInput) {
+    return this.http
+      .patch<AuthUser>(`${API_URL}/auth/profile`, data)
+      .pipe(
+        tap((updatedUser) => {
+          // Met à jour le signal réactif user pour refléter immédiatement le prénom, nom, téléphone
+          this.user.set(updatedUser);
+        })
+      );
   }
 
   logout() {

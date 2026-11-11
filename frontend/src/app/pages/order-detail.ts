@@ -25,9 +25,25 @@ import { TndPipe } from '../core/tnd.pipe';
 
           <table class="items-table">
             @for (item of o.items; track item.id) {
+              @let imgUrl = item.product?.image?.url || item.imageUrl;
               <tr>
-                <td>{{ item.productName }} x{{ item.quantity }}</td>
-                <td style="text-align: right;">{{ item.lineTotal | tnd }}</td>
+                <td>
+                  <div class="product-col">
+                    @if (imgUrl) {
+                      <img 
+                        [src]="imgUrl" 
+                        [alt]="item.productName" 
+                        class="item-thumb" 
+                      />
+                    } @else {
+                      <div class="item-thumb-placeholder"></div>
+                    }
+                    <span class="item-name">{{ item.productName }} <small class="muted">x{{ item.quantity }}</small></span>
+                  </div>
+                </td>
+                <td style="text-align: right; vertical-align: middle;">
+                  <strong>{{ item.lineTotal | tnd }}</strong>
+                </td>
               </tr>
             }
           </table>
@@ -50,8 +66,15 @@ import { TndPipe } from '../core/tnd.pipe';
     .icon { font-size: 3rem; }
     .details { text-align: left; background: var(--surface-2); padding: 1rem; border-radius: 14px; margin-block: 1rem; }
     .row { margin-bottom: 0.4rem; }
+    
     .items-table { width: 100%; border-collapse: collapse; margin-block: 1rem; text-align: left; }
-    .items-table td { padding: 0.4rem 0; border-bottom: 1px solid var(--border); }
+    .items-table td { padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
+    
+    .product-col { display: flex; align-items: center; gap: 0.8rem; }
+    .item-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
+    .item-thumb-placeholder { width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
+    .item-name { font-size: 0.95rem; line-height: 1.3; }
+
     .total-row { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; font-size: 1.1rem; }
     .price { color: var(--accent); }
   `,
@@ -63,6 +86,8 @@ export class OrderDetailPage {
   readonly payment = PAYMENT_LABELS;
 
   readonly order = toSignal<Order>(
-    toObservable(this.id).pipe(switchMap((id) => this.api.getOrder(Number(id)))),
+    toObservable(this.id).pipe(
+      switchMap((id) => this.api.getOrder(Number(id)))
+    )
   );
 }

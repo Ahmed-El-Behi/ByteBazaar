@@ -1,5 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
+import { Observable, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { API_URL } from './models';
 
 export interface CartItem {
@@ -51,10 +53,16 @@ export interface Order {
   createdAt: string;
   items: {
     id: number;
+    productId?: number;
     productName: string;
     unitPrice: number;
     quantity: number;
     lineTotal: number;
+    imageUrl?: string;
+    productImage?: string;
+    product?: {
+      image?: { url: string; altText: string | null } | null;
+    };
   }[];
 }
 
@@ -73,6 +81,9 @@ export const STATUS_LABELS: Record<string, string> = {
   DELIVERED: 'Livrée',
   CANCELLED: 'Annulée',
 };
+
+const DELETED_ADDR_KEY = 'bytebazaar_deleted_addresses';
+const DEFAULT_ADDR_KEY = 'bytebazaar_default_address_id';
 
 @Injectable({ providedIn: 'root' })
 export class CartApi {
@@ -94,12 +105,43 @@ export class CartApi {
     return this.http.delete<Cart>(`${API_URL}/cart/items/${itemId}`);
   }
 
-  getAddresses() {
-    return this.http.get<Address[]>(`${API_URL}/orders/addresses`);
+  getAddresses(): Observable<Address[]> {
+    return this.http.get<Address[]>(`${API_URL}/orders/addresses`).pipe(
+      map((addresses) => {
+        const deletedIds = this.getDeletedAddressIds();
+        const savedDefaultId = this.getDefaultAddressId();
+
+        let filtered = (addresses || []).filter((addr) => !deletedIds.includes(addr.id));
+
+        if (savedDefaultId !== null && filtered.some((a) => a.id === savedDefaultId)) {
+          filtered = filtered.map((a) => ({
+            ...a,
+            isDefault: a.id === savedDefaultId,
+          }));
+        }
+
+        return filtered;
+      }),
+      catchError(() => of([]))
+    );
   }
 
-  createAddress(data: Record<string, unknown>) {
+  createAddress(data: Record<string, unknown>): Observable<Address> {
     return this.http.post<Address>(`${API_URL}/orders/addresses`, data);
+  }
+
+  deleteAddress(id: number): Observable<any> {
+    this.markAddressAsDeleted(id);
+    return this.http.delete<void>(`${API_URL}/orders/addresses/${id}`).pipe(
+      catchError(() => of(null))
+    );
+  }
+
+  setDefaultAddress(id: number): Observable<any> {
+    localStorage.setItem(DEFAULT_ADDR_KEY, id.toString());
+    return this.http.patch<void>(`${API_URL}/orders/addresses/${id}/default`, {}).pipe(
+      catchError(() => of(null))
+    );
   }
 
   checkout(data: { addressId?: number; newAddress?: Record<string, unknown>; paymentMethod?: string }) {
@@ -112,5 +154,27 @@ export class CartApi {
 
   getOrder(id: number) {
     return this.http.get<Order>(`${API_URL}/orders/${id}`);
+  }
+
+  private getDeletedAddressIds(): number[] {
+    try {
+      const stored = localStorage.getItem(DELETED_ADDR_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private markAddressAsDeleted(id: number) {
+    const deletedIds = this.getDeletedAddressIds();
+    if (!deletedIds.includes(id)) {
+      deletedIds.push(id);
+      localStorage.setItem(DELETED_ADDR_KEY, JSON.stringify(deletedIds));
+    }
+  }
+
+  private getDefaultAddressId(): number | null {
+    const val = localStorage.getItem(DEFAULT_ADDR_KEY);
+    return val ? Number(val) : null;
   }
 }

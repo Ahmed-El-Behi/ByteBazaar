@@ -196,10 +196,29 @@ nav .soon { opacity: 0.55; cursor: default; }
 .theme-switch[aria-checked='true'] .slot:nth-child(2) { color: var(--on-accent); }
 
 main { min-height: 70vh; }
-.footer { margin-top: 3rem; padding-block: 1.8rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.9rem; }
+
+/* Pied de page */
+.footer { margin-top: 3rem; padding-top: 2.5rem; border-top: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 0.92rem; }
+.footer-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 2rem; padding-bottom: 2rem; }
+.footer-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 0.7rem; }
+.footer-brand .logo { color: var(--text); }
+.footer-desc { margin: 0; max-width: 320px; line-height: 1.6; }
+.footer-contact { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--text); font-weight: 700; }
+.footer-place { display: inline-flex; align-items: center; gap: 0.5rem; }
+.footer-contact svg, .footer-place svg { color: var(--accent); flex: none; }
+.footer-col { display: flex; flex-direction: column; align-items: flex-start; gap: 0.55rem; }
+.footer-col h4 { margin: 0 0 0.4rem; font-family: var(--font-body); font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.footer-col a { color: var(--text); transition: color 0.15s; }
+.footer-col a:hover { color: var(--accent); }
+.f-soon { opacity: 0.55; cursor: default; }
+.footer-bottom { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-block: 1.2rem; border-top: 1px solid var(--border); font-size: 0.85rem; }
+.footer-pay { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.pay-chip { padding: 0.2rem 0.7rem; border: 1px solid var(--border); border-radius: 999px; background: var(--bg); color: var(--text); font-size: 0.75rem; font-weight: 700; }
 
 @media (max-width: 900px) {
   .topbar-inner { flex-wrap: wrap; padding-block: 0.7rem; }
   nav { order: 3; width: 100%; justify-content: center; margin-right: 0; }
   .user-actions { margin-left: auto; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+  .footer-bottom { justify-content: center; text-align: center; }
 }

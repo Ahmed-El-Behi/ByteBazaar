@@ -224,9 +224,16 @@ const MESSAGES: Record<string, string> = {
               <h2>Récapitulatif</h2>
               <ul>
                 @for (i of c.items; track i.id) {
-                  <li>
-                    <span>{{ i.product.name }} <small class="muted">× {{ i.quantity }}</small></span>
-                    <span>{{ i.lineTotal | tnd }}</span>
+                  <li class="summary-item">
+                    <div class="summary-item-left">
+                      @if (i.product.image?.url) {
+                        <img [src]="i.product.image?.url" [alt]="i.product.image?.altText || i.product.name" class="summary-thumb" />
+                      } @else {
+                        <div class="summary-thumb-placeholder"></div>
+                      }
+                      <span class="summary-product-name">{{ i.product.name }} <small class="muted">× {{ i.quantity }}</small></span>
+                    </div>
+                    <span class="summary-item-price">{{ i.lineTotal | tnd }}</span>
                   </li>
                 }
               </ul>
@@ -261,7 +268,7 @@ const MESSAGES: Record<string, string> = {
     .num { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 0.9rem; }
 
     .choices { display: grid; gap: 0.6rem; }
-    .choice { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 1.1rem; border: 1.5px solid var(--border); border-radius: 18px; background: var(--bg); transition: border-color 0.15s, background 0.15s; }
+    .choice { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 1.1rem; border: 1.5px solid var(--border); border-radius: 18px; background: var(--bg); transition: border-color 0.15s, background 0.15s; cursor: pointer; }
     .choice:hover { border-color: var(--accent); }
     .choice.on { border-color: var(--accent); background: var(--accent-soft); }
     .choice input { accent-color: var(--accent); width: 18px; height: 18px; flex: none; margin: 0; }
@@ -289,10 +296,18 @@ const MESSAGES: Record<string, string> = {
     .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
     .err { color: var(--red); font-size: 0.8rem; }
 
+    /* RÉCAPITULATIF - IMAGES & ARTICLES */
     .summary { padding: 1.5rem; position: sticky; top: 90px; }
-    .summary h2 { font-size: 1.2rem; }
-    .summary ul { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; gap: 0.5rem; }
-    .summary li { display: flex; justify-content: space-between; gap: 0.8rem; font-size: 0.92rem; }
+    .summary h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+    .summary ul { list-style: none; padding: 0; margin: 0 0 1rem; display: flex; flex-direction: column; gap: 0.8rem; }
+    
+    .summary-item { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; font-size: 0.92rem; }
+    .summary-item-left { display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0; }
+    .summary-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
+    .summary-thumb-placeholder { width: 44px; height: 44px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); flex-shrink: 0; }
+    .summary-product-name { word-break: break-word; line-height: 1.3; }
+    .summary-item-price { font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+
     .row { display: flex; justify-content: space-between; padding: 0.35rem 0; }
     .total { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; border-top: 1px solid var(--border); margin-top: 0.4rem; padding-top: 0.8rem; color: var(--accent); }
     .summary .btn { margin-top: 1rem; }
@@ -342,16 +357,14 @@ export class CheckoutPage {
     label: new FormControl('Domicile', { nonNullable: true }),
   });
 
-  // Les infos de carte restent dans le navigateur : elles ne sont jamais envoyées au backend
   readonly card = new FormGroup({
     number: new FormControl('', { nonNullable: true, validators: [cardNumberValid] }),
     holder: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
-    expiry: new FormControl('', { nonNullable: true, validators: [expiryValid] }),
+    expiry: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     cvc: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.pattern(/^\d{3,4}$/)] }),
   });
 
   constructor() {
-    // Pré-remplit le nom et le téléphone avec ceux du compte
     effect(() => {
       const u = this.auth.user();
       if (u && !this.form.controls.recipientName.value) {
@@ -362,8 +375,13 @@ export class CheckoutPage {
     this.api.getAddresses().subscribe({
       next: (list) => {
         this.addresses.set(list);
-        if (list.length) this.selectedId.set((list.find((a) => a.isDefault) ?? list[0]).id);
-        else this.useNew.set(true);
+        if (list.length) {
+          const defaultAddr = list.find((a) => a.isDefault) ?? list[0];
+          this.selectedId.set(defaultAddr.id);
+          this.useNew.set(false);
+        } else {
+          this.useNew.set(true);
+        }
       },
       error: () => {
         this.addresses.set([]);

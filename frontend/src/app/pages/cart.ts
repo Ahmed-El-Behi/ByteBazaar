@@ -18,9 +18,22 @@ import { TndPipe } from '../core/tnd.pipe';
             <div class="card items-list">
               @for (item of c.items; track item.id) {
                 <div class="item-row">
+                  <!-- Image + Informations du produit -->
                   <div class="item-info">
-                    <h4>{{ item.product.name }}</h4>
-                    <span class="muted">{{ item.unitPrice | tnd }} l'unité</span>
+                    @if (item.product.image?.url) {
+                      <img
+                        [src]="item.product.image?.url"
+                        [alt]="item.product.image?.altText || item.product.name"
+                        class="product-thumb"
+                      />
+                    } @else {
+                      <div class="product-thumb-placeholder"></div>
+                    }
+
+                    <div class="item-details">
+                      <h4>{{ item.product.name }}</h4>
+                      <span class="muted">{{ item.unitPrice | tnd }} l'unité</span>
+                    </div>
                   </div>
 
                   <div class="qty-controls">
@@ -77,8 +90,14 @@ import { TndPipe } from '../core/tnd.pipe';
     .items-list { padding: 1rem; }
     .item-row { display: flex; align-items: center; justify-content: space-between; padding-block: 1rem; border-bottom: 1px solid var(--border); }
     .item-row:last-child { border-bottom: none; }
-    .item-info { flex: 1; }
-    .item-info h4 { margin: 0 0 0.2rem; font-size: 1rem; }
+    
+    /* Layout Image + Textes */
+    .item-info { flex: 1; display: flex; align-items: center; gap: 1rem; }
+    .product-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
+    .product-thumb-placeholder { width: 60px; height: 60px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); flex-shrink: 0; }
+    .item-details { display: flex; flex-direction: column; gap: 0.2rem; }
+    .item-details h4 { margin: 0; font-size: 1rem; }
+    
     .qty-controls { display: flex; align-items: center; gap: 0.6rem; margin-inline: 1.5rem; }
     .btn-qty { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; }
     .item-total { display: flex; align-items: center; gap: 1rem; }

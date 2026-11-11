@@ -7,11 +7,21 @@ import { CheckoutDto, CreateAddressDto } from './order.dto';
 const PAYMENT_METHODS = ['CASH_ON_DELIVERY', 'CARD', 'PAYPAL', 'BANK_TRANSFER'] as const;
 const ADDRESS_FIELDS = ['recipientName', 'phone', 'street', 'city', 'governorate', 'postalCode'] as const;
 
-type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>;
+// Utilisation de 'images' (au pluriel) pour correspondre au schéma Prisma
+type OrderWithItems = Prisma.OrderGetPayload<{
+  include: {
+    items: {
+      include: {
+        product: {
+          include: { images: true };
+        };
+      };
+    };
+  };
+}>;
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
-// Convertit les Decimal en nombres et ajoute lineTotal (calculé, non stocké en base)
 function toOrderDto(order: OrderWithItems) {
   return {
     ...order,
@@ -20,7 +30,17 @@ function toOrderDto(order: OrderWithItems) {
     total: Number(order.total),
     items: order.items.map((item) => {
       const unitPrice = Number(item.unitPrice);
-      return { ...item, unitPrice, lineTotal: round3(unitPrice * item.quantity) };
+      // Récupère la première image du tableau 'images' ou null
+      const firstImage = item.product?.images?.[0] ?? null;
+      return {
+        ...item,
+        unitPrice,
+        lineTotal: round3(unitPrice * item.quantity),
+        product: {
+          ...item.product,
+          image: firstImage ? { url: firstImage.url, altText: firstImage.altText ?? null } : null,
+        },
+      };
     }),
   };
 }
@@ -80,7 +100,6 @@ export class OrderService {
       throw new BadRequestException('Votre panier est vide');
     }
 
-    // Récupération ou création de l'adresse
     let address;
     if (dto.addressId) {
       address = await this.prisma.address.findFirst({
@@ -93,9 +112,7 @@ export class OrderService {
       throw new BadRequestException('Veuillez sélectionner ou fournir une adresse de livraison');
     }
 
-    // Transaction atomique : vérification stock, création commande, mouvement de stock, vidage panier
-    const created = await this.prisma.$transaction(async (tx) => {
-      // 1. Vérification stricte des stocks
+    const orderId = await this.prisma.$transaction(async (tx) => {
       for (const item of cart.items) {
         const prod = await tx.product.findUnique({ where: { id: item.productId } });
         if (!prod || prod.stockQuantity < item.quantity) {
@@ -105,12 +122,11 @@ export class OrderService {
         }
       }
 
-      const shippingFee = 7.0; // Frais de livraison forfaitaires en TND
+      const shippingFee = 7.0;
       const subtotal = cart.total;
       const total = subtotal + shippingFee;
       const reference = `BB-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
 
-      // 2. Création de la commande
       const order = await tx.order.create({
         data: {
           userId,
@@ -133,10 +149,8 @@ export class OrderService {
             })),
           },
         },
-        include: { items: true },
       });
 
-      // 3. Décrémentation des stocks et écriture des StockMovements (SALE)
       for (const item of cart.items) {
         await tx.product.update({
           where: { id: item.productId },
@@ -153,20 +167,28 @@ export class OrderService {
         });
       }
 
-      // 4. Vider le panier
       await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
 
-      return order;
+      return order.id;
     });
 
-    return toOrderDto(created);
+    // Récupération complète typée avec la relation produits/images
+    return this.getOrderDetails(userId, orderId);
   }
 
   async getMyOrders(userId: number) {
     const orders = await this.prisma.order.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      include: { items: true },
+      include: {
+        items: {
+          include: {
+            product: {
+              include: { images: true },
+            },
+          },
+        },
+      },
     });
     return orders.map(toOrderDto);
   }
@@ -174,7 +196,15 @@ export class OrderService {
   async getOrderDetails(userId: number, orderId: number) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
-      include: { items: true },
+      include: {
+        items: {
+          include: {
+            product: {
+              include: { images: true },
+            },
+          },
+        },
+      },
     });
     if (!order) throw new NotFoundException('Commande non trouvée');
     return toOrderDto(order);
