@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { tap } from 'rxjs';
+import { Observable, catchError, finalize, of, shareReplay, tap } from 'rxjs';
 import { API_URL, AuthResponse, AuthUser, RegisterInput } from './models';
 import { readToken, writeToken } from './token-storage';
 
@@ -24,9 +24,28 @@ export class AuthService {
   readonly isLoggedIn = computed(() => this.tokenSignal() !== null);
   readonly isAdmin = computed(() => this.user()?.role === 'ADMIN');
 
+  // Requête /auth/me en cours (partagée entre les appelants)
+  private pendingUser: Observable<AuthUser | null> | null = null;
+
   constructor() {
     // Au rechargement de la page, on récupère le profil si un token existe
-    if (this.tokenSignal()) this.refresh();
+    if (this.tokenSignal()) this.ensureUser().subscribe();
+  }
+
+  /** Profil de l'utilisateur connecté, chargé depuis l'API s'il n'est pas encore connu. */
+  ensureUser(): Observable<AuthUser | null> {
+    if (this.user() || !this.tokenSignal()) return of(this.user());
+    this.pendingUser ??= this.http.get<AuthUser>(`${API_URL}/auth/me`).pipe(
+      tap((user) => this.user.set(user)),
+      catchError((error) => {
+        // Token expiré ou invalide : on déconnecte. Une panne réseau ne déconnecte pas.
+        if (error.status === 401) this.clear();
+        return of(null);
+      }),
+      finalize(() => (this.pendingUser = null)),
+      shareReplay(1),
+    );
+    return this.pendingUser;
   }
 
   register(data: RegisterInput) {
@@ -54,7 +73,7 @@ export class AuthService {
     });
   }
 
-  // Mise à jour du profil et persistance PostgreSQL/Prisma
+  // Mise à jour du profil (prénom, nom, téléphone, mot de passe)
   updateProfile(data: UpdateProfileInput) {
     return this.http
       .patch<AuthUser>(`${API_URL}/auth/profile`, data)
@@ -81,15 +100,5 @@ export class AuthService {
     writeToken(null);
     this.tokenSignal.set(null);
     this.user.set(null);
-  }
-
-  private refresh() {
-    this.http.get<AuthUser>(`${API_URL}/auth/me`).subscribe({
-      next: (user) => this.user.set(user),
-      error: (error) => {
-        // Token expiré ou invalide : on déconnecte. Une panne réseau ne déconnecte pas.
-        if (error.status === 401) this.clear();
-      },
-    });
   }
 }

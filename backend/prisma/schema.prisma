@@ -69,15 +69,17 @@ enum FormFactor {
 // ============================================================
 
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique
-  passwordHash String
-  firstName    String
-  lastName     String
-  phone        String?
-  role         Role     @default(CUSTOMER)
-  language     Language @default(FR)
-  createdAt    DateTime @default(now())
+  id                Int       @id @default(autoincrement())
+  email             String    @unique
+  passwordHash      String
+  firstName         String
+  lastName          String
+  phone             String?
+  role              Role      @default(CUSTOMER)
+  language          Language  @default(FR)
+  createdAt         DateTime  @default(now())
+  // Toute session émise avant cette date est refusée (changement / réinitialisation du mot de passe)
+  passwordChangedAt DateTime?
 
   addresses      Address[]
   cart           Cart?
@@ -234,6 +236,8 @@ model Product {
   price         Decimal  @db.Decimal(12, 3)
   stockQuantity Int      @default(0)
   isActive      Boolean  @default(true)
+  // Popularité (nombre d'avis de la source) : sert au tri « Pertinence »
+  popularity    Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -311,12 +315,12 @@ model StockMovement {
 // ============================================================
 
 model Cpu {
-  productId             Int     @id
-  product               Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId             Int      @id
+  product               Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   socket                String
   cores                 Int
   threads               Int
-  baseClockGHz          Decimal @db.Decimal(4, 2)
+  baseClockGHz          Decimal  @db.Decimal(4, 2)
   boostClockGHz         Decimal? @db.Decimal(4, 2)
   tdpWatts              Int
   hasIntegratedGraphics Boolean

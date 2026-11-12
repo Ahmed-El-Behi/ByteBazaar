@@ -8,8 +8,9 @@ import { apiErrors } from '../core/utils';
 const STATUS_ORDER: Record<string, number> = {
   PENDING: 1,
   CONFIRMED: 2,
-  SHIPPED: 3,
-  DELIVERED: 4,
+  PREPARING: 3,
+  SHIPPED: 4,
+  DELIVERED: 5,
   CANCELLED: 99
 };
 

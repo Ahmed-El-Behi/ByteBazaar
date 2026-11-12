@@ -1,7 +1,18 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthedRequest } from '../auth/jwt-auth.guard';
-import { AddToCartDto, UpdateCartItemDto } from './cart.dto';
+import { asRecord } from '../common/input';
 import { CartService } from './cart.service';
 
 @UseGuards(JwtAuthGuard)
@@ -14,22 +25,32 @@ export class CartController {
     return this.cartService.getCart(req.user!.id);
   }
 
+  // Corps : { productId: number, quantity?: number }
   @Post('items')
-  addItem(@Req() req: AuthedRequest, @Body() dto: AddToCartDto) {
-    return this.cartService.addItem(req.user!.id, dto.productId, dto.quantity);
+  addItem(@Req() req: AuthedRequest, @Body() body: unknown) {
+    const b = asRecord(body);
+    return this.cartService.addItem(req.user!.id, b.productId, b.quantity ?? 1);
   }
 
+  // Corps : { quantity: number } (0 supprime la ligne)
   @Patch('items/:id')
   updateItem(
     @Req() req: AuthedRequest,
     @Param('id', ParseIntPipe) itemId: number,
-    @Body() dto: UpdateCartItemDto,
+    @Body() body: unknown,
   ) {
-    return this.cartService.updateItem(req.user!.id, itemId, dto.quantity);
+    return this.cartService.updateItem(
+      req.user!.id,
+      itemId,
+      asRecord(body).quantity,
+    );
   }
 
   @Delete('items/:id')
-  removeItem(@Req() req: AuthedRequest, @Param('id', ParseIntPipe) itemId: number) {
+  removeItem(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseIntPipe) itemId: number,
+  ) {
     return this.cartService.removeItem(req.user!.id, itemId);
   }
 

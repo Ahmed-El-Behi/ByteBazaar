@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
+import { PrismaService } from '../prisma/prisma.service';
 
 export type RoleName = 'CUSTOMER' | 'ADMIN';
 export interface AuthUser {
@@ -14,9 +15,18 @@ export interface AuthUser {
 }
 export type AuthedRequest = Request & { user?: AuthUser };
 
+interface SessionPayload {
+  sub: number;
+  iat: number;
+  purpose?: string;
+}
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly jwt: JwtService) {}
+  constructor(
+    private readonly jwt: JwtService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthedRequest>();
@@ -24,12 +34,30 @@ export class JwtAuthGuard implements CanActivate {
     if (type !== 'Bearer' || !token) {
       throw new UnauthorizedException('Connexion requise');
     }
+
+    let payload: SessionPayload;
     try {
-      const payload = await this.jwt.verifyAsync<{ sub: number; role: RoleName }>(token);
-      request.user = { id: payload.sub, role: payload.role };
-      return true;
+      payload = await this.jwt.verifyAsync<SessionPayload>(token);
     } catch {
       throw new UnauthorizedException('Session invalide ou expirée');
     }
+    if (payload.purpose)
+      throw new UnauthorizedException('Session invalide ou expirée');
+
+    // Le rôle est relu en base : une promotion / rétrogradation s'applique immédiatement,
+    // et un compte supprimé ou dont le mot de passe a changé perd ses anciennes sessions.
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, role: true, passwordChangedAt: true },
+    });
+    const changedAt = user?.passwordChangedAt
+      ? Math.floor(user.passwordChangedAt.getTime() / 1000)
+      : 0;
+    if (!user || payload.iat < changedAt) {
+      throw new UnauthorizedException('Session invalide ou expirée');
+    }
+
+    request.user = { id: user.id, role: user.role };
+    return true;
   }
 }

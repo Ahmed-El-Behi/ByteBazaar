@@ -1,16 +1,19 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
-  NotFoundException,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { asRecord, badRequest, text } from '../common/input';
 import { hashPassword, verifyPassword } from './password';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_MIN = 8;
+const PASSWORD_MAX = 128;
+const RESET_PURPOSE = 'reset-password';
 
 const PUBLIC_USER = {
   id: true,
@@ -23,16 +26,18 @@ const PUBLIC_USER = {
   createdAt: true,
 } as const;
 
-function asRecord(body: unknown): Record<string, unknown> {
-  return typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
-}
-
-function text(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : '';
+function passwordErrors(password: string, label = 'Le mot de passe'): string[] {
+  if (password.length < PASSWORD_MIN)
+    return [`${label} doit contenir au moins ${PASSWORD_MIN} caractères`];
+  if (password.length > PASSWORD_MAX)
+    return [`${label} est trop long (${PASSWORD_MAX} caractères maximum)`];
+  return [];
 }
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -50,16 +55,17 @@ export class AuthService {
 
     const errors: string[] = [];
     if (!EMAIL_RE.test(email)) errors.push('Adresse email invalide');
-    if (password.length < 8) errors.push('Le mot de passe doit contenir au moins 8 caractères');
-    if (password.length > 128) errors.push('Le mot de passe est trop long (128 caractères maximum)');
+    errors.push(...passwordErrors(password));
     if (!firstName) errors.push('Le prénom est requis');
     if (!lastName) errors.push('Le nom est requis');
-    if (errors.length) {
-      throw new BadRequestException({ statusCode: 400, error: 'Bad Request', message: errors });
-    }
+    if (errors.length) throw badRequest(...errors);
 
-    const existing = await this.prisma.user.findUnique({ where: { email }, select: { id: true } });
-    if (existing) throw new ConflictException('Un compte existe déjà avec cet email');
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (existing)
+      throw new ConflictException('Un compte existe déjà avec cet email');
 
     const user = await this.prisma.user.create({
       data: {
@@ -73,15 +79,8 @@ export class AuthService {
       select: PUBLIC_USER,
     });
 
-    console.log(`[Mail] Tentative d'envoi de mail de bienvenue à : ${user.email}`);
-    this.mailService
-      .sendWelcomeEmail(user.email, user.firstName || 'Membre')
-      .then(() => {
-        console.log(`[Mail] Mail de bienvenue envoyé avec succès à ${user.email}`);
-      })
-      .catch((err) => {
-        console.error(`[Mail] Erreur lors de l'envoi du mail de bienvenue :`, err);
-      });
+    // Envoi en arrière-plan : une panne SMTP ne bloque pas l'inscription (MailService journalise l'erreur)
+    void this.mailService.sendWelcomeEmail(user.email, user.firstName);
 
     return this.session(user);
   }
@@ -95,7 +94,9 @@ export class AuthService {
       where: { email },
       select: { ...PUBLIC_USER, passwordHash: true },
     });
-    const invalid = new UnauthorizedException('Email ou mot de passe incorrect');
+    const invalid = new UnauthorizedException(
+      'Email ou mot de passe incorrect',
+    );
     if (!found) throw invalid;
 
     const { passwordHash, ...user } = found;
@@ -103,88 +104,96 @@ export class AuthService {
     return this.session(user);
   }
 
-  // DEMANDE DE MOT DE PASSE OUBLIÉ
+  // La réponse est identique que l'adresse existe ou non : on ne révèle pas quels emails ont un compte.
   async forgotPassword(body: unknown) {
-    const b = asRecord(body);
-    const email = text(b.email).toLowerCase();
-
-    if (!EMAIL_RE.test(email)) {
-      throw new BadRequestException({ statusCode: 400, error: 'Bad Request', message: ['Adresse email invalide'] });
-    }
+    const email = text(asRecord(body).email).toLowerCase();
+    if (!EMAIL_RE.test(email)) throw badRequest('Adresse email invalide');
 
     const user = await this.prisma.user.findUnique({
       where: { email },
-      select: { id: true, email: true, firstName: true },
+      select: { id: true, email: true, firstName: true, passwordHash: true },
     });
 
-    // Exception 404 retournée au frontend (affichée en rouge)
-    if (!user) {
-      throw new NotFoundException({
-        statusCode: 404,
-        error: 'Not Found',
-        message: ["Cette adresse email n'existe pas dans notre base de données."],
-      });
-    }
-
-    // Token JWT de réinitialisation temporaire (15 min)
-    const resetToken = await this.jwt.signAsync(
-      { sub: user.id, email: user.email, purpose: 'reset-password' },
-      { expiresIn: '15m' },
-    );
-
-    console.log(`[Mail] Envoi du mail de réinitialisation à : ${user.email}`);
-
-    try {
-      await this.mailService.sendPasswordResetEmail(
-        user.email,
-        user.firstName || 'Client',
-        resetToken,
+    if (user) {
+      // Signé avec une clé dérivée du mot de passe actuel : le lien devient invalide dès qu'il a servi.
+      const token = await this.jwt.signAsync(
+        { sub: user.id, purpose: RESET_PURPOSE },
+        { expiresIn: '15m', secret: this.resetSecret(user.passwordHash) },
       );
-      console.log(`[Mail] Mail de réinitialisation envoyé avec succès à ${user.email}`);
-    } catch (err) {
-      console.error(`[Mail] Erreur lors de l'envoi du mail de réinitialisation :`, err);
+      try {
+        await this.mailService.sendPasswordResetEmail(
+          user.email,
+          user.firstName,
+          token,
+        );
+      } catch (err) {
+        this.logger.error(
+          `Échec d'envoi du lien de réinitialisation (utilisateur #${user.id})`,
+          err as Error,
+        );
+      }
     }
 
     return {
-      message: 'Un email contenant le lien de réinitialisation vous a été envoyé.',
+      message:
+        'Si un compte est associé à cette adresse, un email contenant le lien de réinitialisation vient de vous être envoyé.',
     };
   }
 
-  // RÉINITIALISATION DU MOT DE PASSE
   async resetPassword(body: unknown) {
     const b = asRecord(body);
     const token = text(b.token);
-    const newPassword: string = typeof b.newPassword === 'string' ? b.newPassword : '';
+    const newPassword = typeof b.newPassword === 'string' ? b.newPassword : '';
 
-    if (!token) {
-      throw new BadRequestException({ statusCode: 400, error: 'Bad Request', message: ['Token de réinitialisation manquant'] });
-    }
-    if (newPassword.length < 8) {
-      throw new BadRequestException({ statusCode: 400, error: 'Bad Request', message: ['Le mot de passe doit contenir au moins 8 caractères'] });
-    }
+    if (!token) throw badRequest('Token de réinitialisation manquant');
+    const errors = passwordErrors(newPassword);
+    if (errors.length) throw badRequest(...errors);
 
-    let payload: any;
+    const invalid = badRequest(
+      'Le lien de réinitialisation est invalide ou a expiré',
+    );
+
+    // Lecture non vérifiée de l'identifiant, puis vérification avec la clé propre à cet utilisateur
+    const claims = this.jwt.decode<{ sub?: unknown; purpose?: unknown } | null>(
+      token,
+    );
+    if (
+      !claims ||
+      typeof claims.sub !== 'number' ||
+      claims.purpose !== RESET_PURPOSE
+    )
+      throw invalid;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: claims.sub },
+      select: { id: true, passwordHash: true },
+    });
+    if (!user) throw invalid;
+
     try {
-      payload = await this.jwt.verifyAsync(token);
+      await this.jwt.verifyAsync(token, {
+        secret: this.resetSecret(user.passwordHash),
+      });
     } catch {
-      throw new BadRequestException({ statusCode: 400, error: 'Bad Request', message: ['Le lien de réinitialisation est invalide ou a expiré'] });
+      throw invalid;
     }
 
-    if (payload.purpose !== 'reset-password') {
-      throw new BadRequestException({ statusCode: 400, error: 'Bad Request', message: ['Token invalide'] });
-    }
-
-    const passwordHash = await hashPassword(newPassword);
     await this.prisma.user.update({
-      where: { id: payload.sub },
-      data: { passwordHash },
+      where: { id: user.id },
+      data: {
+        passwordHash: await hashPassword(newPassword),
+        passwordChangedAt: new Date(),
+      },
     });
 
     return { message: 'Votre mot de passe a été réinitialisé avec succès.' };
   }
 
   async me(userId: number) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: PUBLIC_USER });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: PUBLIC_USER,
+    });
     if (!user) throw new UnauthorizedException('Compte introuvable');
     return user;
   }
@@ -194,21 +203,23 @@ export class AuthService {
     const firstName = text(b.firstName);
     const lastName = text(b.lastName);
     const phone = text(b.phone);
-    const currentPassword = typeof b.currentPassword === 'string' ? b.currentPassword : '';
+    const currentPassword =
+      typeof b.currentPassword === 'string' ? b.currentPassword : '';
     const newPassword = typeof b.newPassword === 'string' ? b.newPassword : '';
 
     const errors: string[] = [];
-    if (b.firstName !== undefined && !firstName) errors.push('Le prénom ne peut pas être vide');
-    if (b.lastName !== undefined && !lastName) errors.push('Le nom ne peut pas être vide');
+    if (b.firstName !== undefined && !firstName)
+      errors.push('Le prénom ne peut pas être vide');
+    if (b.lastName !== undefined && !lastName)
+      errors.push('Le nom ne peut pas être vide');
     if (newPassword) {
-      if (newPassword.length < 8) errors.push('Le nouveau mot de passe doit contenir au moins 8 caractères');
-      if (newPassword.length > 128) errors.push('Le nouveau mot de passe est trop long');
-      if (!currentPassword) errors.push('Le mot de passe actuel est requis pour définir un nouveau mot de passe');
+      errors.push(...passwordErrors(newPassword, 'Le nouveau mot de passe'));
+      if (!currentPassword)
+        errors.push(
+          'Le mot de passe actuel est requis pour définir un nouveau mot de passe',
+        );
     }
-
-    if (errors.length) {
-      throw new BadRequestException({ statusCode: 400, error: 'Bad Request', message: errors });
-    }
+    if (errors.length) throw badRequest(...errors);
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -216,30 +227,39 @@ export class AuthService {
     });
     if (!user) throw new UnauthorizedException('Compte introuvable');
 
-    const updateData: Record<string, any> = {};
-    if (firstName) updateData.firstName = firstName;
-    if (lastName) updateData.lastName = lastName;
-    if (b.phone !== undefined) updateData.phone = phone || null;
+    const data: {
+      firstName?: string;
+      lastName?: string;
+      phone?: string | null;
+      passwordHash?: string;
+    } = {};
+    if (firstName) data.firstName = firstName;
+    if (lastName) data.lastName = lastName;
+    if (b.phone !== undefined) data.phone = phone || null;
 
     if (newPassword) {
-      const isValid = await verifyPassword(currentPassword, user.passwordHash);
-      if (!isValid) {
-        throw new BadRequestException('Le mot de passe actuel est incorrect');
+      if (!(await verifyPassword(currentPassword, user.passwordHash))) {
+        throw badRequest('Le mot de passe actuel est incorrect');
       }
-      updateData.passwordHash = await hashPassword(newPassword);
+      data.passwordHash = await hashPassword(newPassword);
     }
 
-    const updatedUser = await this.prisma.user.update({
+    return this.prisma.user.update({
       where: { id: userId },
-      data: updateData,
+      data,
       select: PUBLIC_USER,
     });
+  }
 
-    return updatedUser;
+  private resetSecret(passwordHash: string): string {
+    return `${process.env.JWT_SECRET}:${RESET_PURPOSE}:${passwordHash}`;
   }
 
   private async session<U extends { id: number; role: string }>(user: U) {
-    const accessToken = await this.jwt.signAsync({ sub: user.id, role: user.role });
+    const accessToken = await this.jwt.signAsync({
+      sub: user.id,
+      role: user.role,
+    });
     return { accessToken, user };
   }
 }

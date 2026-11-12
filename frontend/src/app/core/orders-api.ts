@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core'; // <-- @angular/core au lieu de @angular/common
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { API_URL } from './models';
@@ -13,7 +13,7 @@ export interface OrderItem {
   lineTotal: number;
 }
 
-export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'PREPARING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
 
 export interface CustomerOrder {
   id: number;

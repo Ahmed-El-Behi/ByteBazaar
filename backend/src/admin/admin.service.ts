@@ -1,11 +1,58 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, Prisma } from '../generated/prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  OrderStatus,
+  PaymentStatus,
+  Prisma,
+  StockReason,
+} from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
-import { UpdateOrderStatusDto, UpdateProductStatusDto, UpdateStockDto } from './admin.dto';
+import { asRecord, badRequest, int, oneOf, text } from '../common/input';
+
+const ORDER_STATUSES = Object.values(OrderStatus);
+const PAYMENT_STATUSES = Object.values(PaymentStatus);
+const STOCK_REASONS = Object.values(StockReason);
+
+// Progression d'une commande : on avance, on ne recule pas. CANCELLED et DELIVERED sont définitifs.
+// (même règle que l'écran admin-orders côté frontend)
+const STATUS_RANK: Record<OrderStatus, number> = {
+  PENDING: 1,
+  CONFIRMED: 2,
+  PREPARING: 3,
+  SHIPPED: 4,
+  DELIVERED: 5,
+  CANCELLED: 99,
+};
+const FINAL_STATUSES: OrderStatus[] = ['DELIVERED', 'CANCELLED'];
+
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  PENDING: 'En attente',
+  CONFIRMED: 'Confirmée',
+  PREPARING: 'En préparation',
+  SHIPPED: 'Expédiée',
+  DELIVERED: 'Livrée',
+  CANCELLED: 'Annulée',
+};
+
+const ORDER_INCLUDE = {
+  items: true,
+  user: {
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+    },
+  },
+} satisfies Prisma.OrderInclude;
 
 type OrderWithDetails = Prisma.OrderGetPayload<{
-  include: { items: true; user: { select: { id: true; email: true; firstName: true; lastName: true } } };
+  include: typeof ORDER_INCLUDE;
 }>;
 
 function formatOrder(order: OrderWithDetails) {
@@ -17,9 +64,24 @@ function formatOrder(order: OrderWithDetails) {
     items: order.items.map((item) => ({
       ...item,
       unitPrice: Number(item.unitPrice),
-      lineTotal: Math.round(Number(item.unitPrice) * item.quantity * 1000) / 1000,
+      lineTotal:
+        Math.round(Number(item.unitPrice) * item.quantity * 1000) / 1000,
     })),
   };
+}
+
+function assertTransition(from: OrderStatus, to: OrderStatus) {
+  if (from === to) return;
+  if (FINAL_STATUSES.includes(from)) {
+    throw new BadRequestException(
+      `Une commande ${STATUS_LABELS[from].toLowerCase()} ne peut plus changer de statut`,
+    );
+  }
+  if (to !== 'CANCELLED' && STATUS_RANK[to] < STATUS_RANK[from]) {
+    throw new BadRequestException(
+      `Impossible de repasser de « ${STATUS_LABELS[from]} » à « ${STATUS_LABELS[to]} »`,
+    );
+  }
 }
 
 @Injectable()
@@ -29,7 +91,7 @@ export class AdminService {
     private readonly mailService: MailService,
   ) {}
 
-  // --- GESTION DU STOCK ET PRODUITS ---
+  // --- PRODUITS ET STOCK ---
 
   async getProductById(id: number) {
     const product = await this.prisma.product.findUnique({
@@ -39,217 +101,206 @@ export class AdminService {
         brand: { select: { name: true } },
       },
     });
-
-    if (!product) {
-      throw new NotFoundException(`Produit #${id} introuvable`);
-    }
-
-    return {
-      ...product,
-      price: Number(product.price),
-    };
+    if (!product) throw new NotFoundException(`Produit #${id} introuvable`);
+    return { ...product, price: Number(product.price) };
   }
 
-  async updateStock(adminUserId: number, dto: UpdateStockDto) {
-    const productId = Number.parseInt(String(dto.productId), 10);
-    const quantityChange = Number.parseInt(String(dto.quantityChange), 10);
-
-    if (Number.isNaN(productId)) {
-      throw new BadRequestException('ID produit invalide');
-    }
-
-    if (Number.isNaN(quantityChange) || quantityChange === 0) {
-      throw new BadRequestException('La variation de stock (quantityChange) doit être un entier différent de 0');
-    }
+  async updateStock(adminUserId: number, body: unknown) {
+    const b = asRecord(body);
+    const productId = int(b.productId, 'ID produit', { min: 1 });
+    const quantityChange = int(b.quantityChange, 'Variation de stock', {
+      min: -100_000,
+      max: 100_000,
+    });
+    if (quantityChange === 0)
+      throw badRequest('La variation de stock doit être différente de 0');
+    const reason = oneOf(b.reason, STOCK_REASONS, 'Motif') ?? 'ADJUSTMENT';
+    const note =
+      text(b.note) || `Ajustement manuel admin (User #${adminUserId})`;
 
     return this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({ where: { id: productId } });
-      if (!product) {
-        throw new NotFoundException(`Produit #${productId} introuvable dans le catalogue`);
-      }
-
-      const newQuantity = product.stockQuantity + quantityChange;
-      if (newQuantity < 0) {
-        throw new BadRequestException(`Stock insuffisant. Stock actuel : ${product.stockQuantity}`);
-      }
-
-      const updatedProduct = await tx.product.update({
+      const product = await tx.product.findUnique({
         where: { id: productId },
-        data: { stockQuantity: newQuantity },
+        select: { stockQuantity: true },
       });
+      if (!product)
+        throw new NotFoundException(
+          `Produit #${productId} introuvable dans le catalogue`,
+        );
+
+      // Mise à jour conditionnelle : le stock ne peut pas devenir négatif, même en concurrence
+      const changed = await tx.product.updateMany({
+        where: { id: productId, stockQuantity: { gte: -quantityChange } },
+        data: { stockQuantity: { increment: quantityChange } },
+      });
+      if (changed.count === 0) {
+        throw new BadRequestException(
+          `Stock insuffisant. Stock actuel : ${product.stockQuantity}`,
+        );
+      }
 
       await tx.stockMovement.create({
         data: {
           productId,
           performedById: adminUserId,
           quantityChange,
-          reason: dto.reason || 'ADJUSTMENT',
-          note: dto.note || `Ajustement manuel admin (User #${adminUserId})`,
+          reason,
+          note,
         },
       });
 
-      return updatedProduct;
+      return tx.product.findUniqueOrThrow({ where: { id: productId } });
     });
   }
 
-  async toggleProductStatus(productId: number, dto: UpdateProductStatusDto) {
-    const id = Number.parseInt(String(productId), 10);
-    const product = await this.prisma.product.findUnique({ where: { id } });
+  async setProductStatus(productId: number, body: unknown) {
+    const isActive = asRecord(body).isActive;
+    if (typeof isActive !== 'boolean')
+      throw badRequest('isActive doit être un booléen');
+
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true },
+    });
     if (!product) throw new NotFoundException('Produit non trouvé');
 
     return this.prisma.product.update({
-      where: { id },
-      data: { isActive: dto.isActive },
+      where: { id: productId },
+      data: { isActive },
     });
   }
 
-  async getStockMovements(productId?: number) {
-    const pId = productId ? Number.parseInt(String(productId), 10) : undefined;
+  async getStockMovements(rawProductId?: string) {
+    const productId = rawProductId
+      ? int(rawProductId, 'ID produit', { min: 1 })
+      : undefined;
     const movements = await this.prisma.stockMovement.findMany({
-      where: pId && !Number.isNaN(pId) ? { productId: pId } : undefined,
-      orderBy: { createdAt: 'desc' },
+      where: productId ? { productId } : undefined,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 100,
       include: {
-        product: { select: { id: true, name: true, sku: true, stockQuantity: true } },
-        performedBy: { select: { firstName: true, lastName: true, email: true } },
+        product: {
+          select: { id: true, name: true, sku: true, stockQuantity: true },
+        },
+        performedBy: {
+          select: { firstName: true, lastName: true, email: true },
+        },
       },
     });
 
-    const productCurrentStocks = new Map<number, number>();
-
-    return movements.map((m) => {
-      const prodId = m.productId;
-
-      if (!productCurrentStocks.has(prodId)) {
-        productCurrentStocks.set(prodId, m.product?.stockQuantity ?? 0);
-      }
-
-      const currentStockAtThisStep = productCurrentStocks.get(prodId)!;
-      productCurrentStocks.set(prodId, currentStockAtThisStep - m.quantityChange);
-
-      const { performedBy, ...rest } = m;
-      return {
-        ...rest,
-        user: performedBy,
-        historicalStock: currentStockAtThisStep,
-      };
+    // Stock après chaque mouvement, reconstitué à rebours depuis le stock actuel
+    const runningStock = new Map<number, number>();
+    return movements.map(({ performedBy, ...movement }) => {
+      const stockAfter =
+        runningStock.get(movement.productId) ?? movement.product.stockQuantity;
+      runningStock.set(
+        movement.productId,
+        stockAfter - movement.quantityChange,
+      );
+      return { ...movement, user: performedBy, historicalStock: stockAfter };
     });
   }
 
-  // --- GESTION DES COMMANDES ---
+  // --- COMMANDES ---
 
-  async getAllOrders(status?: OrderStatus) {
+  async getAllOrders(rawStatus?: string) {
+    const status = oneOf(rawStatus, ORDER_STATUSES, 'Statut');
     const orders = await this.prisma.order.findMany({
       where: status ? { status } : undefined,
       orderBy: { createdAt: 'desc' },
-      include: {
-        items: true,
-        user: { select: { id: true, email: true, firstName: true, lastName: true } },
-      },
+      include: ORDER_INCLUDE,
     });
-
     return orders.map(formatOrder);
   }
 
-  async getAdminOrderDetails(orderId: number) {
-    const id = Number.parseInt(String(orderId), 10);
+  async getAdminOrderDetails(id: number) {
     const order = await this.prisma.order.findUnique({
       where: { id },
-      include: {
-        items: true,
-        user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
-      },
+      include: ORDER_INCLUDE,
     });
-
     if (!order) throw new NotFoundException('Commande non trouvée');
     return formatOrder(order);
   }
 
-  async updateOrderStatus(adminUserId: number, orderId: number, dto: UpdateOrderStatusDto) {
-    const id = Number.parseInt(String(orderId), 10);
-    const formattedResult = await this.prisma.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({
-        where: { id },
-        include: { items: true },
-      });
+  async updateOrderStatus(adminUserId: number, id: number, body: unknown) {
+    const b = asRecord(body);
+    const status = oneOf(b.status, ORDER_STATUSES, 'Statut de commande');
+    const paymentStatus = oneOf(
+      b.paymentStatus,
+      PAYMENT_STATUSES,
+      'Statut de paiement',
+    );
+    if (!status && !paymentStatus)
+      throw badRequest('Aucune modification demandée');
 
-      if (!order) throw new NotFoundException('Commande non trouvée');
+    const { order, statusChanged } = await this.prisma.$transaction(
+      async (tx) => {
+        const current = await tx.order.findUnique({
+          where: { id },
+          include: { items: true },
+        });
+        if (!current) throw new NotFoundException('Commande non trouvée');
 
-      const dataToUpdate: Prisma.OrderUpdateInput = {};
+        const data: Prisma.OrderUpdateInput = {};
+        const now = new Date();
+        const statusChanged = !!status && status !== current.status;
 
-      if (dto.status) {
-        dataToUpdate.status = dto.status;
+        if (status && statusChanged) {
+          assertTransition(current.status, status);
+          data.status = status;
 
-        if (dto.status === 'SHIPPED' && !order.shippedAt) dataToUpdate.shippedAt = new Date();
-        if (dto.status === 'DELIVERED') {
-          if (!order.deliveredAt) dataToUpdate.deliveredAt = new Date();
-          dataToUpdate.paymentStatus = 'PAID';
-          if (!order.paidAt) dataToUpdate.paidAt = new Date();
-        }
+          if (status === 'SHIPPED' && !current.shippedAt) data.shippedAt = now;
+          if (status === 'DELIVERED') {
+            if (!current.shippedAt) data.shippedAt = now;
+            data.deliveredAt = now;
+            data.paymentStatus = 'PAID';
+            if (!current.paidAt) data.paidAt = now;
+          }
 
-        if (dto.status === 'CANCELLED' && order.status !== 'CANCELLED') {
-          for (const item of order.items) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
-
-            await tx.stockMovement.create({
-              data: {
+          // Annulation : remise en stock (une seule fois, CANCELLED étant définitif)
+          if (status === 'CANCELLED') {
+            for (const item of current.items) {
+              await tx.product.update({
+                where: { id: item.productId },
+                data: { stockQuantity: { increment: item.quantity } },
+              });
+            }
+            await tx.stockMovement.createMany({
+              data: current.items.map((item) => ({
                 productId: item.productId,
                 performedById: adminUserId,
                 quantityChange: item.quantity,
-                reason: 'RETURN',
-                note: `Annulation commande ${order.reference || `#${order.id}`}`,
-              },
+                reason: 'RETURN' as const,
+                note: `Annulation commande ${current.reference}`,
+              })),
             });
           }
         }
-      }
 
-      if (dto.paymentStatus) {
-        dataToUpdate.paymentStatus = dto.paymentStatus;
-        if (dto.paymentStatus === 'PAID' && !order.paidAt) {
-          dataToUpdate.paidAt = new Date();
+        if (paymentStatus) {
+          data.paymentStatus = paymentStatus;
+          if (paymentStatus === 'PAID' && !current.paidAt) data.paidAt = now;
         }
-      }
 
-      const updated = await tx.order.update({
-        where: { id },
-        data: dataToUpdate,
-        include: {
-          items: true,
-          user: { select: { id: true, email: true, firstName: true, lastName: true } },
-        },
-      });
-
-      return formatOrder(updated);
-    });
-
-    // Déclenchement de la notification de commande en arrière-plan
-    if (dto.status && formattedResult.user && formattedResult.user.email) {
-      const targetEmail = formattedResult.user.email;
-      const clientName = formattedResult.user.firstName || 'Client';
-      const reference = formattedResult.reference || `#${formattedResult.id}`;
-
-      console.log(`[Mail] Tentative d'envoi de notification à : ${targetEmail}`);
-
-      this.mailService
-        .sendOrderStatusNotification(
-          targetEmail,
-          clientName,
-          formattedResult.id,
-          reference,
-          dto.status,
-        )
-        .then(() => {
-          console.log(`[Mail] Notification envoyée avec succès pour la commande ${reference}`);
-        })
-        .catch((err) => {
-          console.error(`[Mail] Erreur lors de l'envoi du mail de commande :`, err);
+        const order = await tx.order.update({
+          where: { id },
+          data,
+          include: ORDER_INCLUDE,
         });
+        return { order, statusChanged };
+      },
+    );
+
+    // Notification client en arrière-plan (MailService journalise les échecs)
+    if (statusChanged && order.user?.email) {
+      void this.mailService.sendOrderStatusNotification(
+        order.user.email,
+        order.user.firstName,
+        order.reference,
+        order.status,
+      );
     }
 
-    return formattedResult;
+    return formatOrder(order);
   }
 }

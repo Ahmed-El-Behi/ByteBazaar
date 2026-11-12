@@ -1,67 +1,68 @@
 import {
+  Body,
   Controller,
   Get,
-  Patch,
-  Body,
   Param,
-  Query,
   ParseIntPipe,
-  UseGuards,
+  Patch,
+  Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import type { AuthedRequest } from '../auth/jwt-auth.guard';
+import { Roles, RolesGuard } from '../auth/roles';
 import { AdminService } from './admin.service';
-import { UpdateStockDto, UpdateProductStatusDto, UpdateOrderStatusDto } from './admin.dto';
-import { OrderStatus } from '../generated/prisma/client';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'; // Ajustez le chemin selon votre structure auth
 
+// Toutes les routes exigent un compte ADMIN (JwtAuthGuard identifie, RolesGuard autorise)
 @Controller('admin')
-@UseGuards(JwtAuthGuard) // Sécurise l'ensemble des routes admin
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('ADMIN')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
+  // Corps : { productId, quantityChange, reason?, note? }
   @Patch('products/stock')
-  async updateStock(@Req() req: any, @Body() dto: UpdateStockDto) {
-    // Récupération dynamique de l'ID de l'admin connecté
-    const adminUserId = req.user?.id || req.user?.sub;
-    return this.adminService.updateStock(adminUserId, dto);
+  updateStock(@Req() req: AuthedRequest, @Body() body: unknown) {
+    return this.adminService.updateStock(req.user!.id, body);
   }
 
+  // Corps : { isActive: boolean }
   @Patch('products/:id/status')
-  async toggleProductStatus(
+  setProductStatus(
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateProductStatusDto,
+    @Body() body: unknown,
   ) {
-    return this.adminService.toggleProductStatus(id, dto);
+    return this.adminService.setProductStatus(id, body);
   }
 
   @Get('products/:id')
-  async getProductById(@Param('id', ParseIntPipe) id: number) {
+  getProductById(@Param('id', ParseIntPipe) id: number) {
     return this.adminService.getProductById(id);
   }
 
   @Get('stock/movements')
-  async getStockMovements(@Query('productId') productId?: string) {
-    const pId = productId ? Number.parseInt(productId, 10) : undefined;
-    return this.adminService.getStockMovements(pId);
+  getStockMovements(@Query('productId') productId?: string) {
+    return this.adminService.getStockMovements(productId);
   }
 
   @Get('orders')
-  async getAllOrders(@Query('status') status?: OrderStatus) {
+  getAllOrders(@Query('status') status?: string) {
     return this.adminService.getAllOrders(status);
   }
 
   @Get('orders/:id')
-  async getAdminOrderDetails(@Param('id', ParseIntPipe) id: number) {
+  getAdminOrderDetails(@Param('id', ParseIntPipe) id: number) {
     return this.adminService.getAdminOrderDetails(id);
   }
 
+  // Corps : { status?, paymentStatus? }
   @Patch('orders/:id/status')
-  async updateOrderStatus(
-    @Req() req: any,
+  updateOrderStatus(
+    @Req() req: AuthedRequest,
     @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateOrderStatusDto,
+    @Body() body: unknown,
   ) {
-    const adminUserId = req.user?.id || req.user?.sub;
-    return this.adminService.updateOrderStatus(adminUserId, id, dto);
+    return this.adminService.updateOrderStatus(req.user!.id, id, body);
   }
 }

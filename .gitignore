@@ -1,0 +1,7 @@
+# OS / éditeurs
+.DS_Store
+Thumbs.db
+*.swp
+
+# Fichiers d'environnement (voir backend/.env.example)
+.env

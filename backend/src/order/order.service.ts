@@ -1,24 +1,44 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { randomInt } from 'node:crypto';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { CartService } from '../cart/cart.service';
-import { CheckoutDto, CreateAddressDto } from './order.dto';
+import { asRecord, badRequest, int, oneOf, text } from '../common/input';
 
-const PAYMENT_METHODS = ['CASH_ON_DELIVERY', 'CARD', 'PAYPAL', 'BANK_TRANSFER'] as const;
-const ADDRESS_FIELDS = ['recipientName', 'phone', 'street', 'city', 'governorate', 'postalCode'] as const;
+export const SHIPPING_FEE = 7; // TND — doit rester identique à SHIPPING_FEE côté frontend (core/models.ts)
 
-// Utilisation de 'images' (au pluriel) pour correspondre au schéma Prisma
-type OrderWithItems = Prisma.OrderGetPayload<{
-  include: {
-    items: {
-      include: {
-        product: {
-          include: { images: true };
-        };
-      };
-    };
-  };
-}>;
+const PAYMENT_METHODS = [
+  'CASH_ON_DELIVERY',
+  'CARD',
+  'PAYPAL',
+  'BANK_TRANSFER',
+] as const;
+const ADDRESS_FIELDS = [
+  'recipientName',
+  'phone',
+  'street',
+  'city',
+  'governorate',
+  'postalCode',
+] as const;
+
+const ORDER_INCLUDE = {
+  items: {
+    include: {
+      product: {
+        include: {
+          images: { orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }] },
+        },
+      },
+    },
+  },
+} satisfies Prisma.OrderInclude;
+
+type OrderWithItems = Prisma.OrderGetPayload<{ include: typeof ORDER_INCLUDE }>;
+type AddressInput = Omit<Prisma.AddressUncheckedCreateInput, 'id' | 'userId'>;
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
@@ -30,7 +50,6 @@ function toOrderDto(order: OrderWithItems) {
     total: Number(order.total),
     items: order.items.map((item) => {
       const unitPrice = Number(item.unitPrice);
-      // Récupère la première image du tableau 'images' ou null
       const firstImage = item.product?.images?.[0] ?? null;
       return {
         ...item,
@@ -38,157 +57,204 @@ function toOrderDto(order: OrderWithItems) {
         lineTotal: round3(unitPrice * item.quantity),
         product: {
           ...item.product,
-          image: firstImage ? { url: firstImage.url, altText: firstImage.altText ?? null } : null,
+          price: Number(item.product.price),
+          image: firstImage
+            ? { url: firstImage.url, altText: firstImage.altText ?? null }
+            : null,
         },
       };
     }),
   };
 }
 
+function parseAddress(body: unknown): AddressInput {
+  const b = asRecord(body);
+  const missing = ADDRESS_FIELDS.filter((key) => !text(b[key]));
+  if (missing.length)
+    throw badRequest(`Adresse incomplète : ${missing.join(', ')}`);
+  return {
+    label: text(b.label) || 'Maison',
+    recipientName: text(b.recipientName),
+    phone: text(b.phone),
+    street: text(b.street),
+    city: text(b.city),
+    governorate: text(b.governorate),
+    postalCode: text(b.postalCode),
+    isDefault: b.isDefault === true,
+  };
+}
+
+// Ex. BB-482913-057 (6 chiffres horodatés + 3 aléatoires)
+function newReference(): string {
+  return `BB-${Date.now().toString().slice(-6)}-${randomInt(1000).toString().padStart(3, '0')}`;
+}
+
 @Injectable()
 export class OrderService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly cartService: CartService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  // --- GESTION DES ADRESSES ---
-  async getAddresses(userId: number) {
+  // --- ADRESSES ---
+
+  getAddresses(userId: number) {
     return this.prisma.address.findMany({
       where: { userId },
       orderBy: [{ isDefault: 'desc' }, { id: 'desc' }],
     });
   }
 
-  async createAddress(userId: number, dto: CreateAddressDto) {
-    const missing = ADDRESS_FIELDS.filter((key) => typeof dto?.[key] !== 'string' || !dto[key].trim());
-    if (missing.length) {
-      throw new BadRequestException(`Adresse incomplète : ${missing.join(', ')}`);
-    }
+  async createAddress(userId: number, body: unknown) {
+    const address = parseAddress(body);
+    return this.prisma.$transaction((tx) =>
+      this.saveAddress(tx, userId, address),
+    );
+  }
 
-    if (dto.isDefault) {
-      await this.prisma.address.updateMany({
+  private async saveAddress(
+    tx: Prisma.TransactionClient,
+    userId: number,
+    address: AddressInput,
+  ) {
+    if (address.isDefault) {
+      await tx.address.updateMany({
         where: { userId },
         data: { isDefault: false },
       });
     }
-
-    return this.prisma.address.create({
-      data: {
-        userId,
-        label: dto.label || 'Maison',
-        recipientName: dto.recipientName,
-        phone: dto.phone,
-        street: dto.street,
-        city: dto.city,
-        governorate: dto.governorate,
-        postalCode: dto.postalCode,
-        isDefault: dto.isDefault ?? false,
-      },
-    });
+    return tx.address.create({ data: { ...address, userId } });
   }
 
   // --- PASSAGE DE COMMANDE ---
-  async checkout(userId: number, dto: CheckoutDto) {
-    const paymentMethod = dto.paymentMethod ?? 'CASH_ON_DELIVERY';
-    if (!PAYMENT_METHODS.includes(paymentMethod)) {
-      throw new BadRequestException('Mode de paiement invalide');
+
+  async checkout(userId: number, body: unknown) {
+    const b = asRecord(body);
+    const paymentMethod =
+      oneOf(b.paymentMethod, PAYMENT_METHODS, 'Mode de paiement') ??
+      'CASH_ON_DELIVERY';
+    const addressId =
+      b.addressId !== undefined && b.addressId !== null
+        ? int(b.addressId, 'Adresse', { min: 1 })
+        : null;
+    const newAddress =
+      addressId === null && b.newAddress ? parseAddress(b.newAddress) : null;
+    if (addressId === null && !newAddress) {
+      throw new BadRequestException(
+        'Veuillez sélectionner ou fournir une adresse de livraison',
+      );
     }
 
-    const cart = await this.cartService.getCart(userId);
-    if (!cart.items.length) {
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const orderId = await this.prisma.$transaction((tx) =>
+          this.placeOrder(tx, userId, paymentMethod, addressId, newAddress),
+        );
+        return this.getOrderDetails(userId, orderId);
+      } catch (error) {
+        // Collision (très improbable) sur la référence unique : on réessaie avec une nouvelle référence
+        const collision =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002' &&
+          JSON.stringify(error.meta ?? {}).includes('reference');
+        if (!collision || attempt >= 3) throw error;
+      }
+    }
+  }
+
+  private async placeOrder(
+    tx: Prisma.TransactionClient,
+    userId: number,
+    paymentMethod: (typeof PAYMENT_METHODS)[number],
+    addressId: number | null,
+    newAddress: AddressInput | null,
+  ): Promise<number> {
+    // Le panier est lu dans la transaction : prix et quantités sont ceux du moment de la commande
+    const cart = await tx.cart.findUnique({
+      where: { userId },
+      include: {
+        items: { include: { product: true }, orderBy: { id: 'asc' } },
+      },
+    });
+    if (!cart?.items.length)
       throw new BadRequestException('Votre panier est vide');
-    }
 
-    let address;
-    if (dto.addressId) {
-      address = await this.prisma.address.findFirst({
-        where: { id: dto.addressId, userId },
+    const address = addressId
+      ? await tx.address.findFirst({ where: { id: addressId, userId } })
+      : await this.saveAddress(tx, userId, newAddress!);
+    if (!address) throw new NotFoundException('Adresse spécifiée non trouvée');
+
+    // Réservation du stock : décrément conditionnel atomique (aucune survente possible
+    // même si deux commandes du même produit arrivent en même temps)
+    for (const item of cart.items) {
+      const reserved = await tx.product.updateMany({
+        where: {
+          id: item.productId,
+          isActive: true,
+          stockQuantity: { gte: item.quantity },
+        },
+        data: { stockQuantity: { decrement: item.quantity } },
       });
-      if (!address) throw new NotFoundException('Adresse spécifiée non trouvée');
-    } else if (dto.newAddress) {
-      address = await this.createAddress(userId, dto.newAddress);
-    } else {
-      throw new BadRequestException('Veuillez sélectionner ou fournir une adresse de livraison');
-    }
-
-    const orderId = await this.prisma.$transaction(async (tx) => {
-      for (const item of cart.items) {
-        const prod = await tx.product.findUnique({ where: { id: item.productId } });
-        if (!prod || prod.stockQuantity < item.quantity) {
+      if (reserved.count === 0) {
+        if (!item.product.isActive) {
           throw new BadRequestException(
-            `Le produit ${item.product.name} n'a pas assez de stock (${prod?.stockQuantity ?? 0} disponible)`,
+            `Le produit ${item.product.name} n'est plus disponible à la vente`,
           );
         }
+        throw new BadRequestException(
+          `Le produit ${item.product.name} n'a pas assez de stock (${item.product.stockQuantity} disponible)`,
+        );
       }
+    }
 
-      const shippingFee = 7.0;
-      const subtotal = cart.total;
-      const total = subtotal + shippingFee;
-      const reference = `BB-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
-
-      const order = await tx.order.create({
-        data: {
-          userId,
-          reference,
-          status: 'PENDING',
-          paymentMethod,
-          paymentStatus: 'PENDING',
-          subtotal,
-          shippingFee,
-          total,
-          shippingName: address.recipientName,
-          shippingPhone: address.phone,
-          shippingAddress: `${address.street}, ${address.city}, ${address.governorate} ${address.postalCode}`,
-          items: {
-            create: cart.items.map((i) => ({
-              productId: i.productId,
-              productName: i.product.name,
-              unitPrice: i.unitPrice,
-              quantity: i.quantity,
-            })),
-          },
+    const subtotal = round3(
+      cart.items.reduce(
+        (sum, i) => sum + Number(i.product.price) * i.quantity,
+        0,
+      ),
+    );
+    const order = await tx.order.create({
+      data: {
+        userId,
+        reference: newReference(),
+        paymentMethod,
+        subtotal,
+        shippingFee: SHIPPING_FEE,
+        total: round3(subtotal + SHIPPING_FEE),
+        shippingName: address.recipientName,
+        shippingPhone: address.phone,
+        shippingAddress: `${address.street}, ${address.city}, ${address.governorate} ${address.postalCode}`,
+        items: {
+          create: cart.items.map((i) => ({
+            productId: i.productId,
+            productName: i.product.name,
+            unitPrice: i.product.price,
+            quantity: i.quantity,
+          })),
         },
-      });
-
-      for (const item of cart.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stockQuantity: { decrement: item.quantity } },
-        });
-
-        await tx.stockMovement.create({
-          data: {
-            productId: item.productId,
-            quantityChange: -item.quantity,
-            reason: 'SALE',
-            note: `Commande ${order.reference}`,
-          },
-        });
-      }
-
-      await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
-
-      return order.id;
+      },
     });
 
-    // Récupération complète typée avec la relation produits/images
-    return this.getOrderDetails(userId, orderId);
+    await tx.stockMovement.createMany({
+      data: cart.items.map((i) => ({
+        productId: i.productId,
+        quantityChange: -i.quantity,
+        reason: 'SALE' as const,
+        note: `Commande ${order.reference}`,
+      })),
+    });
+
+    // Seules les lignes commandées sont retirées du panier
+    await tx.cartItem.deleteMany({
+      where: { id: { in: cart.items.map((i) => i.id) } },
+    });
+    return order.id;
   }
+
+  // --- HISTORIQUE ---
 
   async getMyOrders(userId: number) {
     const orders = await this.prisma.order.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      include: {
-        items: {
-          include: {
-            product: {
-              include: { images: true },
-            },
-          },
-        },
-      },
+      include: ORDER_INCLUDE,
     });
     return orders.map(toOrderDto);
   }
@@ -196,15 +262,7 @@ export class OrderService {
   async getOrderDetails(userId: number, orderId: number) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
-      include: {
-        items: {
-          include: {
-            product: {
-              include: { images: true },
-            },
-          },
-        },
-      },
+      include: ORDER_INCLUDE,
     });
     if (!order) throw new NotFoundException('Commande non trouvée');
     return toOrderDto(order);

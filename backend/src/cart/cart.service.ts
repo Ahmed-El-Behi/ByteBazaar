@@ -1,88 +1,71 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { int } from '../common/input';
+
+const MAX_QUANTITY = 99;
+
+const CART_INCLUDE = {
+  items: {
+    orderBy: { id: 'asc' },
+    include: {
+      product: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          stockQuantity: true,
+          isActive: true,
+          images: {
+            select: { url: true, altText: true },
+            orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }],
+            take: 1,
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.CartInclude;
+
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 @Injectable()
 export class CartService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async getOrCreateCart(userId: number) {
-    let cart = await this.prisma.cart.findUnique({
+  // upsert : deux requêtes simultanées ne peuvent pas créer deux paniers
+  private getOrCreateCart(userId: number) {
+    return this.prisma.cart.upsert({
       where: { userId },
-      include: {
-        items: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                price: true,
-                stockQuantity: true,
-                isActive: true,
-                images: {
-                  select: { url: true, altText: true },
-                  orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }],
-                  take: 1,
-                },
-              },
-            },
-          },
-          orderBy: { id: 'asc' },
-        },
-      },
+      update: {},
+      create: { userId },
+      include: CART_INCLUDE,
     });
-
-    if (!cart) {
-      cart = await this.prisma.cart.create({
-        data: { userId },
-        include: {
-          items: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  slug: true,
-                  price: true,
-                  stockQuantity: true,
-                  isActive: true,
-                  images: {
-                    select: { url: true, altText: true },
-                    orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }],
-                    take: 1,
-                  },
-                },
-              },
-            },
-            orderBy: { id: 'asc' },
-          },
-        },
-      });
-    }
-
-    return cart;
   }
 
   async getCart(userId: number) {
     const cart = await this.getOrCreateCart(userId);
-    
-    let total = 0;
+
     const items = cart.items.map((item) => {
       const unitPrice = Number(item.product.price);
-      const lineTotal = unitPrice * item.quantity;
-      total += lineTotal;
-
       return {
         id: item.id,
         productId: item.productId,
         quantity: item.quantity,
         unitPrice,
-        lineTotal,
+        lineTotal: round3(unitPrice * item.quantity),
         product: {
           name: item.product.name,
           slug: item.product.slug,
           stockQuantity: item.product.stockQuantity,
-          isAvailable: item.product.isActive && item.product.stockQuantity >= item.quantity,
+          isAvailable:
+            item.product.isActive &&
+            item.product.stockQuantity >= item.quantity,
           image: item.product.images[0] ?? null,
         },
       };
@@ -91,26 +74,36 @@ export class CartService {
     return {
       id: cart.id,
       items,
-      total,
+      total: round3(items.reduce((sum, i) => sum + i.lineTotal, 0)),
       itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
     };
   }
 
-  async addItem(userId: number, productId: number, quantity: number) {
-    if (quantity <= 0) throw new BadRequestException('La quantité doit être supérieure à 0');
+  async addItem(
+    userId: number,
+    rawProductId: unknown,
+    rawQuantity: unknown = 1,
+  ) {
+    const productId = int(rawProductId, 'Produit', { min: 1 });
+    const quantity = int(rawQuantity, 'Quantité', {
+      min: 1,
+      max: MAX_QUANTITY,
+    });
 
     const product = await this.prisma.product.findFirst({
       where: { id: productId, isActive: true },
     });
-    if (!product) throw new NotFoundException('Produit introuvable ou indisponible');
+    if (!product)
+      throw new NotFoundException('Produit introuvable ou indisponible');
 
     const cart = await this.getOrCreateCart(userId);
     const existingItem = cart.items.find((i) => i.productId === productId);
-    const currentQty = existingItem ? existingItem.quantity : 0;
-    const newQty = currentQty + quantity;
+    const newQty = (existingItem?.quantity ?? 0) + quantity;
 
     if (newQty > product.stockQuantity) {
-      throw new BadRequestException(`Stock insuffisant. Stock disponible : ${product.stockQuantity}`);
+      throw new BadRequestException(
+        `Stock insuffisant. Stock disponible : ${product.stockQuantity}`,
+      );
     }
 
     if (existingItem) {
@@ -120,43 +113,42 @@ export class CartService {
       });
     } else {
       await this.prisma.cartItem.create({
-        data: {
-          cartId: cart.id,
-          productId,
-          quantity,
-        },
+        data: { cartId: cart.id, productId, quantity },
       });
     }
 
     return this.getCart(userId);
   }
 
-  async updateItem(userId: number, itemId: number, quantity: number) {
+  async updateItem(userId: number, itemId: number, rawQuantity: unknown) {
+    const quantity = int(rawQuantity, 'Quantité', {
+      min: 0,
+      max: MAX_QUANTITY,
+    });
     const cart = await this.getOrCreateCart(userId);
     const item = cart.items.find((i) => i.id === itemId);
     if (!item) throw new NotFoundException('Article non trouvé dans le panier');
 
-    if (quantity <= 0) {
-      return this.removeItem(userId, itemId);
-    }
+    if (quantity === 0) return this.removeItem(userId, itemId);
 
     if (quantity > item.product.stockQuantity) {
-      throw new BadRequestException(`Stock insuffisant. Stock disponible : ${item.product.stockQuantity}`);
+      throw new BadRequestException(
+        `Stock insuffisant. Stock disponible : ${item.product.stockQuantity}`,
+      );
     }
 
     await this.prisma.cartItem.update({
       where: { id: itemId },
       data: { quantity },
     });
-
     return this.getCart(userId);
   }
 
   async removeItem(userId: number, itemId: number) {
     const cart = await this.getOrCreateCart(userId);
-    const item = cart.items.find((i) => i.id === itemId);
-    if (!item) throw new NotFoundException('Article non trouvé dans le panier');
-
+    if (!cart.items.some((i) => i.id === itemId)) {
+      throw new NotFoundException('Article non trouvé dans le panier');
+    }
     await this.prisma.cartItem.delete({ where: { id: itemId } });
     return this.getCart(userId);
   }

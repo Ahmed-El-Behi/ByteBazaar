@@ -18,7 +18,9 @@ import { PrismaClient } from '../generated/prisma/client';
 // =====================================================================
 
 const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL as string }),
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL as string,
+  }),
 });
 
 // Générateur pseudo-aléatoire déterministe (hash FNV-1a + mulberry32)
@@ -43,7 +45,8 @@ type Bucket = 'rupture' | 'faible' | 'normal' | 'eleve';
 function pickStock(sku: string): { stock: number; bucket: Bucket } {
   const rand = rngFromSku(sku);
   const roll = rand();
-  const between = (min: number, max: number) => min + Math.floor(rand() * (max - min + 1));
+  const between = (min: number, max: number) =>
+    min + Math.floor(rand() * (max - min + 1));
 
   if (roll < 0.1) return { stock: 0, bucket: 'rupture' };
   if (roll < 0.25) return { stock: between(1, 3), bucket: 'faible' };
@@ -66,9 +69,16 @@ async function main(): Promise<void> {
   console.log('\n===== STOCK DE TEST BYTEBAZAAR =====');
   console.log(`Produits en base : ${total}`);
   console.log(`Produits à approvisionner : ${candidates.length}`);
-  console.log(`Déjà approvisionnés ou vendus (ignorés) : ${total - candidates.length}`);
+  console.log(
+    `Déjà approvisionnés ou vendus (ignorés) : ${total - candidates.length}`,
+  );
 
-  const buckets: Record<Bucket, number> = { rupture: 0, faible: 0, normal: 0, eleve: 0 };
+  const buckets: Record<Bucket, number> = {
+    rupture: 0,
+    faible: 0,
+    normal: 0,
+    eleve: 0,
+  };
   let restocked = 0;
 
   for (const product of candidates) {
@@ -91,7 +101,8 @@ async function main(): Promise<void> {
     });
     restocked++;
 
-    if (restocked % 500 === 0) console.log(`Progression : ${restocked} produits approvisionnés`);
+    if (restocked % 500 === 0)
+      console.log(`Progression : ${restocked} produits approvisionnés`);
   }
 
   const [inStock, outOfStock, sum] = await Promise.all([

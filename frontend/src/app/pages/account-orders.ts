@@ -234,7 +234,8 @@ export class AccountOrdersPage implements OnInit {
 
   isStepReached(currentStatus: OrderStatus, targetStep: OrderStatus): boolean {
     const steps: OrderStatus[] = ['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED'];
-    const currentIndex = steps.indexOf(currentStatus);
+    // « En préparation » s'affiche au même niveau que « Confirmée » sur la frise
+    const currentIndex = steps.indexOf(currentStatus === 'PREPARING' ? 'CONFIRMED' : currentStatus);
     const targetIndex = steps.indexOf(targetStep);
     return currentIndex >= targetIndex && currentIndex !== -1;
   }
@@ -242,7 +243,8 @@ export class AccountOrdersPage implements OnInit {
   getStepperThemeClass(status: OrderStatus): string {
     switch (status) {
       case 'PENDING': return 'theme-pending';
-      case 'CONFIRMED': return 'theme-confirmed';
+      case 'CONFIRMED':
+      case 'PREPARING': return 'theme-confirmed';
       case 'SHIPPED': return 'theme-shipped';
       case 'DELIVERED': return 'theme-delivered';
       default: return 'theme-pending';
@@ -253,6 +255,7 @@ export class AccountOrdersPage implements OnInit {
     switch (status) {
       case 'PENDING': return 'En attente';
       case 'CONFIRMED': return 'Confirmée';
+      case 'PREPARING': return 'En préparation';
       case 'SHIPPED': return 'Expédiée';
       case 'DELIVERED': return 'Livrée';
       case 'CANCELLED': return 'Annulée';
@@ -263,7 +266,8 @@ export class AccountOrdersPage implements OnInit {
   getStatusBadgeClass(status: OrderStatus): string {
     switch (status) {
       case 'PENDING': return 'badge-pending';
-      case 'CONFIRMED': return 'badge-confirmed';
+      case 'CONFIRMED':
+      case 'PREPARING': return 'badge-confirmed';
       case 'SHIPPED': return 'badge-shipped';
       case 'DELIVERED': return 'badge-delivered';
       case 'CANCELLED': return 'badge-cancelled';

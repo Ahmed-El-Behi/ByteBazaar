@@ -1,4 +1,5 @@
 import { Component, computed, inject } from '@angular/core';
+import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -193,21 +194,34 @@ export class HomePage {
     { initialValue: [] as CategoryNode[] },
   );
 
-  private excludedSlugs = ['souris', 'clavier', 'ecran', 'ecrans', 'moniteur', 'moniteurs', 'peripheriques', 'peripherique', 'mouse', 'keyboard', 'screen', 'peripherals'];
 
   readonly tiles = computed(() =>
     this.categories()
       .flatMap((root) => (root.children.length ? root.children : [root]))
-      .filter((c) => c._count.products > 0 && !this.excludedSlugs.some(slug => c.slug.toLowerCase().includes(slug)))
+      .filter((c) => c._count.products > 0)
       .sort((a, b) => b._count.products - a._count.products),
   );
 
   readonly latest = toSignal<Paginated<ProductListItem> | null>(
-    this.api.products({ limit: '4' }).pipe(catchError(() => of(null))),
+    this.api.products({ limit: '4', sort: 'newest' }).pipe(catchError(() => of(null))),
     { initialValue: null },
   );
 
-  getCategoryIcon(slug: string): string {
+  private sanitizer = inject(DomSanitizer);
+  private iconCache = new Map<string, SafeHtml>();
+
+  // Les icônes sont des SVG constants : on les marque sûrs, sinon le sanitizer d'Angular
+  // retire les balises <svg> et la tuile reste vide.
+  getCategoryIcon(slug: string): SafeHtml {
+    let icon = this.iconCache.get(slug);
+    if (!icon) {
+      icon = this.sanitizer.bypassSecurityTrustHtml(this.categoryIconSvg(slug));
+      this.iconCache.set(slug, icon);
+    }
+    return icon;
+  }
+
+  private categoryIconSvg(slug: string): string {
     const s = slug.toLowerCase();
     if (s.includes('graphic') || s.includes('carte-graphique') || s.includes('gpu')) {
       return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="7" cy="12" r="2"></circle><circle cx="17" cy="12" r="2"></circle></svg>`;

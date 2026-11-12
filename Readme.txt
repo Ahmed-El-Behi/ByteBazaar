@@ -31,4 +31,17 @@
  *
  * 4. ETANCHEITE & SECURITE DES FORMULAIRES :
  *    - Ajout du bouton d'affichage/masquage du mot de passe (icône œil SVG + signals Angular) sur les formulaires de Connexion et de Réinitialisation.
- * =================================
+ *
+ * 5. NETTOYAGE & SECURISATION (12/11/2026) :
+ *    - Routes /admin réservées au rôle ADMIN (rôle relu en base à chaque requête).
+ *    - Commande : réservation du stock atomique (plus de survente), produits désactivés refusés.
+ *    - Statuts de commande : progression uniquement vers l'avant, Annulée / Livrée définitifs
+ *      (une annulation ne remet plus le stock deux fois).
+ *    - Mot de passe oublié : réponse identique que l'email existe ou non, lien à usage unique,
+ *      déconnexion des anciennes sessions après réinitialisation, limitation des tentatives.
+ *    - Catalogue : noms normalisés (marque + puce + série + mémoire, capacité, puissance...),
+ *      1 241 produits obsolètes supprimés, tri « Pertinence » par défaut.
+ *    - Import du catalogue (npm run seed) : ~10 s au lieu de ~50 min.
+ *    - Voir README.md pour l'installation.
+ * ==============================================================================
+ */

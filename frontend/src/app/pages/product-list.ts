@@ -61,7 +61,7 @@ const KEYS = ['category', 'brand', 'minPrice', 'maxPrice', 'inStock', 'sort', 'q
             </span>
             <select #sortSelect (change)="go({ sort: sortSelect.value })">
               @for (s of sorts; track s.value) {
-                <option [value]="s.value" [selected]="(param('sort') ?? 'newest') === s.value">{{ s.label }}</option>
+                <option [value]="s.value" [selected]="(param('sort') ?? 'relevance') === s.value">{{ s.label }}</option>
               }
             </select>
           </div>
@@ -121,6 +121,7 @@ export class ProductListPage {
   private router = inject(Router);
 
   readonly sorts = [
+    { value: 'relevance', label: 'Pertinence' },
     { value: 'newest', label: 'Nouveautés' },
     { value: 'price_asc', label: 'Prix croissant' },
     { value: 'price_desc', label: 'Prix décroissant' },
@@ -135,22 +136,8 @@ export class ProductListPage {
     { initialValue: [] as CategoryNode[] },
   );
 
-  private excludedKeywords = ['souris', 'clavier', 'ecran', 'ecrans', 'moniteur', 'moniteurs', 'peripheriques', 'peripherique', 'mouse', 'keyboard', 'screen', 'peripherals'];
-
-  private isExcluded(slug: string): boolean {
-    const s = slug.toLowerCase();
-    return this.excludedKeywords.some((keyword) => s.includes(keyword));
-  }
-
-  // Filtrage des catégories principales et des sous-catégories pour masquer les périphériques
-  readonly filteredCategories = computed(() => {
-    return this.rawCategories()
-      .filter((root) => !this.isExcluded(root.slug))
-      .map((root) => ({
-        ...root,
-        children: root.children.filter((child) => !this.isExcluded(child.slug)),
-      }));
-  });
+  // Le backend ne renvoie que les catégories contenant des produits en vente
+  readonly filteredCategories = this.rawCategories;
 
   readonly brands = toSignal(
     this.api.brands().pipe(catchError(() => of([] as Brand[]))),

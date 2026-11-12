@@ -8,13 +8,10 @@ import { AdminModule } from './admin/admin.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     AuthModule,
     CatalogModule,
@@ -24,6 +21,5 @@ import { AppService } from './app.service';
     MailModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
 })
 export class AppModule {}
