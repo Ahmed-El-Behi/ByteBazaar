@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { Icon } from '../components/icon';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
 import { catchError, of, switchMap, tap } from 'rxjs';
@@ -10,7 +11,7 @@ const KEYS = ['category', 'brand', 'minPrice', 'maxPrice', 'inStock', 'sort', 'q
 
 @Component({
   selector: 'app-product-list',
-  imports: [ProductCard],
+  imports: [Icon, ProductCard],
   template: `
     <div class="container layout">
       <aside class="card filters">
@@ -78,9 +79,9 @@ const KEYS = ['category', 'brand', 'minPrice', 'maxPrice', 'inStock', 'sort', 'q
 
           @if (r.meta.totalPages > 1) {
             <div class="pager">
-              <button class="btn" [disabled]="r.meta.page <= 1" (click)="go({ page: '' + (r.meta.page - 1) }, false)">← Précédent</button>
+              <button class="btn" [disabled]="r.meta.page <= 1" (click)="go({ page: '' + (r.meta.page - 1) }, false)"><app-icon name="chevronLeft" [size]="16" [stroke]="2" /> Précédent</button>
               <span class="muted">Page {{ r.meta.page }} / {{ r.meta.totalPages }}</span>
-              <button class="btn" [disabled]="r.meta.page >= r.meta.totalPages" (click)="go({ page: '' + (r.meta.page + 1) }, false)">Suivant →</button>
+              <button class="btn" [disabled]="r.meta.page >= r.meta.totalPages" (click)="go({ page: '' + (r.meta.page + 1) }, false)">Suivant <app-icon name="chevronRight" [size]="16" [stroke]="2" /></button>
             </div>
           }
         } @else if (loading()) {
@@ -94,7 +95,7 @@ const KEYS = ['category', 'brand', 'minPrice', 'maxPrice', 'inStock', 'sort', 'q
   styles: `
     .layout { display: grid; grid-template-columns: 260px 1fr; gap: 1.5rem; padding-block: 1.5rem; align-items: start; }
     .filters { padding: 1rem; position: sticky; top: 80px; max-height: calc(100vh - 100px); overflow-y: auto; }
-    .filters h3 { font-size: 0.8rem; color: var(--accent); margin: 1.1rem 0 0.4rem; }
+    .filters h3 { font-size: var(--fs-sm); color: var(--accent); margin: 1.1rem 0 0.4rem; }
     .filters h3:first-child { margin-top: 0; }
     .link { display: flex; justify-content: space-between; width: 100%; background: none; border: 0; color: var(--muted); font: inherit; text-align: left; padding: 0.25rem 0; cursor: pointer; }
     .link:hover, .link.active { color: var(--accent); }
@@ -103,9 +104,9 @@ const KEYS = ['category', 'brand', 'minPrice', 'maxPrice', 'inStock', 'sort', 'q
     .reset { margin-top: 1rem; text-decoration: underline; }
     .check { display: flex; gap: 0.5rem; align-items: center; padding: 0.15rem 0; cursor: pointer; }
     .price { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
-    .price input { width: 100%; padding: 0.45rem; border-radius: 14px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+    .price input { width: 100%; padding: 0.45rem; border-radius: var(--r-md); border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
     .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; gap: 1rem; }
-    select { padding: 0.45rem 0.7rem; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
+    select { width: auto; min-width: 190px; padding: 0.5rem 2.4rem 0.5rem 0.9rem; border-radius: var(--r-md); border: 1px solid var(--border); background-color: var(--surface); color: var(--text); font: inherit; }
     .loading { opacity: 0.5; transition: opacity 0.15s; }
     .empty { padding: 2rem; text-align: center; color: var(--muted); }
     .pager { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; }

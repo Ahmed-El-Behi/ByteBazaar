@@ -2,7 +2,13 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { API_URL } from './models';
 
-export type Slot = 'cpu' | 'motherboard' | 'ram' | 'gpu' | 'storage' | 'psu' | 'case';
+/** Pièces du PC (indispensables + ventirad) */
+export type PcSlot = 'cpu' | 'cooler' | 'motherboard' | 'ram' | 'gpu' | 'storage' | 'psu' | 'case';
+/** Poste de travail (facultatif) */
+export type DeskSlot = 'monitor' | 'keyboard' | 'mouse' | 'headset';
+export type Slot = PcSlot | DeskSlot;
+export const PC_SLOTS: PcSlot[] = ['cpu', 'cooler', 'motherboard', 'ram', 'gpu', 'storage', 'psu', 'case'];
+export const DESK_SLOTS: DeskSlot[] = ['monitor', 'keyboard', 'mouse', 'headset'];
 
 export interface ConfiguratorPart {
   id: number;
@@ -21,6 +27,11 @@ export interface ConfiguratorPart {
   gpu?: { chipset: string; vramGB: number; tdpWatts: number; lengthMm: number };
   psu?: { wattage: number; formFactor: string; efficiency: string };
   pcCase?: { supportedFormFactors: FormFactor[]; sfxOnly: boolean };
+  cooler?: { liquid: boolean; radiatorMm: number | null };
+  monitor?: { screenSizeIn: number; resolutionWidth: number; resolutionHeight: number; refreshRateHz: number; panelType: string | null };
+  keyboard?: { wireless: boolean; tenkeyless: boolean; style: string | null; switches: string | null; backlight: string | null };
+  mouse?: { wireless: boolean; maxDpi: number | null };
+  headset?: { wireless: boolean; microphone: boolean; type: string | null };
 }
 
 export type FormFactor = 'ATX' | 'MICRO_ATX' | 'MINI_ITX' | 'E_ATX';

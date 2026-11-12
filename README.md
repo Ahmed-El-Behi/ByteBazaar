@@ -35,7 +35,16 @@ UPDATE "User" SET role = 'ADMIN' WHERE email = 'vous@exemple.tn';
 
 ## Catalogue
 
-- Source de vérité : `backend/data/catalogue_local_images_cleaned.json` (2 997 produits, images dans `frontend/public/products/`).
+- Sources de vérité :
+  - composants : `backend/data/catalogue_local_images_cleaned.json` (2 997 produits, photos dans `frontend/public/products/`) ;
+  - périphériques : `backend/data/accessories_catalogue.json` (894 écrans, souris, claviers, casques, enceintes et
+    webcams, photos dans `frontend/public/products/`). Noms et caractéristiques :
+    [docyx/pc-part-dataset](https://github.com/docyx/pc-part-dataset) (PCPartPicker, licence MIT, copie et licence dans
+    `backend/data/raw/pc-part-dataset/`). Photos : la source n'en ayant pas, chaque produit est apparié strictement
+    (marque, référence exacte, couleur) à sa fiche dans [Amazon Reviews 2023](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023)
+    (McAuley Lab — jeu de données sans licence déclarée, à réserver à un usage pédagogique), puis la photo est
+    téléchargée localement. Seuls les produits pour lesquels une photo a été trouvée sont mis en vente.
+    Pipeline : voir `backend/README.md`.
 - Les noms suivent le format des sites professionnels (marque + puce/modèle + capacité…). Ils sont
   générés par `backend/scripts/normalize_catalogue.py` à partir des caractéristiques ; le nom
   d'origine est conservé dans `source.originalName`.

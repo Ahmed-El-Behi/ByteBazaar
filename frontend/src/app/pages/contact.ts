@@ -1,10 +1,11 @@
 import { Component, signal } from '@angular/core';
+import { Icon } from '../components/icon';
 import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-contact-page',
   standalone: true,
-  imports: [FormsModule],
+  imports: [Icon, FormsModule],
   template: `
     <div class="container page">
       <div class="header">
@@ -20,9 +21,7 @@ import { FormsModule } from '@angular/forms';
           @if (submitted()) {
             <div class="success-message">
               <div class="success-icon-wrapper">
-                <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
+                <app-icon name="check" [size]="30" [stroke]="2.25" />
               </div>
               <h3>Message envoyé avec succès !</h3>
               <p class="muted">Nous vous répondrons dans les plus brefs délais.</p>
@@ -63,9 +62,7 @@ import { FormsModule } from '@angular/forms';
                 <div class="custom-select" (click)="dropdownOpen.set(!dropdownOpen())">
                   <div class="select-trigger">
                     <span>{{ form.subject }}</span>
-                    <svg class="chevron" [class.open]="dropdownOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
+                    <app-icon class="chevron" [class.open]="dropdownOpen()" name="chevronDown" [size]="18" />
                   </div>
 
                   @if (dropdownOpen()) {
@@ -78,9 +75,7 @@ import { FormsModule } from '@angular/forms';
                         >
                           {{ option }}
                           @if (form.subject === option) {
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                              <polyline points="20 6 9 17 4 12"></polyline>
-                            </svg>
+                            <app-icon name="check" [size]="16" [stroke]="2.25" />
                           }
                         </div>
                       }
@@ -113,10 +108,7 @@ import { FormsModule } from '@angular/forms';
           <div class="info-list">
             <div class="info-item">
               <div class="info-icon">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                  <polyline points="22,6 12,13 2,6"></polyline>
-                </svg>
+                <app-icon name="mail" [size]="20" />
               </div>
               <div class="info-content">
                 <span class="info-label">E-mail</span>
@@ -126,10 +118,7 @@ import { FormsModule } from '@angular/forms';
 
             <div class="info-item">
               <div class="info-icon">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                  <circle cx="12" cy="10" r="3"></circle>
-                </svg>
+                <app-icon name="mapPin" [size]="20" />
               </div>
               <div class="info-content">
                 <span class="info-label">Adresse</span>
@@ -139,10 +128,7 @@ import { FormsModule } from '@angular/forms';
 
             <div class="info-item">
               <div class="info-icon">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
-                  <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
-                </svg>
+                <app-icon name="headphones" [size]="20" />
               </div>
               <div class="info-content">
                 <span class="info-label">Support</span>
@@ -164,7 +150,7 @@ import { FormsModule } from '@angular/forms';
       margin-bottom: 2.5rem;
     }
     .header h1 {
-      font-size: 2.2rem;
+      font-size: var(--fs-4xl);
       font-weight: 700;
       margin-bottom: 0.5rem;
       color: var(--text, inherit);
@@ -184,7 +170,7 @@ import { FormsModule } from '@angular/forms';
     .card {
       background: var(--surface-1, var(--surface, rgba(255, 255, 255, 0.03)));
       border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-      border-radius: 16px;
+      border-radius: var(--r-md);
       padding: 2rem;
     }
 
@@ -205,7 +191,7 @@ import { FormsModule } from '@angular/forms';
       position: relative;
     }
     .form-group label {
-      font-size: 0.88rem;
+      font-size: var(--fs-md);
       font-weight: 500;
       color: var(--muted, #8c94a4);
     }
@@ -214,16 +200,16 @@ import { FormsModule } from '@angular/forms';
       width: 100%;
       background: var(--surface-2, var(--surface, rgba(0, 0, 0, 0.05)));
       border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-      border-radius: 10px;
+      border-radius: var(--r-sm);
       padding: 0.75rem 1rem;
       color: var(--text, inherit);
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--fs-ui);
       outline: none;
       transition: border-color 0.2s;
     }
     input:focus, textarea:focus {
-      border-color: var(--accent, #f59e0b);
+      border-color: var(--accent, var(--accent));
     }
 
     /* CUSTOM SELECT DROPDOWN ADAPTATIF */
@@ -238,14 +224,14 @@ import { FormsModule } from '@angular/forms';
       align-items: center;
       background: var(--surface-2, var(--surface, rgba(0, 0, 0, 0.05)));
       border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-      border-radius: 10px;
+      border-radius: var(--r-sm);
       padding: 0.75rem 1rem;
       color: var(--text, inherit);
-      font-size: 0.95rem;
+      font-size: var(--fs-ui);
       transition: border-color 0.2s;
     }
     .custom-select:hover .select-trigger {
-      border-color: var(--accent, #f59e0b);
+      border-color: var(--accent, var(--accent));
     }
     .chevron {
       color: var(--muted, #8c94a4);
@@ -253,7 +239,7 @@ import { FormsModule } from '@angular/forms';
     }
     .chevron.open {
       transform: rotate(180deg);
-      color: var(--accent, #f59e0b);
+      color: var(--accent, var(--accent));
     }
 
     .select-dropdown {
@@ -263,7 +249,7 @@ import { FormsModule } from '@angular/forms';
       right: 0;
       background: var(--surface-1, #182032);
       border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
-      border-radius: 12px;
+      border-radius: var(--r-md);
       padding: 0.4rem;
       z-index: 50;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
@@ -273,30 +259,30 @@ import { FormsModule } from '@angular/forms';
       justify-content: space-between;
       align-items: center;
       padding: 0.7rem 0.9rem;
-      border-radius: 8px;
-      font-size: 0.92rem;
+      border-radius: var(--r-sm);
+      font-size: var(--fs-ui);
       color: var(--text, inherit);
       transition: background 0.15s;
     }
     .option-item:hover {
-      background: rgba(245, 158, 11, 0.12);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
     }
     .option-item.selected {
-      background: var(--accent, #f59e0b);
-      color: #000 !important;
+      background: var(--accent, var(--accent));
+      color: var(--on-accent) !important;
       font-weight: 600;
     }
 
     /* BOUTON */
     .btn.primary {
-      background: var(--accent, #f59e0b);
-      color: #000;
+      background: var(--accent, var(--accent));
+      color: var(--on-accent);
       font-weight: 600;
       padding: 0.8rem 1.8rem;
-      border-radius: 25px;
+      border-radius: var(--r-xl);
       border: none;
       cursor: pointer;
-      font-size: 0.95rem;
+      font-size: var(--fs-ui);
       transition: opacity 0.2s, transform 0.1s;
     }
     .btn.primary:hover {
@@ -306,7 +292,7 @@ import { FormsModule } from '@angular/forms';
 
     /* COORDONNÉES */
     .info-card h2 {
-      font-size: 1.3rem;
+      font-size: var(--fs-xl);
       margin-bottom: 2rem;
       font-weight: 600;
       color: var(--text, inherit);
@@ -324,9 +310,9 @@ import { FormsModule } from '@angular/forms';
     .info-icon {
       width: 44px;
       height: 44px;
-      border-radius: 12px;
-      background: rgba(245, 158, 11, 0.12);
-      color: var(--accent, #f59e0b);
+      border-radius: var(--r-md);
+      background: color-mix(in srgb, var(--accent) 12%, transparent);
+      color: var(--accent, var(--accent));
       display: flex;
       align-items: center;
       justify-content: center;
@@ -337,17 +323,17 @@ import { FormsModule } from '@angular/forms';
       flex-direction: column;
     }
     .info-label {
-      font-size: 0.8rem;
+      font-size: var(--fs-sm);
       color: var(--muted, #8c94a4);
     }
     .info-value {
-      font-size: 0.98rem;
+      font-size: var(--fs-base);
       font-weight: 600;
       color: var(--text, inherit);
       text-decoration: none;
     }
     a.info-value:hover {
-      color: var(--accent, #f59e0b);
+      color: var(--accent, var(--accent));
     }
 
     /* MESSAGE SUCCÈS */
@@ -359,15 +345,15 @@ import { FormsModule } from '@angular/forms';
       width: 64px;
       height: 64px;
       border-radius: 50%;
-      background: rgba(34, 197, 94, 0.15);
-      color: #22c55e;
+      background: color-mix(in srgb, var(--green) 15%, transparent);
+      color: var(--green);
       display: flex;
       align-items: center;
       justify-content: center;
       margin: 0 auto 1.2rem;
     }
     .success-message h3 {
-      font-size: 1.4rem;
+      font-size: var(--fs-2xl);
       color: var(--text, inherit);
       margin-bottom: 0.4rem;
     }

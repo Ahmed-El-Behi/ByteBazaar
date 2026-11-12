@@ -1,4 +1,5 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
+import { Icon } from '../components/icon';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminApiService, type AdminOrder } from '../core/admin-api';
@@ -23,7 +24,7 @@ interface StatusChangePayload {
 @Component({
   standalone: true,
   selector: 'app-admin-orders',
-  imports: [CommonModule, FormsModule, TndPipe],
+  imports: [Icon, CommonModule, FormsModule, TndPipe],
   template: `
     <div class="container page">
       <div class="header">
@@ -32,10 +33,7 @@ interface StatusChangePayload {
           <p class="muted">Gérez le suivi des livraisons et les statuts des commandes clients.</p>
         </div>
         <button class="btn primary btn-refresh-header" (click)="loadOrders()" type="button">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.5 2v6h-6M2.5 22v-6h6" />
-            <path d="M2 11.5a10 10 0 0 1 18.8-4.3L21.5 8M2.5 16l1.2 0.8A10 10 0 0 0 22 12.5" />
-          </svg>
+          <app-icon name="refresh" [size]="16" [stroke]="2" />
           Actualiser
         </button>
       </div>
@@ -118,9 +116,7 @@ interface StatusChangePayload {
                         [class.open]="selectedOrderId() === o.id" 
                         title="Voir les détails"
                       >
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                          <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
+                        <app-icon name="chevronDown" [size]="18" [stroke]="2" />
                       </button>
                     </div>
                   </td>
@@ -195,12 +191,12 @@ interface StatusChangePayload {
 
     .table-wrapper { overflow-x: auto; padding: 0; }
     .orders-table { width: 100%; border-collapse: collapse; text-align: left; }
-    .orders-table th, .orders-table td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-    .orders-table th { background: var(--surface-2); color: var(--muted); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
+    .orders-table th, .orders-table td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: var(--fs-md); }
+    .orders-table th { background: var(--surface-2); color: var(--muted); font-weight: 700; font-size: var(--fs-sm); text-transform: uppercase; }
     
     .client-info { display: flex; flex-direction: column; }
     .client-name { font-weight: 600; }
-    .date { font-size: 0.85rem; color: var(--muted); }
+    .date { font-size: var(--fs-md); color: var(--muted); }
 
     .action-cell {
       display: inline-flex;
@@ -211,7 +207,7 @@ interface StatusChangePayload {
     .btn-action-icon {
       background: var(--surface-2);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--r-sm);
       width: 34px;
       height: 34px;
       display: inline-flex;
@@ -235,13 +231,13 @@ interface StatusChangePayload {
     .payment-method-badge {
       padding: 0.35rem 0.75rem;
       border-radius: 99px;
-      font-size: 0.75rem;
+      font-size: var(--fs-xs);
       font-weight: 700;
       display: inline-block;
       text-transform: uppercase;
     }
-    .pay-cod { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
-    .pay-online { background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .pay-cod { background: color-mix(in srgb, var(--info) 12%, transparent); color: var(--info); border: 1px solid color-mix(in srgb, var(--info) 30%, transparent); }
+    .pay-online { background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--green); border: 1px solid color-mix(in srgb, var(--green) 30%, transparent); }
 
     /* DESIGN PREMIUM DU SELECTEUR DE STATUT */
     .select-container {
@@ -254,8 +250,8 @@ interface StatusChangePayload {
       -webkit-appearance: none;
       -moz-appearance: none;
       padding: 0.45rem 2rem 0.45rem 0.85rem;
-      border-radius: 10px;
-      font-size: 0.82rem;
+      border-radius: var(--r-sm);
+      font-size: var(--fs-sm);
       font-weight: 700;
       border: 1px solid transparent;
       outline: none;
@@ -280,30 +276,30 @@ interface StatusChangePayload {
 
     /* FORMATAGE NATIVE DROPDOWN OPTIONS */
     .select-badge option {
-      background-color: #111827 !important;
+      background-color: var(--surface) !important;
       color: #ffffff !important;
       padding: 0.6rem;
       font-weight: 600;
-      font-size: 0.85rem;
+      font-size: var(--fs-md);
     }
     .select-badge option:disabled {
-      color: #4b5563 !important;
-      background-color: #1f2937 !important;
+      color: var(--muted) !important;
+      background-color: var(--surface-2) !important;
     }
 
-    .order-status-pending { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; border-color: rgba(245, 158, 11, 0.35); }
-    .order-status-confirmed { background-color: rgba(59, 130, 246, 0.15); color: #3b82f6; border-color: rgba(59, 130, 246, 0.35); }
-    .order-status-shipped { background-color: rgba(168, 85, 247, 0.15); color: #a855f7; border-color: rgba(168, 85, 247, 0.35); }
-    .order-status-delivered { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.35); }
-    .order-status-cancelled { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: rgba(239, 68, 68, 0.35); }
+    .order-status-pending { background-color: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, transparent); }
+    .order-status-confirmed { background-color: color-mix(in srgb, var(--info) 15%, transparent); color: var(--info); border-color: color-mix(in srgb, var(--info) 35%, transparent); }
+    .order-status-shipped { background-color: color-mix(in srgb, var(--violet) 15%, transparent); color: var(--violet); border-color: color-mix(in srgb, var(--violet) 35%, transparent); }
+    .order-status-delivered { background-color: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); border-color: color-mix(in srgb, var(--green) 35%, transparent); }
+    .order-status-cancelled { background-color: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); border-color: color-mix(in srgb, var(--red) 35%, transparent); }
 
     .locked-row { opacity: 0.9; }
     .details-row { background: var(--surface-2); }
     .details-box { padding: 1rem; }
     .details-box h4 { margin: 0 0 0.8rem 0; }
     .items-list { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.8rem; }
-    .item-row { display: flex; justify-content: space-between; font-size: 0.88rem; }
-    .details-summary { border-top: 1px solid var(--border); padding-top: 0.6rem; font-size: 0.9rem; text-align: right; }
+    .item-row { display: flex; justify-content: space-between; font-size: var(--fs-md); }
+    .details-summary { border-top: 1px solid var(--border); padding-top: 0.6rem; font-size: var(--fs-md); text-align: right; }
 
     /* MODAL DE CONFIRMATION SOIGNÉ */
     .modal-backdrop {
@@ -317,46 +313,46 @@ interface StatusChangePayload {
       padding: 1rem;
     }
     .modal-card {
-      background: var(--surface-2, #111827);
+      background: var(--surface-2, var(--surface));
       border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
-      border-radius: 16px;
+      border-radius: var(--r-md);
       padding: 1.6rem;
       max-width: 420px;
       width: 100%;
       box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
     }
-    .modal-card h3 { margin: 0; font-size: 1.15rem; font-weight: 700; }
+    .modal-card h3 { margin: 0; font-size: var(--fs-lg); font-weight: 700; }
     
     .target-status-badge {
       display: inline-block;
       margin-top: 0.6rem;
       padding: 0.35rem 0.8rem;
-      border-radius: 8px;
+      border-radius: var(--r-sm);
       font-weight: 700;
-      font-size: 0.85rem;
+      font-size: var(--fs-md);
       border: 1px solid transparent;
     }
 
     .warning-box {
       margin-top: 0.9rem;
-      background: rgba(239, 68, 68, 0.12);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      color: #ef4444;
+      background: color-mix(in srgb, var(--red) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+      color: var(--red);
       padding: 0.75rem;
-      border-radius: 8px;
-      font-size: 0.82rem;
+      border-radius: var(--r-sm);
+      font-size: var(--fs-sm);
       line-height: 1.4;
     }
 
     .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.4rem; }
     
     .btn.danger {
-      background: #ef4444;
+      background: var(--red);
       color: #ffffff;
-      border-color: #ef4444;
+      border-color: var(--red);
     }
     .btn.danger:hover {
-      background: #dc2626;
+      background: var(--red);
     }
   `,
 })

@@ -145,19 +145,42 @@ describe('configurator compatibility', () => {
     expect(withGpu.checks.find((c) => c.id === 'graphics')?.status).toBe('ok');
   });
 
+  const corePc = () => ({
+    cpu: cpu(10, 'AM5', 105),
+    motherboard: board(1, 'AM5', 'DDR5'),
+    ram: ram(20, 'DDR5'),
+    gpu: gpu(50, 263),
+    storage: { id: 60, slot: 'storage' as const, name: 'SSD', price: 300 },
+    psu: psu(40, 750),
+    case: pcCase(30, ['ATX', 'MICRO_ATX', 'MINI_ITX']),
+  });
+
   it('reports a complete, valid build', () => {
     const result = evaluate({
-      cpu: cpu(10, 'AM5', 105),
-      motherboard: board(1, 'AM5', 'DDR5'),
-      ram: ram(20, 'DDR5'),
-      gpu: gpu(50, 263),
-      storage: { id: 60, slot: 'storage', name: 'SSD', price: 300 },
-      psu: psu(40, 750),
-      case: pcCase(30, ['ATX', 'MICRO_ATX', 'MINI_ITX']),
+      ...corePc(),
+      cooler: { id: 70, slot: 'cooler', name: 'Tower', price: 150 },
     });
     expect(result.valid).toBe(true);
     expect(result.complete).toBe(true);
     expect(result.checks.every((c) => c.status === 'ok')).toBe(true);
+  });
+
+  it('treats the cooler and the peripherals as optional', () => {
+    const result = evaluate(corePc());
+    expect(result.complete).toBe(true);
+    expect(result.checks.find((c) => c.id === 'cooling')?.status).toBe(
+      'warning',
+    );
+  });
+
+  it('does not require peripherals to fit anything', () => {
+    const monitor: BuildPart = {
+      id: 80,
+      slot: 'monitor',
+      name: 'Écran',
+      price: 900,
+    };
+    expect(fits(monitor, corePc())).toBe(true);
   });
 
   it('flags an incompatible build as invalid', () => {

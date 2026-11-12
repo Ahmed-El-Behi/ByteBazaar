@@ -156,7 +156,7 @@ import { apiErrors } from '../core/utils';
                     </small>
                   </td>
                   <td>
-                    <span [class.text-green]="m.quantityChange > 0" [class.text-red]="m.quantityChange < 0" style="font-weight: bold;">
+                    <span [class.text-green]="m.quantityChange > 0" [class.text-red]="m.quantityChange < 0" style="font-weight: 700;">
                       {{ m.quantityChange > 0 ? '+' + m.quantityChange : m.quantityChange }}
                     </span>
                   </td>
@@ -195,7 +195,7 @@ import { apiErrors } from '../core/utils';
       justify-content: center;
       height: 220px;
       border: 2px dashed var(--border);
-      border-radius: 12px;
+      border-radius: var(--r-md);
       text-align: center;
       padding: 1rem;
     }
@@ -207,7 +207,7 @@ import { apiErrors } from '../core/utils';
     .preview-image-box {
       width: 140px;
       height: 140px;
-      border-radius: 12px;
+      border-radius: var(--r-md);
       background: #ffffff !important; /* Fond blanc fixe quel que soit le thème */
       display: flex;
       align-items: center;
@@ -225,33 +225,33 @@ import { apiErrors } from '../core/utils';
       mix-blend-mode: normal !important; /* Affichage standard net sans assombrissement */
     }
     .preview-details { display: flex; flex-direction: column; gap: 0.4rem; }
-    .preview-details h4 { margin: 0; font-size: 1.1rem; }
+    .preview-details h4 { margin: 0; font-size: var(--fs-lg); }
     .table-container { overflow-x: auto; }
     .admin-table { width: 100%; border-collapse: collapse; text-align: left; }
     .admin-table th, .admin-table td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
     .admin-table th { background: var(--surface-2); font-family: var(--font-display); }
 
-    .text-green { color: #10b981 !important; }
-    .text-red { color: #ef4444 !important; }
+    .text-green { color: var(--green) !important; }
+    .text-red { color: var(--red) !important; }
 
     .custom-badge {
       display: inline-block;
       padding: 0.2rem 0.6rem;
-      font-size: 0.75rem;
+      font-size: var(--fs-xs);
       font-weight: 600;
-      border-radius: 20px;
+      border-radius: var(--r-lg);
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     .badge-green {
-      background-color: rgba(16, 185, 129, 0.12);
-      color: #10b981;
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      background-color: color-mix(in srgb, var(--green) 12%, transparent);
+      color: var(--green);
+      border: 1px solid color-mix(in srgb, var(--green) 30%, transparent);
     }
     .badge-red {
-      background-color: rgba(239, 68, 68, 0.12);
-      color: #ef4444;
-      border: 1px solid rgba(239, 68, 68, 0.3);
+      background-color: color-mix(in srgb, var(--red) 12%, transparent);
+      color: var(--red);
+      border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
     }
     .badge-brand {
       display: inline-block;
@@ -259,17 +259,17 @@ import { apiErrors } from '../core/utils';
       color: var(--text);
       padding: 0.15rem 0.5rem;
       border-radius: 6px;
-      font-size: 0.8rem;
+      font-size: var(--fs-sm);
       font-weight: 600;
       width: fit-content;
     }
 
     .alert.green-success {
-      background-color: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      color: #065f46;
+      background-color: color-mix(in srgb, var(--green) 10%, transparent);
+      border: 1px solid color-mix(in srgb, var(--green) 40%, transparent);
+      color: var(--green);
       padding: 0.75rem 1rem;
-      border-radius: 8px;
+      border-radius: var(--r-sm);
     }
   `]
 })

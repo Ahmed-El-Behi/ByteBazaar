@@ -1,4 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
+import { Icon } from './components/icon';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/auth-service';
 import { CartStateService } from './core/cart.service';
@@ -7,7 +8,7 @@ import { Cursor } from './components/cursor';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Cursor],
+  imports: [Icon, RouterOutlet, RouterLink, RouterLinkActive, Cursor],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })

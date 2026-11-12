@@ -64,3 +64,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 /backups
 *.dump
 backup.sql
+
+# Fichier intermédiaire régénéré par scripts/build_accessories.py --candidates
+/data/raw/accessory_candidates.json

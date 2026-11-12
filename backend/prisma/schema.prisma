@@ -261,6 +261,14 @@ model Product {
   powerSupply PowerSupply?
   pcCase      PcCase?
 
+  // Périphériques
+  monitor  Monitor?
+  mouse    Mouse?
+  keyboard Keyboard?
+  headset  Headset?
+  speaker  Speaker?
+  webcam   Webcam?
+
   @@index([categoryId])
   @@index([brandId])
   @@index([isActive])
@@ -375,4 +383,67 @@ model PcCase {
   supportedFormFactors FormFactor[]
   maxGpuLengthMm       Int? // non fourni par la source
   sfxOnly              Boolean      @default(false) // n'accepte que les alimentations SFX
+}
+
+// ============================================================
+// Périphériques (écrans, souris, claviers, casques, enceintes, webcams)
+// Mêmes principes que les composants : une table par type, liée au produit.
+// ============================================================
+
+model Monitor {
+  productId        Int      @id
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  screenSizeIn     Decimal  @db.Decimal(4, 1)
+  resolutionWidth  Int
+  resolutionHeight Int
+  refreshRateHz    Int
+  responseTimeMs   Decimal? @db.Decimal(4, 1)
+  panelType        String?
+  aspectRatio      String?
+
+  @@index([refreshRateHz])
+}
+
+model Mouse {
+  productId       Int     @id
+  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  wireless        Boolean
+  maxDpi          Int?
+  trackingMethod  String?
+  handOrientation String?
+}
+
+model Keyboard {
+  productId  Int     @id
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  wireless   Boolean
+  tenkeyless Boolean
+  style      String?
+  switches   String?
+  backlight  String?
+}
+
+model Headset {
+  productId     Int     @id
+  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  wireless      Boolean
+  microphone    Boolean
+  type          String?
+  enclosureType String?
+}
+
+model Speaker {
+  productId Int      @id
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  channels  Decimal  @db.Decimal(3, 1)
+  wattage   Decimal? @db.Decimal(6, 1)
+}
+
+model Webcam {
+  productId     Int     @id
+  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  maxResolution String
+  focusType     String?
+  fovDegrees    Int?
+  connection    String?
 }

@@ -1,4 +1,5 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
+import { Icon } from '../components/icon';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth-service';
@@ -9,17 +10,14 @@ import { apiErrors } from '../core/utils';
 @Component({
   standalone: true,
   selector: 'app-account-orders',
-  imports: [CommonModule, TndPipe],
+  imports: [Icon, CommonModule, TndPipe],
   template: `
     <div class="orders-section">
       <div class="card orders-card">
         <div class="orders-card-header">
           <h3>Mes commandes</h3>
           <button class="btn-refresh" (click)="loadOrders()" title="Actualiser les commandes" type="button">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M2.5 22v-6h6" />
-              <path d="M2 11.5a10 10 0 0 1 18.8-4.3L21.5 8M2.5 16l1.2 0.8A10 10 0 0 0 22 12.5" />
-            </svg>
+            <app-icon name="refresh" [size]="16" />
           </button>
         </div>
 
@@ -47,9 +45,7 @@ import { apiErrors } from '../core/utils';
                     </span>
                     <strong class="total-price">{{ order.total | tnd }}</strong>
                     <button class="chevron-btn" [class.open]="expandedOrderId() === order.id" type="button">
-                      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                      </svg>
+                      <app-icon name="chevronDown" [size]="16" [stroke]="2" />
                     </button>
                   </div>
                 </div>
@@ -117,7 +113,7 @@ import { apiErrors } from '../core/utils';
   `,
   styles: `
     .orders-section { width: 100%; }
-    .orders-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem; }
+    .orders-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 1.2rem; }
     .orders-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
     .orders-card-header h3 { margin: 0; }
     
@@ -134,14 +130,14 @@ import { apiErrors } from '../core/utils';
 
     .orders-list { display: flex; flex-direction: column; gap: 0.8rem; }
     .order-item-card {
-      background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 1rem; transition: border-color 0.2s ease;
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 1rem; transition: border-color 0.2s ease;
     }
     .order-item-card:hover { border-color: var(--accent); }
 
     .order-item-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
     .order-main { display: flex; flex-direction: column; }
-    .ref { font-size: 0.95rem; }
-    .date { font-size: 0.8rem; color: var(--muted); }
+    .ref { font-size: var(--fs-ui); }
+    .date { font-size: var(--fs-sm); color: var(--muted); }
 
     .order-meta { display: flex; align-items: center; gap: 0.7rem; }
     .total-price { color: var(--text); }
@@ -160,42 +156,42 @@ import { apiErrors } from '../core/utils';
     .circle {
       width: 26px; height: 26px; border-radius: 50%; background: var(--surface);
       border: 2px solid var(--border); color: var(--muted);
-      display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; transition: all 0.3s ease;
+      display: grid; place-items: center; font-size: var(--fs-xs); font-weight: 700; transition: all 0.3s ease;
     }
-    .step-label { font-size: 0.7rem; color: var(--muted); font-weight: 600; }
+    .step-label { font-size: var(--fs-2xs); color: var(--muted); font-weight: 600; }
     .line { flex: 1; height: 2px; background: var(--border); margin: 0 0.3rem; margin-bottom: 0.9rem; transition: background 0.3s ease; }
 
-    .theme-pending .step.completed .circle { background: #f59e0b; border-color: #f59e0b; color: #fff; }
-    .theme-pending .step.completed .step-label { color: #f59e0b; }
-    .theme-pending .line.completed { background: #f59e0b; }
+    .theme-pending .step.completed .circle { background: var(--warn); border-color: var(--warn); color: #fff; }
+    .theme-pending .step.completed .step-label { color: var(--warn); }
+    .theme-pending .line.completed { background: var(--warn); }
 
-    .theme-confirmed .step.completed .circle { background: #3b82f6; border-color: #3b82f6; color: #fff; }
-    .theme-confirmed .step.completed .step-label { color: #3b82f6; }
-    .theme-confirmed .line.completed { background: #3b82f6; }
+    .theme-confirmed .step.completed .circle { background: var(--info); border-color: var(--info); color: #fff; }
+    .theme-confirmed .step.completed .step-label { color: var(--info); }
+    .theme-confirmed .line.completed { background: var(--info); }
 
-    .theme-shipped .step.completed .circle { background: #a855f7; border-color: #a855f7; color: #fff; }
-    .theme-shipped .step.completed .step-label { color: #a855f7; }
-    .theme-shipped .line.completed { background: #a855f7; }
+    .theme-shipped .step.completed .circle { background: var(--violet); border-color: var(--violet); color: #fff; }
+    .theme-shipped .step.completed .step-label { color: var(--violet); }
+    .theme-shipped .line.completed { background: var(--violet); }
 
-    .theme-delivered .step.completed .circle { background: #10b981; border-color: #10b981; color: #fff; }
-    .theme-delivered .step.completed .step-label { color: #10b981; }
-    .theme-delivered .line.completed { background: #10b981; }
+    .theme-delivered .step.completed .circle { background: var(--green); border-color: var(--green); color: #fff; }
+    .theme-delivered .step.completed .step-label { color: var(--green); }
+    .theme-delivered .line.completed { background: var(--green); }
 
-    .cancelled-banner { background: rgba(239, 68, 68, 0.12); color: #ef4444; text-align: center; padding: 0.4rem; border-radius: 8px; font-size: 0.85rem; font-weight: 600; }
+    .cancelled-banner { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); text-align: center; padding: 0.4rem; border-radius: var(--r-sm); font-size: var(--fs-md); font-weight: 600; }
 
-    .badge-status { padding: 0.2rem 0.5rem; border-radius: 99px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
-    .badge-pending { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
-    .badge-confirmed { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
-    .badge-shipped { background: rgba(168, 85, 247, 0.15); color: #a855f7; }
-    .badge-delivered { background: rgba(16, 185, 129, 0.15); color: #10b981; }
-    .badge-cancelled { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .badge-status { padding: 0.2rem 0.5rem; border-radius: 99px; font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; }
+    .badge-pending { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+    .badge-confirmed { background: color-mix(in srgb, var(--info) 15%, transparent); color: var(--info); }
+    .badge-shipped { background: color-mix(in srgb, var(--violet) 15%, transparent); color: var(--violet); }
+    .badge-delivered { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); }
+    .badge-cancelled { background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); }
 
     .divider { border: 0; border-top: 1px solid var(--border); margin: 0.8rem 0; }
     .items-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-    .items-list li { display: flex; justify-content: space-between; align-items: center; font-size: 0.88rem; }
-    .financials { margin-top: 0.8rem; text-align: right; font-size: 0.85rem; }
+    .items-list li { display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-md); }
+    .financials { margin-top: 0.8rem; text-align: right; font-size: var(--fs-md); }
     .financials p { margin: 0.2rem 0; color: var(--muted); }
-    .financials .final-total { color: var(--accent); font-size: 0.95rem; margin-top: 0.4rem; }
+    .financials .final-total { color: var(--accent); font-size: var(--fs-ui); margin-top: 0.4rem; }
   `
 })
 export class AccountOrdersPage implements OnInit {

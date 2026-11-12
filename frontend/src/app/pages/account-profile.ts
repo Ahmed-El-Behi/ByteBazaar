@@ -1,4 +1,5 @@
 import { Component, inject, signal, HostListener, effect } from '@angular/core';
+import { Icon } from '../components/icon';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../core/auth-service';
@@ -9,7 +10,7 @@ import { apiErrors } from '../core/utils';
 @Component({
   standalone: true,
   selector: 'app-account-profile',
-  imports: [CommonModule, FormsModule],
+  imports: [Icon, CommonModule, FormsModule],
   template: `
     <div class="profile-wrapper">
       <!-- Notifications -->
@@ -24,11 +25,7 @@ import { apiErrors } from '../core/utils';
       @if (hasUnsavedChanges()) {
         <div class="warning-banner">
           <div class="warning-info">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12"/>
-              <line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
+            <app-icon name="info" [size]="18" />
             <span>Vous avez des modifications non enregistrées.</span>
           </div>
           <div class="warning-btns">
@@ -84,15 +81,7 @@ import { apiErrors } from '../core/utils';
                     class="input-tech"
                   />
                   <button type="button" class="eye-btn" (click)="showCurrentPass.set(!showCurrentPass())">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                      @if (showCurrentPass()) {
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      } @else {
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                      }
-                    </svg>
+                    @if (showCurrentPass()) { <app-icon name="eyeOff" [size]="18" /> } @else { <app-icon name="eye" [size]="18" /> }
                   </button>
                 </div>
               </div>
@@ -109,15 +98,7 @@ import { apiErrors } from '../core/utils';
                     class="input-tech"
                   />
                   <button type="button" class="eye-btn" (click)="showNewPass.set(!showNewPass())">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                      @if (showNewPass()) {
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                        <line x1="1" y1="1" x2="23" y2="23"/>
-                      } @else {
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                        <circle cx="12" cy="12" r="3"/>
-                      }
-                    </svg>
+                    @if (showNewPass()) { <app-icon name="eyeOff" [size]="18" /> } @else { <app-icon name="eye" [size]="18" /> }
                   </button>
                 </div>
               </div>
@@ -259,16 +240,16 @@ import { apiErrors } from '../core/utils';
   styles: `
     .profile-wrapper { display: flex; flex-direction: column; gap: 1.5rem; }
 
-    .alert-success { background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #10b981; padding: 0.8rem 1.2rem; border-radius: 12px; font-size: 0.9rem; }
-    .alert-danger { background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #ef4444; padding: 0.8rem 1.2rem; border-radius: 12px; font-size: 0.9rem; }
+    .alert-success { background: color-mix(in srgb, var(--green) 15%, transparent); border: 1px solid var(--green); color: var(--green); padding: 0.8rem 1.2rem; border-radius: var(--r-md); font-size: var(--fs-md); }
+    .alert-danger { background: color-mix(in srgb, var(--red) 15%, transparent); border: 1px solid var(--red); color: var(--red); padding: 0.8rem 1.2rem; border-radius: var(--r-md); font-size: var(--fs-md); }
 
-    .warning-banner { background: rgba(245, 158, 11, 0.12); border: 1px solid var(--accent); border-radius: 12px; padding: 0.8rem 1.2rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; color: var(--accent); }
-    .warning-info { display: flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; font-weight: 500; }
+    .warning-banner { background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid var(--accent); border-radius: var(--r-md); padding: 0.8rem 1.2rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; color: var(--accent); }
+    .warning-info { display: flex; align-items: center; gap: 0.6rem; font-size: var(--fs-md); font-weight: 500; }
     .warning-btns { display: flex; gap: 0.5rem; }
 
-    .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; }
+    .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 1.5rem; }
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.2rem; }
-    .card-title { font-size: 1.2rem; font-weight: 500; color: var(--text); margin: 0 0 1.2rem 0; }
+    .card-title { font-size: var(--fs-xl); font-weight: 500; color: var(--text); margin: 0 0 1.2rem 0; }
     .card-header .card-title { margin: 0; }
 
     .form-layout { display: flex; flex-direction: column; gap: 1.5rem; }
@@ -276,29 +257,29 @@ import { apiErrors } from '../core/utils';
     .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
 
     .field { display: flex; flex-direction: column; gap: 0.4rem; }
-    .field label { font-size: 0.85rem; color: var(--muted); font-weight: 400; }
+    .field label { font-size: var(--fs-md); color: var(--muted); font-weight: 400; }
 
-    .input-tech { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 1rem; color: var(--text); font-size: 0.95rem; outline: none; transition: border-color 0.2s ease; }
+    .input-tech { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.75rem 1rem; color: var(--text); font-size: var(--fs-ui); outline: none; transition: border-color 0.2s ease; }
     .input-tech:focus { border-color: var(--accent); }
     .input-tech.disabled { opacity: 0.5; cursor: not-allowed; }
-    select.input-tech option { background: #0f172a; color: #fff; }
+    select.input-tech option { background: var(--surface); color: #fff; }
 
-    .password-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; }
-    .sub-title { font-size: 0.95rem; color: var(--text); font-weight: 500; margin: 0; }
+    .password-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; }
+    .sub-title { font-size: var(--fs-ui); color: var(--text); font-weight: 500; margin: 0; }
 
     .input-pass-wrapper { position: relative; display: flex; align-items: center; }
     .input-pass-wrapper input { width: 100%; padding-right: 2.8rem; }
     .eye-btn { position: absolute; right: 0.8rem; background: none; border: none; color: var(--muted); cursor: pointer; display: flex; align-items: center; }
     .eye-btn:hover { color: var(--text); }
 
-    .address-form-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
+    .address-form-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 1.2rem; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
     .address-form-actions { display: flex; justify-content: flex-end; gap: 0.8rem; margin-top: 0.5rem; }
 
-    .btn-primary { background: var(--accent); color: #000; border: none; border-radius: 99px; padding: 0.6rem 1.4rem; font-weight: 500; font-size: 0.9rem; cursor: pointer; transition: opacity 0.2s ease; }
+    .btn-primary { background: var(--accent); color: var(--on-accent); border: none; border-radius: 99px; padding: 0.6rem 1.4rem; font-weight: 500; font-size: var(--fs-md); cursor: pointer; transition: opacity 0.2s ease; }
     .btn-primary:hover { opacity: 0.9; }
     .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 99px; padding: 0.5rem 1.2rem; font-weight: 500; font-size: 0.85rem; cursor: pointer; transition: background 0.2s ease; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 99px; padding: 0.5rem 1.2rem; font-weight: 500; font-size: var(--fs-md); cursor: pointer; transition: background 0.2s ease; }
     .btn-secondary:hover { background: var(--border); }
 
     .form-footer { display: flex; justify-content: flex-end; }
@@ -307,7 +288,7 @@ import { apiErrors } from '../core/utils';
     .address-card { 
       background: var(--surface); 
       border: 1px solid var(--border); 
-      border-radius: 12px; 
+      border-radius: var(--r-md); 
       padding: 1rem; 
       cursor: pointer; 
       transition: all 0.2s ease; 
@@ -325,14 +306,14 @@ import { apiErrors } from '../core/utils';
       width: 24px;
       height: 24px;
       border-radius: 50%;
-      background: #ef4444;
+      background: var(--red);
       color: #ffffff;
-      border: 2px solid var(--surface-2, #0f172a);
+      border: 2px solid var(--surface-2, var(--surface));
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 16px;
-      font-weight: bold;
+      font-size: var(--fs-base);
+      font-weight: 700;
       line-height: 1;
       cursor: pointer;
       opacity: 0;
@@ -347,18 +328,18 @@ import { apiErrors } from '../core/utils';
     }
 
     .btn-delete:hover {
-      background: #dc2626;
+      background: var(--red);
       transform: scale(1.1);
     }
 
     .address-top { display: flex; align-items: center; gap: 0.5rem; padding-right: 1rem; }
     .radio-tech { accent-color: var(--accent); cursor: pointer; }
-    .addr-title { font-weight: 600; color: var(--text); font-size: 0.95rem; }
-    .badge-label { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
-    .badge-accent { background: rgba(245, 158, 11, 0.15); color: var(--accent); font-size: 0.7rem; font-weight: 500; padding: 0.15rem 0.5rem; border-radius: 99px; margin-left: auto; }
-    .addr-details { font-size: 0.85rem; color: var(--muted); margin: 0; padding-left: 1.5rem; }
+    .addr-title { font-weight: 600; color: var(--text); font-size: var(--fs-ui); }
+    .badge-label { font-size: var(--fs-xs); font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+    .badge-accent { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); font-size: var(--fs-2xs); font-weight: 500; padding: 0.15rem 0.5rem; border-radius: 99px; margin-left: auto; }
+    .addr-details { font-size: var(--fs-md); color: var(--muted); margin: 0; padding-left: 1.5rem; }
     .addr-details.phone { opacity: 0.8; }
-    .muted { color: var(--muted); font-size: 0.9rem; }
+    .muted { color: var(--muted); font-size: var(--fs-md); }
   `
 })
 export class AccountProfilePage implements ComponentCanDeactivate {

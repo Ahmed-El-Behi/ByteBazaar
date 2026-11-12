@@ -1,11 +1,12 @@
 import { Component, inject, signal } from '@angular/core';
+import { Icon } from '../components/icon';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth-service';
 import { apiErrors, safeRedirect } from '../core/utils';
 
 @Component({
   selector: 'app-login',
-  imports: [RouterLink],
+  imports: [Icon, RouterLink],
   template: `
     <div class="card auth-card">
       @if (!forgotMode()) {
@@ -47,15 +48,9 @@ import { apiErrors, safeRedirect } from '../core/utils';
                 aria-label="Afficher/Masquer le mot de passe"
               >
                 @if (showPassword()) {
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
+                  <app-icon name="eyeOff" [size]="18" />
                 } @else {
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
+                  <app-icon name="eye" [size]="18" />
                 }
               </button>
             </div>
@@ -95,7 +90,7 @@ import { apiErrors, safeRedirect } from '../core/utils';
 
         <p class="muted switch">
           <button type="button" class="link-btn" (click)="toggleForgotMode(false)">
-            ← Retour à la connexion
+            <app-icon name="arrowLeft" [size]="16" /> Retour à la connexion
           </button>
         </p>
       }
@@ -115,8 +110,8 @@ import { apiErrors, safeRedirect } from '../core/utils';
     .link-btn {
       background: none;
       border: none;
-      color: var(--accent, #f59e0b);
-      font-size: 0.85rem;
+      color: var(--accent, var(--accent));
+      font-size: var(--fs-md);
       font-weight: 600;
       cursor: pointer;
       padding: 0;
@@ -129,7 +124,7 @@ import { apiErrors, safeRedirect } from '../core/utils';
     }
 
     .create-account-link {
-      color: var(--accent, #f59e0b);
+      color: var(--accent, var(--accent));
       font-weight: 600;
       text-decoration: none;
     }
@@ -138,11 +133,11 @@ import { apiErrors, safeRedirect } from '../core/utils';
     }
 
     .alert-success {
-      background: rgba(34, 197, 94, 0.15);
-      border: 1px solid rgba(34, 197, 94, 0.4);
-      color: #22c55e;
+      background: color-mix(in srgb, var(--green) 15%, transparent);
+      border: 1px solid color-mix(in srgb, var(--green) 40%, transparent);
+      color: var(--green);
       padding: 0.8rem 1rem;
-      border-radius: 10px;
+      border-radius: var(--r-sm);
       margin-bottom: 1rem;
     }
     .password-wrapper {

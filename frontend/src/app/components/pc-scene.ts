@@ -18,25 +18,55 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import type { Slot } from '../core/configurator-api';
-import { PcModel, type Selection } from './pc-model';
+import { PC_SLOTS, type Slot } from '../core/configurator-api';
+import { DESK_TARGET } from './desk-model';
+import { Icon } from './icon';
+import { PcModel, type HoverTarget, type SceneMode, type Selection } from './pc-model';
 
-const TARGET = new THREE.Vector3(0, 22, 0);
-const HOME = { radius: 92, polar: 1.24, azimuth: 0.3 };
+/** Cadrage de chaque vue : point visé, position de départ et limites de la caméra */
+const VIEWS: Record<
+  SceneMode,
+  { target: THREE.Vector3; radius: number; polar: number; azimuth: number; distance: [number, number]; azimuthRange: [number, number]; polarRange: [number, number]; sway: [number, number] }
+> = {
+  desk: {
+    target: DESK_TARGET,
+    radius: 290,
+    polar: 1.2,
+    azimuth: 0,
+    distance: [170, 370],
+    azimuthRange: [-0.75, 0.75],
+    polarRange: [Math.PI * 0.26, Math.PI * 0.49],
+    sway: [-0.28, 0.32],
+  },
+  pc: {
+    target: new THREE.Vector3(0, 22, 0),
+    radius: 92,
+    polar: 1.24,
+    azimuth: 0.3,
+    distance: [55, 125],
+    azimuthRange: [-1.2, 1.2],
+    polarRange: [Math.PI * 0.22, Math.PI * 0.56],
+    sway: [-0.15, 0.75],
+  },
+};
 const IDLE_MS = 5000;
+const ZOOM_SECONDS = 1.1;
 
 /**
- * PC ouvert en 3D : survoler une pièce l'illumine et affiche ce qui est installé,
- * cliquer dessus émet `pick` (le parent ouvre alors le sélecteur de composants).
+ * Configurateur 3D à deux niveaux :
+ *  - vue d'ensemble : le poste complet (PC, écran, clavier, souris, casque). Le PC se survole
+ *    comme un tout ; un clic dessus zoome à l'intérieur. Les périphériques se choisissent ici ;
+ *  - intérieur du PC : chaque pièce s'illumine au survol et se choisit d'un clic.
  */
 @Component({
+  imports: [Icon],
   selector: 'app-pc-scene',
   template: `
     <div class="scene" #host>
       <canvas
         #canvas
         role="img"
-        aria-label="Vue 3D du PC : survolez une pièce puis cliquez pour la choisir. La liste des emplacements sous la vue offre les mêmes actions au clavier."
+        aria-label="Vue 3D du poste : cliquez sur le PC pour en choisir les pièces, ou sur un périphérique pour le choisir. La liste des emplacements sous la vue offre les mêmes actions au clavier."
         (pointermove)="onPointerMove($event)"
         (pointerleave)="onPointerLeave()"
         (pointerdown)="onPointerDown($event)"
@@ -47,8 +77,15 @@ const IDLE_MS = 5000;
         <div class="fallback">La vue 3D n'est pas disponible sur cet appareil : utilisez la liste des emplacements ci-dessous.</div>
       }
 
-      <div class="tip" #tip [hidden]="!tipSlot()">
-        @if (tipSlot(); as slot) {
+      <div class="tip" #tip [hidden]="!tipTarget()">
+        @if (tipTarget() === 'pc') {
+          <span class="tip-slot">Votre PC</span>
+          <strong class="tip-name">{{ pcSummary().count }} / {{ pcSlotCount }} pièces choisies</strong>
+          @if (pcSummary().total > 0) {
+            <span class="tip-meta">{{ pcSummary().total }} TND</span>
+          }
+          <span class="tip-hint">Cliquer pour ouvrir le PC et choisir ses pièces</span>
+        } @else if (tipSlot(); as slot) {
           <span class="tip-slot">{{ labels()[slot] }}</span>
           @if (selection()[slot]; as part) {
             <strong class="tip-name">{{ part.name }}</strong>
@@ -61,12 +98,22 @@ const IDLE_MS = 5000;
         }
       </div>
 
+      @if (mode() === 'pc') {
+        <button type="button" class="back" (click)="setMode('desk')" title="Revenir au poste complet (Échap)">
+          <app-icon name="arrowLeft" [size]="16" [stroke]="2" /> Vue d'ensemble
+        </button>
+      }
+
       <div class="hud">
-        <span class="hint">Survolez une pièce · cliquez pour la choisir · glissez pour tourner · molette pour zoomer</span>
+        <span class="hint">
+          @if (mode() === 'desk') {
+            Cliquez sur le PC pour choisir ses pièces · survolez un périphérique pour le choisir · glissez pour tourner
+          } @else {
+            Survolez une pièce · cliquez pour la choisir · glissez pour tourner · Échap pour revenir
+          }
+        </span>
         <button type="button" class="reset-view" (click)="resetView()" title="Recentrer la vue" aria-label="Recentrer la vue">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v5h5" />
-          </svg>
+          <app-icon name="reset" [size]="16" />
         </button>
       </div>
     </div>
@@ -74,11 +121,9 @@ const IDLE_MS = 5000;
   styles: `
     :host { display: block; }
     .scene {
-      position: relative; height: 600px; border-radius: 24px; overflow: hidden;
+      position: relative; height: 600px; border-radius: var(--r-xl); overflow: hidden;
       border: 1px solid var(--border, #1e293b);
-      background:
-        radial-gradient(ellipse at 50% 35%, color-mix(in srgb, var(--accent, #f59e0b) 14%, transparent), transparent 65%),
-        var(--surface-2, #131927);
+      background: var(--surface-2, #131927);
     }
     canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
     canvas.pointing { cursor: pointer; }
@@ -86,23 +131,30 @@ const IDLE_MS = 5000;
     .tip {
       position: absolute; left: 0; top: 0; pointer-events: none; max-width: 270px;
       display: flex; flex-direction: column; gap: 0.2rem; padding: 0.7rem 0.9rem;
-      border-radius: 14px; border: 1px solid color-mix(in srgb, var(--accent, #f59e0b) 55%, transparent);
+      border-radius: var(--r-md); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
       background: color-mix(in srgb, var(--surface, #0d1117) 92%, transparent);
       backdrop-filter: blur(8px); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
       transform: translate(-50%, calc(-100% - 14px)); will-change: left, top;
     }
-    .tip-slot { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent, #f59e0b); }
-    .tip-name { font-size: 0.9rem; line-height: 1.3; color: var(--text, #fff); }
-    .tip-meta { font-size: 0.75rem; color: var(--muted, #94a3b8); }
-    .tip-hint { font-size: 0.72rem; font-weight: 600; color: var(--accent, #f59e0b); margin-top: 0.15rem; }
+    .tip-slot { font-size: var(--fs-2xs); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+    .tip-name { font-size: var(--fs-md); line-height: 1.3; color: var(--text, #fff); }
+    .tip-meta { font-size: var(--fs-xs); color: var(--muted, #94a3b8); }
+    .tip-hint { font-size: var(--fs-xs); font-weight: 600; color: var(--accent); margin-top: 0.15rem; }
+    .back {
+      position: absolute; top: 1rem; left: 1rem; display: inline-flex; align-items: center; gap: 0.4rem;
+      padding: 0.5rem 0.9rem; border-radius: 999px; border: 1px solid var(--border, #1e293b);
+      background: color-mix(in srgb, var(--surface, #0d1117) 88%, transparent); backdrop-filter: blur(8px);
+      color: var(--text, #fff); font-size: var(--fs-sm); font-weight: 700; box-shadow: var(--shadow-sm);
+    }
+    .back:hover { border-color: var(--accent); color: var(--accent); }
     .hud { position: absolute; left: 1rem; right: 1rem; bottom: 0.9rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; pointer-events: none; }
-    .hint { font-size: 0.75rem; color: var(--muted, #94a3b8); background: color-mix(in srgb, var(--surface, #0d1117) 75%, transparent); padding: 0.35rem 0.75rem; border-radius: 999px; }
+    .hint { font-size: var(--fs-xs); color: var(--muted, #94a3b8); background: color-mix(in srgb, var(--surface, #0d1117) 75%, transparent); padding: 0.35rem 0.75rem; border-radius: 999px; }
     .reset-view {
       pointer-events: auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
-      border: 1px solid var(--border, #1e293b); background: var(--surface, #0d1117); color: var(--text, #fff); cursor: pointer;
+      border: 1px solid var(--border, #1e293b); background: var(--surface, #0d1117); color: var(--text, #fff);
     }
-    .reset-view:hover { border-color: var(--accent, #f59e0b); color: var(--accent, #f59e0b); }
-    @media (max-width: 700px) { .scene { height: 420px; } .hint { display: none; } }
+    .reset-view:hover { border-color: var(--accent); color: var(--accent); }
+    @media (max-width: 700px) { .scene { height: 440px; } .hint { display: none; } }
   `,
 })
 export class PcScene {
@@ -115,14 +167,38 @@ export class PcScene {
   readonly hoverChange = output<Slot | null>();
 
   readonly webglFailed = signal(false);
-  private readonly pointerSlot = signal<Slot | null>(null);
-  readonly tipSlot = computed(() => this.pointerSlot() ?? this.highlighted());
+  readonly mode = signal<SceneMode>('desk');
+  private readonly pointerTarget = signal<HoverTarget | null>(null);
+  private readonly transitioning = signal(false);
+
+  readonly pcSlotCount = PC_SLOTS.length;
+  readonly pcSummary = computed(() => {
+    const parts = PC_SLOTS.map((slot) => this.selection()[slot]).filter((p) => !!p);
+    return { count: parts.length, total: Math.round(parts.reduce((sum, p) => sum + p!.price, 0)) };
+  });
+
+  /** Élément mis en avant : survol à la souris, sinon survol d'un emplacement dans la liste */
+  readonly tipTarget = computed<HoverTarget | null>(() => {
+    if (this.transitioning()) return null;
+    const pointer = this.pointerTarget();
+    if (pointer) return pointer;
+    const outside = this.highlighted();
+    if (!outside) return null;
+    const isPcPart = (PC_SLOTS as Slot[]).includes(outside);
+    if (this.mode() === 'desk') return isPcPart ? 'pc' : outside;
+    return isPcPart ? outside : null;
+  });
+
+  /** Pièce mise en avant (hors « PC entier ») */
+  readonly tipSlot = computed<Slot | null>(() => {
+    const target = this.tipTarget();
+    return target && target !== 'pc' ? target : null;
+  });
 
   private readonly host = viewChild.required<ElementRef<HTMLDivElement>>('host');
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private readonly tip = viewChild.required<ElementRef<HTMLDivElement>>('tip');
 
-  private renderer?: THREE.WebGLRenderer;
   private camera?: THREE.PerspectiveCamera;
   private controls?: OrbitControls;
   private model?: PcModel;
@@ -132,6 +208,8 @@ export class PcScene {
   private lastInteraction = 0;
   private swayDirection = 1;
   private reducedMotion = false;
+  /** Zoom en cours entre les deux vues */
+  private flight: { fromPos: THREE.Vector3; toPos: THREE.Vector3; fromTarget: THREE.Vector3; toTarget: THREE.Vector3; t: number } | null = null;
 
   constructor() {
     const destroyRef = inject(DestroyRef);
@@ -148,25 +226,30 @@ export class PcScene {
       this.model?.setSelection(selection, true);
     });
 
-    effect(() => this.model?.setHover(this.tipSlot()));
+    effect(() => this.model?.setHover(this.tipTarget()));
+  }
+
+  /** Passe de la vue d'ensemble à l'intérieur du PC (et inversement), avec un zoom animé. */
+  setMode(mode: SceneMode) {
+    if (mode === this.mode() && !this.flight) return;
+    this.mode.set(mode);
+    this.setPointerTarget(null);
+    this.flyTo(mode);
   }
 
   resetView() {
-    if (!this.camera || !this.controls) return;
-    this.camera.position.setFromSpherical(new THREE.Spherical(HOME.radius, HOME.polar, HOME.azimuth)).add(TARGET);
-    this.controls.update();
-    this.lastInteraction = performance.now();
+    this.flyTo(this.mode());
   }
 
   // --------------------------------------------------------------- Pointeur
 
   onPointerMove(event: PointerEvent) {
-    if (event.pointerType === 'touch') return;
-    this.setPointerSlot(this.slotAt(event));
+    if (event.pointerType === 'touch' || this.flight) return;
+    this.setPointerTarget(this.targetAt(event));
   }
 
   onPointerLeave() {
-    this.setPointerSlot(null);
+    this.setPointerTarget(null);
   }
 
   onPointerDown(event: PointerEvent) {
@@ -176,30 +259,83 @@ export class PcScene {
   onPointerUp(event: PointerEvent) {
     const start = this.downAt;
     this.downAt = null;
-    // Un glisser fait tourner la vue : seul un vrai clic choisit la pièce
-    if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6) return;
-    const slot = this.slotAt(event);
-    if (slot) this.pick.emit(slot);
+    // Un glisser fait tourner la vue : seul un vrai clic agit
+    if (!start || this.flight || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6) return;
+    const target = this.targetAt(event);
+    if (target === 'pc') this.setMode('pc');
+    else if (target) this.pick.emit(target);
   }
 
-  private setPointerSlot(slot: Slot | null) {
-    if (slot === this.pointerSlot()) return;
-    this.pointerSlot.set(slot);
-    this.hoverChange.emit(slot);
-    this.canvas().nativeElement.classList.toggle('pointing', !!slot);
-    if (slot) this.lastInteraction = performance.now();
+  private setPointerTarget(target: HoverTarget | null) {
+    if (target === this.pointerTarget()) return;
+    this.pointerTarget.set(target);
+    this.hoverChange.emit(target === 'pc' ? null : target);
+    this.canvas().nativeElement.classList.toggle('pointing', !!target);
+    if (target) this.lastInteraction = performance.now();
   }
 
-  private slotAt(event: PointerEvent): Slot | null {
+  private targetAt(event: PointerEvent): HoverTarget | null {
     if (!this.camera || !this.model) return null;
     const rect = this.canvas().nativeElement.getBoundingClientRect();
     this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
-    for (const hit of this.raycaster.intersectObjects(this.model.hitTargets(), true)) {
-      const slot = this.model.slotOf(hit.object);
-      if (slot) return slot;
+    const mode = this.mode();
+    for (const hit of this.raycaster.intersectObjects(this.model.hitTargets(mode), true)) {
+      const target = this.model.slotOf(hit.object, mode);
+      if (target) return target;
     }
     return null;
+  }
+
+  // --------------------------------------------------------------- Caméra
+
+  private flyTo(mode: SceneMode) {
+    if (!this.camera || !this.controls) return;
+    const view = VIEWS[mode];
+    const toPos = new THREE.Vector3().setFromSpherical(new THREE.Spherical(view.radius, view.polar, view.azimuth)).add(view.target);
+    this.flight = {
+      fromPos: this.camera.position.clone(),
+      toPos,
+      fromTarget: this.controls.target.clone(),
+      toTarget: view.target.clone(),
+      t: this.reducedMotion ? 1 : 0,
+    };
+    // Limites relâchées pendant le vol, appliquées à l'arrivée
+    Object.assign(this.controls, {
+      enabled: false,
+      minDistance: 0,
+      maxDistance: Infinity,
+      minAzimuthAngle: -Infinity,
+      maxAzimuthAngle: Infinity,
+      minPolarAngle: 0,
+      maxPolarAngle: Math.PI,
+    });
+    this.transitioning.set(true);
+    this.lastInteraction = performance.now();
+  }
+
+  private stepFlight(dt: number) {
+    const flight = this.flight;
+    if (!flight || !this.camera || !this.controls) return;
+    flight.t = Math.min(1, flight.t + dt / ZOOM_SECONDS);
+    // Accélération puis décélération douces
+    const k = flight.t < 0.5 ? 4 * flight.t ** 3 : 1 - (-2 * flight.t + 2) ** 3 / 2;
+    this.camera.position.lerpVectors(flight.fromPos, flight.toPos, k);
+    this.controls.target.lerpVectors(flight.fromTarget, flight.toTarget, k);
+    if (flight.t >= 1) {
+      const view = VIEWS[this.mode()];
+      Object.assign(this.controls, {
+        enabled: true,
+        minDistance: view.distance[0],
+        maxDistance: view.distance[1],
+        minAzimuthAngle: view.azimuthRange[0],
+        maxAzimuthAngle: view.azimuthRange[1],
+        minPolarAngle: view.polarRange[0],
+        maxPolarAngle: view.polarRange[1],
+      });
+      this.flight = null;
+      this.transitioning.set(false);
+    }
   }
 
   // --------------------------------------------------------------- Scène
@@ -208,13 +344,13 @@ export class PcScene {
     const canvas = this.canvas().nativeElement;
     const host = this.host().nativeElement;
 
+    let renderer: THREE.WebGLRenderer;
     try {
-      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     } catch {
       this.webglFailed.set(true);
       return () => undefined;
     }
-    const renderer = this.renderer;
     const pixelRatio = Math.min(window.devicePixelRatio, 2);
     renderer.setPixelRatio(pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -224,7 +360,7 @@ export class PcScene {
     renderer.shadowMap.type = THREE.PCFShadowMap;
 
     const scene = new THREE.Scene();
-    const camera = (this.camera = new THREE.PerspectiveCamera(32, 1, 1, 500));
+    const camera = (this.camera = new THREE.PerspectiveCamera(32, 1, 1, 1200));
 
     // Environnement de studio : reflets réalistes sur le métal, le verre et le vernis
     const pmrem = new THREE.PMREMGenerator(renderer);
@@ -237,16 +373,13 @@ export class PcScene {
     const paintBackground = () => {
       const styles = getComputedStyle(document.documentElement);
       const base = styles.getPropertyValue('--surface-2').trim() || '#131927';
-      const glow = this.readAccent();
+      const hex = new THREE.Color(this.readAccent()).getHex();
       background?.dispose();
-      background = new THREE.CanvasTexture(
-        Object.assign(document.createElement('canvas'), { width: 512, height: 512 }),
-      );
-      const ctx = (background.image as HTMLCanvasElement).getContext('2d')!;
+      const canvas2d = Object.assign(document.createElement('canvas'), { width: 512, height: 512 });
+      const ctx = canvas2d.getContext('2d')!;
       ctx.fillStyle = base;
       ctx.fillRect(0, 0, 512, 512);
       const halo = ctx.createRadialGradient(256, 200, 10, 256, 220, 360);
-      const hex = new THREE.Color(glow).getHex();
       halo.addColorStop(0, `rgba(${(hex >> 16) & 255}, ${(hex >> 8) & 255}, ${hex & 255}, 0.22)`);
       halo.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = halo;
@@ -256,26 +389,26 @@ export class PcScene {
       vignette.addColorStop(1, 'rgba(0,0,0,0.28)');
       ctx.fillStyle = vignette;
       ctx.fillRect(0, 0, 512, 512);
+      background = new THREE.CanvasTexture(canvas2d);
       background.colorSpace = THREE.SRGBColorSpace;
-      background.needsUpdate = true;
       scene.background = background;
     };
     paintBackground();
 
     scene.add(new THREE.HemisphereLight(0xe8eeff, 0x2a2f3c, 0.9));
-    // Lumière principale, avec ombres douces projetées à l'intérieur du boîtier
+    // Lumière principale : ombres douces sur tout le bureau et à l'intérieur du boîtier
     const key = new THREE.DirectionalLight(0xffffff, 2.6);
-    key.position.set(22, 60, 55);
+    key.position.set(30, 150, 140);
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.mapSize.set(4096, 4096);
     key.shadow.radius = 4;
     key.shadow.bias = -0.0004;
-    key.shadow.normalBias = 0.04;
-    Object.assign(key.shadow.camera, { left: -32, right: 32, top: 40, bottom: -32, near: 10, far: 200 });
-    key.target.position.copy(TARGET);
+    key.shadow.normalBias = 0.05;
+    Object.assign(key.shadow.camera, { left: -160, right: 160, top: 120, bottom: -120, near: 20, far: 480 });
+    key.target.position.set(-70, 10, 0);
     scene.add(key, key.target);
     const fill = new THREE.DirectionalLight(0x9db4ff, 1.1);
-    fill.position.set(-45, 20, 35);
+    fill.position.set(-180, 60, 90);
     scene.add(fill);
     // Lumière dans l'axe de la vitre : éclaire l'intérieur du boîtier
     const inner = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -291,39 +424,22 @@ export class PcScene {
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
 
-    // Ombre douce au sol (dégradé radial, sans calcul d'ombres)
-    const shadowCanvas = document.createElement('canvas');
-    shadowCanvas.width = shadowCanvas.height = 128;
-    const ctx = shadowCanvas.getContext('2d')!;
-    const gradient = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
-    gradient.addColorStop(0, 'rgba(0,0,0,0.45)');
-    gradient.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 128, 128);
-    const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
-    const shadow = new THREE.Mesh(new THREE.PlaneGeometry(80, 50), new THREE.MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false }));
-    shadow.rotation.x = -Math.PI / 2;
-    shadow.position.y = -1.7;
-    scene.add(shadow);
-
     const model = new PcModel(this.readAccent());
     model.setSelection(this.selection(), false);
-    model.setHover(this.tipSlot());
+    model.setHover(this.tipTarget());
     scene.add(model.root);
     this.model = model;
 
     const controls = (this.controls = new OrbitControls(camera, canvas));
-    controls.target.copy(TARGET);
     controls.enableDamping = true;
     controls.enablePan = false;
-    controls.minDistance = 55;
-    controls.maxDistance = 125;
-    controls.minPolarAngle = Math.PI * 0.22;
-    controls.maxPolarAngle = Math.PI * 0.56;
-    controls.minAzimuthAngle = -1.2;
-    controls.maxAzimuthAngle = 1.2;
     controls.addEventListener('start', () => (this.lastInteraction = performance.now()));
-    this.resetView();
+    // Position initiale : directement en vue d'ensemble
+    const start = VIEWS.desk;
+    controls.target.copy(start.target);
+    camera.position.setFromSpherical(new THREE.Spherical(start.radius, start.polar, start.azimuth)).add(start.target);
+    this.flight = { fromPos: camera.position.clone(), toPos: camera.position.clone(), fromTarget: start.target.clone(), toTarget: start.target.clone(), t: 1 };
+    this.stepFlight(0);
     this.lastInteraction = 0;
 
     // Taille du canvas = taille du conteneur
@@ -333,7 +449,7 @@ export class PcScene {
       renderer.setSize(w, h, false);
       composer.setSize(w, h);
       camera.aspect = w / h;
-      // Recul automatique sur les écrans étroits pour garder le boîtier entier
+      // Recul automatique sur les écrans étroits pour garder la scène entière
       camera.zoom = Math.min(1, w / h / 1.15);
       camera.updateProjectionMatrix();
     };
@@ -348,6 +464,12 @@ export class PcScene {
     });
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
+    // Échap : retour à la vue d'ensemble
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && this.mode() === 'pc') this.setMode('desk');
+    };
+    window.addEventListener('keydown', onKey);
+
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     this.reducedMotion = motionQuery.matches;
     const onMotion = (e: MediaQueryListEvent) => (this.reducedMotion = e.matches);
@@ -361,13 +483,14 @@ export class PcScene {
       const dt = Math.min(0.05, (now - previous) / 1000);
       previous = now;
 
+      if (this.flight) this.stepFlight(dt);
       // Balancement lent de la caméra quand personne n'interagit
-      if (!this.reducedMotion && !this.tipSlot() && now - this.lastInteraction > IDLE_MS) {
-        const offset = camera.position.clone().sub(controls.target);
-        const spherical = new THREE.Spherical().setFromVector3(offset);
-        if (spherical.theta > 0.75) this.swayDirection = -1;
-        if (spherical.theta < -0.15) this.swayDirection = 1;
-        spherical.theta += this.swayDirection * dt * 0.07;
+      else if (!this.reducedMotion && !this.tipTarget() && now - this.lastInteraction > IDLE_MS) {
+        const [min, max] = VIEWS[this.mode()].sway;
+        const spherical = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+        if (spherical.theta > max) this.swayDirection = -1;
+        if (spherical.theta < min) this.swayDirection = 1;
+        spherical.theta += this.swayDirection * dt * 0.06;
         camera.position.setFromSpherical(spherical).add(controls.target);
       }
 
@@ -375,10 +498,10 @@ export class PcScene {
       model.update(dt, now / 1000, this.reducedMotion);
       composer.render();
 
-      // Info-bulle accrochée au-dessus de la pièce survolée
-      const slot = this.tipSlot();
-      if (slot) {
-        model.anchorOf(slot, anchor).project(camera);
+      // Info-bulle accrochée au-dessus de l'élément survolé
+      const target = this.tipTarget();
+      if (target) {
+        model.anchorOf(target, anchor).project(camera);
         const tip = this.tip().nativeElement;
         const x = Math.min(Math.max((anchor.x * 0.5 + 0.5) * host.clientWidth, 140), host.clientWidth - 140);
         const y = Math.max((-anchor.y * 0.5 + 0.5) * host.clientHeight, 110);
@@ -392,6 +515,7 @@ export class PcScene {
       cancelAnimationFrame(frame);
       resizeObserver.disconnect();
       themeObserver.disconnect();
+      window.removeEventListener('keydown', onKey);
       motionQuery.removeEventListener('change', onMotion);
       controls.dispose();
       model.dispose();
@@ -400,9 +524,6 @@ export class PcScene {
       environment.dispose();
       pmrem.dispose();
       background?.dispose();
-      shadow.geometry.dispose();
-      (shadow.material as THREE.Material).dispose();
-      shadowTexture.dispose();
       renderer.dispose();
       this.model = undefined;
     };

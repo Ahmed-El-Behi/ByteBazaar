@@ -308,3 +308,73 @@ export function pcCaseFromSpecs(p: HardwareSource) {
     sfxOnly: SFX_ONLY_PREFIXES.some((prefix) => p.name.startsWith(prefix)),
   };
 }
+
+// ------------------------------------------------------------------ Périphériques
+// (catalogue data/accessories_catalogue.json, specs au format PCPartPicker)
+
+const isWireless = (connection: string) =>
+  /wireless|bluetooth/i.test(connection);
+const yes = (value: string) => value.toLowerCase() === 'yes';
+
+export function monitorFromSpecs(p: HardwareSource) {
+  const size = firstNumber(spec(p, 'Screen Size'));
+  const resolution = /(\d+)\s*x\s*(\d+)/.exec(spec(p, 'Resolution'));
+  const refresh = firstNumber(spec(p, 'Refresh Rate'));
+  if (!size || !resolution || !refresh) return null;
+  return {
+    screenSizeIn: size,
+    resolutionWidth: Number(resolution[1]),
+    resolutionHeight: Number(resolution[2]),
+    refreshRateHz: Math.round(refresh),
+    responseTimeMs: firstNumber(spec(p, 'Response Time (G2G)')),
+    panelType: spec(p, 'Panel Type') || null,
+    aspectRatio: spec(p, 'Aspect Ratio') || null,
+  };
+}
+
+export function mouseFromSpecs(p: HardwareSource) {
+  const dpi = firstNumber(spec(p, 'Maximum DPI'));
+  return {
+    wireless: isWireless(spec(p, 'Connection Type')),
+    maxDpi: dpi ? Math.round(dpi) : null,
+    trackingMethod: spec(p, 'Tracking Method') || null,
+    handOrientation: spec(p, 'Hand Orientation') || null,
+  };
+}
+
+export function keyboardFromSpecs(p: HardwareSource) {
+  return {
+    wireless: isWireless(spec(p, 'Connection Type')),
+    tenkeyless: yes(spec(p, 'Tenkeyless')),
+    style: spec(p, 'Style') || null,
+    switches: spec(p, 'Switch Type') || null,
+    backlight: spec(p, 'Backlit') || null,
+  };
+}
+
+export function headsetFromSpecs(p: HardwareSource) {
+  return {
+    wireless: yes(spec(p, 'Wireless')),
+    microphone: yes(spec(p, 'Microphone')),
+    type: spec(p, 'Type') || null,
+    enclosureType: spec(p, 'Enclosure Type') || null,
+  };
+}
+
+export function speakerFromSpecs(p: HardwareSource) {
+  const channels = firstNumber(spec(p, 'Configuration'));
+  if (channels === null) return null;
+  return { channels, wattage: firstNumber(spec(p, 'Wattage')) };
+}
+
+export function webcamFromSpecs(p: HardwareSource) {
+  const best = spec(p, 'Resolutions').split(',')[0]?.trim();
+  if (!best) return null;
+  const fov = firstNumber(spec(p, 'Field of View'));
+  return {
+    maxResolution: /^[24]k$/i.test(best) ? best.toUpperCase() : best,
+    focusType: spec(p, 'Focus Type') || null,
+    fovDegrees: fov ? Math.round(fov) : null,
+    connection: spec(p, 'Connection') || null,
+  };
+}

@@ -1,4 +1,5 @@
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Icon } from '../components/icon';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -14,12 +15,17 @@ import { PcScene } from '../components/pc-scene';
 const STORAGE_KEY = 'bytebazaar_configurator';
 const EMPTY_SELECTION: Record<Slot, ConfiguratorPart | null> = {
   cpu: null,
+  cooler: null,
   motherboard: null,
   ram: null,
   gpu: null,
   storage: null,
   psu: null,
   case: null,
+  monitor: null,
+  keyboard: null,
+  mouse: null,
+  headset: null,
 };
 
 interface StoredBuild {
@@ -31,7 +37,7 @@ interface StoredBuild {
 @Component({
   standalone: true,
   selector: 'app-configurator',
-  imports: [CommonModule, FormsModule, PcScene],
+  imports: [Icon, CommonModule, FormsModule, PcScene],
   template: `
     <div class="configurator-container">
       <!-- HEADER -->
@@ -57,8 +63,10 @@ interface StoredBuild {
           />
 
           <!-- Mêmes actions sans la 3D : clavier, lecteurs d'écran, tactile -->
+          @for (group of chipGroups; track group.title) {
+          <h3 class="chips-title">{{ group.title }}</h3>
           <div class="slot-chips">
-            @for (cat of categories; track cat.id) {
+            @for (cat of group.slots; track cat.id) {
               @let selected = selectedComponents()[cat.id];
               <div
                 class="slot-chip"
@@ -72,11 +80,12 @@ interface StoredBuild {
                   <span class="chip-value">{{ selected ? selected.name : 'Choisir' }}</span>
                 </button>
                 @if (selected) {
-                  <button type="button" class="chip-remove" (click)="removeComponent(cat.id)" [attr.aria-label]="'Retirer : ' + selected.name" title="Retirer">✕</button>
+                  <button type="button" class="chip-remove" (click)="removeComponent(cat.id)" [attr.aria-label]="'Retirer : ' + selected.name" title="Retirer"><app-icon name="close" [size]="15" /></button>
                 }
               </div>
             }
           </div>
+          }
         </div>
 
         <!-- SECTEUR DROITE : RÉSUMÉ & COMPATIBILITÉ -->
@@ -122,7 +131,7 @@ interface StoredBuild {
             <div class="compatibility-list">
               @for (check of checks(); track check.id) {
                 <div class="compat-item" [class.ok]="check.status === 'ok'" [class.pending]="check.status === 'pending'" [class.warn]="check.status === 'warning'">
-                  <span class="compat-icon">{{ check.status === 'ok' ? '✓' : check.status === 'pending' ? '○' : '⚠️' }}</span>
+                  <app-icon class="compat-icon" [name]="check.status === 'ok' ? 'check' : check.status === 'pending' ? 'circleDashed' : 'warning'" [size]="15" [stroke]="2" />
                   <span>{{ check.message }}</span>
                 </div>
               }
@@ -132,9 +141,9 @@ interface StoredBuild {
               @if (selectedCount() === 0) {
                 Commencez par choisir vos composants
               } @else if (isGlobalValid()) {
-                ✓ Configuration cohérente
+                <app-icon name="checkCircle" [size]="17" /> Configuration cohérente
               } @else {
-                ⚠️ Problème de compatibilité détecté
+                <app-icon name="warning" [size]="17" /> Problème de compatibilité détecté
               }
             </div>
 
@@ -179,15 +188,13 @@ interface StoredBuild {
                   @if (hiddenCount() > 0) { · {{ hiddenCount() }} masqué(s) car incompatible(s) avec votre sélection }
                 </p>
               </div>
-              <button class="close-btn" (click)="closePicker()">✕</button>
+              <button class="close-btn" (click)="closePicker()" aria-label="Fermer"><app-icon name="close" [size]="20" /></button>
             </div>
 
             <!-- BARRE DE FILTRES -->
             <div class="filter-bar">
               <div class="search-pill-box">
-                <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
-                </svg>
+                <app-icon class="search-icon" name="search" [size]="16" />
                 <input 
                   #searchInput
                   type="text" 
@@ -207,9 +214,7 @@ interface StoredBuild {
                   type="button"
                 >
                   <span>{{ currentSortLabel() }}</span>
-                  <svg class="chevron-icon" [class.open]="isSortDropdownOpen()" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="m6 9 6 6 6-6"/>
-                  </svg>
+                  <app-icon class="chevron-icon" [class.open]="isSortDropdownOpen()" name="chevronDown" [size]="14" [stroke]="2" />
                 </button>
 
                 @if (isSortDropdownOpen()) {
@@ -293,66 +298,67 @@ interface StoredBuild {
   styles: `
     .configurator-container { max-width: 1280px; margin: 0 auto; padding: 2rem 1.5rem; color: var(--text, #ffffff); }
     .config-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; gap: 1rem; }
-    .config-header h1 { font-size: 2.2rem; font-weight: 800; margin: 0 0 0.4rem; }
-    .subtitle { color: var(--muted, #94a3b8); font-size: 0.95rem; margin: 0; }
-    .btn-reset { background: transparent; border: 1px solid var(--border, rgba(255, 255, 255, 0.15)); color: var(--muted, #94a3b8); padding: 0.6rem 1.1rem; border-radius: 12px; cursor: pointer; font-size: 0.85rem; transition: all 0.2s ease; }
-    .btn-reset:hover:not(:disabled) { border-color: #ef4444; color: #ef4444; }
+    .config-header h1 { font-size: var(--fs-4xl); font-weight: 800; margin: 0 0 0.4rem; }
+    .subtitle { color: var(--muted, #94a3b8); font-size: var(--fs-ui); margin: 0; }
+    .btn-reset { background: transparent; border: 1px solid var(--border, rgba(255, 255, 255, 0.15)); color: var(--muted, #94a3b8); padding: 0.6rem 1.1rem; border-radius: var(--r-md); cursor: pointer; font-size: var(--fs-md); transition: all 0.2s ease; }
+    .btn-reset:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
     .btn-reset:disabled { opacity: 0.4; cursor: not-allowed; }
     .configurator-grid { display: grid; grid-template-columns: 1fr 360px; gap: 2rem; }
     @media (max-width: 1024px) { .configurator-grid { grid-template-columns: 1fr; } }
     .selection-column { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+    .chips-title { margin: 0.4rem 0 -0.2rem; font-family: var(--font-body); font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
     .slot-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0.6rem; }
     .slot-chip {
-      display: flex; align-items: stretch; border-radius: 14px; overflow: hidden;
+      display: flex; align-items: stretch; border-radius: var(--r-md); overflow: hidden;
       border: 1px dashed var(--border, #1e293b); background: var(--surface-2, #131927); transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
     .slot-chip.filled { border-style: solid; }
-    .slot-chip.active, .slot-chip:hover { border-color: var(--accent, #f59e0b); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #f59e0b) 18%, transparent); }
+    .slot-chip.active, .slot-chip:hover { border-color: var(--accent, var(--accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, var(--accent)) 18%, transparent); }
     .chip-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; padding: 0.6rem 0.8rem; background: none; border: 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
-    .chip-label { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent, #f59e0b); }
-    .chip-value { font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chip-label { font-size: var(--fs-2xs); font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent, var(--accent)); }
+    .chip-value { font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .slot-chip:not(.filled) .chip-value { color: var(--muted, #94a3b8); font-weight: 500; }
-    .chip-remove { border: 0; background: none; color: var(--muted, #94a3b8); padding: 0 0.75rem; cursor: pointer; font-size: 0.8rem; }
-    .chip-remove:hover { color: #ef4444; }
-    .summary-card { background: var(--surface-2, #131927); border: 1px solid var(--border, #1e293b); border-radius: 20px; padding: 1.5rem; position: sticky; top: 2rem; }
-    .summary-card h2 { font-size: 1.3rem; margin: 0 0 1.2rem; }
+    .chip-remove { border: 0; background: none; color: var(--muted, #94a3b8); padding: 0 0.75rem; cursor: pointer; font-size: var(--fs-sm); }
+    .chip-remove:hover { color: var(--red); }
+    .summary-card { background: var(--surface-2, #131927); border: 1px solid var(--border, #1e293b); border-radius: var(--r-lg); padding: 1.5rem; position: sticky; top: 2rem; }
+    .summary-card h2 { font-size: var(--fs-xl); margin: 0 0 1.2rem; }
     .summary-items { display: flex; flex-direction: column; gap: 0.6rem; }
-    .summary-row { display: flex; justify-content: space-between; font-size: 0.88rem; cursor: pointer; border-radius: 8px; padding: 0.15rem 0.35rem; margin: 0 -0.35rem; transition: background 0.15s ease; }
-    .summary-row.active { background: color-mix(in srgb, var(--accent, #f59e0b) 14%, transparent); }
+    .summary-row { display: flex; justify-content: space-between; font-size: var(--fs-md); cursor: pointer; border-radius: var(--r-sm); padding: 0.15rem 0.35rem; margin: 0 -0.35rem; transition: background 0.15s ease; }
+    .summary-row.active { background: color-mix(in srgb, var(--accent, var(--accent)) 14%, transparent); }
     .summary-row .label { color: var(--muted, #94a3b8); }
     .summary-row .value { font-weight: 600; }
     .summary-row .value.empty { color: var(--muted, #64748b); font-weight: 400; }
     .divider { height: 1px; background: var(--border, #1e293b); margin: 1.2rem 0; }
-    .total-row { display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem; font-weight: 700; margin-bottom: 1.5rem; }
-    .total-price { font-size: 1.4rem; color: var(--accent, #f59e0b); }
+    .total-row { display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-lg); font-weight: 700; margin-bottom: 1.5rem; }
+    .total-price { font-size: var(--fs-2xl); color: var(--accent, var(--accent)); }
     .wattage-section { margin-bottom: 1.5rem; }
-    .wattage-header { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted, #94a3b8); margin-bottom: 0.4rem; }
+    .wattage-header { display: flex; justify-content: space-between; font-size: var(--fs-sm); color: var(--muted, #94a3b8); margin-bottom: 0.4rem; }
     .watt-val { font-weight: 600; color: var(--text, #fff); }
     .wattage-bar-bg { height: 6px; background: var(--surface, #0d1117); border-radius: 3px; overflow: hidden; }
-    .wattage-bar-fill { height: 100%; background: #10b981; transition: width 0.3s ease; }
-    .wattage-bar-fill.over-limit { background: #ef4444; }
+    .wattage-bar-fill { height: 100%; background: var(--green); transition: width 0.3s ease; }
+    .wattage-bar-fill.over-limit { background: var(--red); }
     .compatibility-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.2rem; }
-    .compat-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: #ef4444; }
-    .compat-item.ok { color: #10b981; }
+    .compat-item { display: flex; align-items: center; gap: 0.5rem; font-size: var(--fs-sm); color: var(--red); }
+    .compat-item.ok { color: var(--green); }
     .compat-item.pending { color: var(--muted, #94a3b8); }
-    .compat-item.warn { color: #f59e0b; }
+    .compat-item.warn { color: var(--accent); }
     .save-form { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
-    .save-input { flex: 1; min-width: 0; background: var(--surface, #0d1117); border: 1px solid var(--border, #1e293b); color: var(--text, #fff); border-radius: 12px; padding: 0.55rem 0.8rem; font: inherit; font-size: 0.85rem; }
-    .action-msg { margin: 0.8rem 0 0; font-size: 0.82rem; color: #10b981; text-align: center; }
-    .action-msg.error { color: #ef4444; }
-    .compat-badge { padding: 0.7rem; border-radius: 12px; text-align: center; font-size: 0.85rem; font-weight: 600; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); margin-bottom: 1.2rem; }
-    .compat-badge.valid { background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3); }
-    .btn-primary { background: var(--accent, #f59e0b); color: #000; font-weight: 700; border: none; border-radius: 14px; padding: 0.9rem; font-size: 0.95rem; cursor: pointer; width: 100%; margin-bottom: 0.6rem; }
+    .save-input { flex: 1; min-width: 0; background: var(--surface, #0d1117); border: 1px solid var(--border, #1e293b); color: var(--text, #fff); border-radius: var(--r-md); padding: 0.55rem 0.8rem; font: inherit; font-size: var(--fs-md); }
+    .action-msg { margin: 0.8rem 0 0; font-size: var(--fs-sm); color: var(--green); text-align: center; }
+    .action-msg.error { color: var(--red); }
+    .compat-badge { padding: 0.7rem; border-radius: var(--r-md); text-align: center; font-size: var(--fs-md); font-weight: 600; background: color-mix(in srgb, var(--red) 15%, transparent); color: var(--red); border: 1px solid color-mix(in srgb, var(--red) 30%, transparent); margin-bottom: 1.2rem; }
+    .compat-badge.valid { background: color-mix(in srgb, var(--green) 15%, transparent); color: var(--green); border-color: color-mix(in srgb, var(--green) 30%, transparent); }
+    .btn-primary { background: var(--accent, var(--accent)); color: var(--on-accent); font-weight: 700; border: none; border-radius: var(--r-md); padding: 0.9rem; font-size: var(--fs-ui); cursor: pointer; width: 100%; margin-bottom: 0.6rem; }
     .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-secondary { background: transparent; border: 1px solid var(--border, #1e293b); color: var(--text, #fff); font-weight: 600; border-radius: 14px; padding: 0.8rem; font-size: 0.85rem; cursor: pointer; width: 100%; }
+    .btn-secondary { background: transparent; border: 1px solid var(--border, #1e293b); color: var(--text, #fff); font-weight: 600; border-radius: var(--r-md); padding: 0.8rem; font-size: var(--fs-md); cursor: pointer; width: 100%; }
 
     /* MODALE DE SÉLECTION */
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(6px); display: flex; justify-content: flex-end; z-index: 1000; animation: fadeIn 0.2s ease; }
     .modal-panel { width: 100%; max-width: 720px; height: 100%; background: var(--surface-2, #0b1120); border-left: 1px solid var(--border, rgba(255, 255, 255, 0.1)); display: flex; flex-direction: column; animation: slideLeft 0.25s ease; border-top-left-radius: 24px; border-bottom-left-radius: 24px; }
     .modal-header { padding: 1.5rem 1.8rem; border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08)); display: flex; justify-content: space-between; align-items: flex-start; }
-    .modal-header h2 { margin: 0 0 0.3rem; font-size: 1.3rem; color: var(--text, #ffffff); }
-    .modal-sub { margin: 0; font-size: 0.85rem; color: var(--muted, #94a3b8); }
-    .close-btn { background: none; border: none; color: var(--muted, #94a3b8); font-size: 1.4rem; cursor: pointer; }
+    .modal-header h2 { margin: 0 0 0.3rem; font-size: var(--fs-xl); color: var(--text, #ffffff); }
+    .modal-sub { margin: 0; font-size: var(--fs-md); color: var(--muted, #94a3b8); }
+    .close-btn { background: none; border: none; color: var(--muted, #94a3b8); font-size: var(--fs-2xl); cursor: pointer; }
     
     /* BARRE DE FILTRES */
     .filter-bar { 
@@ -389,8 +395,8 @@ interface StoredBuild {
     .search-pill-box:focus-within { 
       max-width: 380px; 
       width: 100%;
-      border-color: #2563eb;
-      box-shadow: 0 0 16px rgba(37, 99, 235, 0.2);
+      border-color: var(--accent);
+      box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 20%, transparent);
     }
 
     .search-icon { 
@@ -405,7 +411,7 @@ interface StoredBuild {
 
     .search-pill-box:hover .search-icon,
     .search-pill-box:focus-within .search-icon {
-      color: #2563eb;
+      color: var(--accent);
       transform: scale(1.05);
     }
 
@@ -416,7 +422,7 @@ interface StoredBuild {
       border: none; 
       color: var(--text, #ffffff); 
       padding: 0 1rem 0 2.5rem; 
-      font-size: 0.88rem; 
+      font-size: var(--fs-md); 
       outline: none; 
       white-space: nowrap;
       overflow-x: auto;
@@ -446,7 +452,7 @@ interface StoredBuild {
       color: var(--text, #ffffff); 
       padding: 0 1.1rem;
       border-radius: 9999px;
-      font-size: 0.85rem; 
+      font-size: var(--fs-md); 
       font-weight: 500;
       outline: none; 
       cursor: pointer;
@@ -477,7 +483,7 @@ interface StoredBuild {
       right: 0;
       background: var(--surface-2, #131927);
       border: 1.5px solid var(--border, rgba(255, 255, 255, 0.15));
-      border-radius: 18px;
+      border-radius: var(--r-lg);
       padding: 0.5rem;
       width: 170px;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
@@ -490,21 +496,21 @@ interface StoredBuild {
 
     .dropdown-option {
       padding: 0.6rem 0.9rem;
-      border-radius: 12px;
-      font-size: 0.85rem;
+      border-radius: var(--r-md);
+      font-size: var(--fs-md);
       color: var(--text, #ffffff);
       cursor: pointer;
       transition: all 0.2s ease;
     }
 
     .dropdown-option:hover {
-      background: rgba(37, 99, 235, 0.15);
-      color: #3b82f6;
+      background: color-mix(in srgb, var(--accent) 15%, transparent);
+      color: var(--accent);
     }
 
     .dropdown-option.selected {
-      background: #2563eb;
-      color: #ffffff;
+      background: var(--accent);
+      color: var(--on-accent);
       font-weight: 600;
     }
 
@@ -514,7 +520,7 @@ interface StoredBuild {
     .picker-card { 
       background: var(--surface, #151d30); 
       border: 2px solid var(--border, rgba(255, 255, 255, 0.08)); 
-      border-radius: 24px; 
+      border-radius: var(--r-xl); 
       padding: 0.6rem; 
       display: flex; 
       flex-direction: column; 
@@ -523,8 +529,8 @@ interface StoredBuild {
       cursor: pointer;
       box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
-    .picker-card:hover { border-color: #2563eb; transform: translateY(-2px); }
-    .picker-card.selected { border-color: #2563eb; background: rgba(37, 99, 235, 0.12); }
+    .picker-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .picker-card.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
     .picker-img-wrapper { 
       width: 100%;
@@ -533,7 +539,7 @@ interface StoredBuild {
       align-items: center;
       justify-content: center;
       background: #ffffff;
-      border-radius: 18px;
+      border-radius: var(--r-lg);
       padding: 0.8rem;
       box-sizing: border-box;
       overflow: hidden;
@@ -544,7 +550,7 @@ interface StoredBuild {
       object-fit: contain; 
       display: block;
     }
-    .no-img-box { color: var(--muted, #94a3b8); font-size: 0.8rem; }
+    .no-img-box { color: var(--muted, #94a3b8); font-size: var(--fs-sm); }
 
     .picker-details {
       display: flex;
@@ -554,13 +560,13 @@ interface StoredBuild {
       flex: 1;
     }
     .category-brand-sub {
-      font-size: 0.78rem;
+      font-size: var(--fs-sm);
       color: var(--muted, #94a3b8);
       font-weight: 500;
     }
     .product-title { 
       margin: 0; 
-      font-size: 0.9rem; 
+      font-size: var(--fs-md); 
       font-weight: 700; 
       color: var(--text, #f8fafc);
       line-height: 1.35;
@@ -580,29 +586,29 @@ interface StoredBuild {
     }
     .picker-price { 
       font-weight: 800; 
-      color: var(--accent, #f59e0b); 
-      font-size: 1.05rem; 
+      color: var(--accent, var(--accent)); 
+      font-size: var(--fs-base); 
     }
     
     .btn-select-item {
-      background: #2563eb;
-      color: #ffffff;
+      background: var(--accent);
+      color: var(--on-accent);
       border: none;
       font-weight: 700;
       padding: 0.5rem 1rem;
       border-radius: 9999px;
-      font-size: 0.8rem;
+      font-size: var(--fs-sm);
       cursor: pointer;
       transition: all 0.2s ease;
     }
-    .btn-select-item:hover { background: #1d4ed8; transform: scale(1.03); }
+    .btn-select-item:hover { background: var(--accent-hover); transform: scale(1.03); }
     .btn-select-item.selected {
-      background: #10b981;
-      color: #000000;
+      background: var(--green);
+      color: var(--on-accent);
     }
 
     .empty-results { text-align: center; color: var(--muted, #94a3b8); padding: 4rem 0; display: flex; flex-direction: column; align-items: center; gap: 1rem; }
-    .spinner { width: 32px; height: 32px; border: 3px solid rgba(245, 158, 11, 0.2); border-top-color: #f59e0b; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .spinner { width: 32px; height: 32px; border: 3px solid color-mix(in srgb, var(--accent) 20%, transparent); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
     
     @keyframes spin { to { transform: rotate(360deg); } }
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -610,14 +616,23 @@ interface StoredBuild {
   `
 })
 export class ConfiguratorPage {
-  readonly categories: { id: Slot; label: string }[] = [
-    { id: 'cpu', label: 'Processeur' },
-    { id: 'motherboard', label: 'Carte mère' },
-    { id: 'ram', label: 'Mémoire RAM' },
-    { id: 'gpu', label: 'Carte graphique' },
-    { id: 'storage', label: 'Stockage (SSD / HDD)' },
-    { id: 'psu', label: 'Alimentation' },
-    { id: 'case', label: 'Boîtier' },
+  readonly categories: { id: Slot; label: string; group: 'pc' | 'desk' }[] = [
+    { id: 'cpu', label: 'Processeur', group: 'pc' },
+    { id: 'cooler', label: 'Refroidissement CPU', group: 'pc' },
+    { id: 'motherboard', label: 'Carte mère', group: 'pc' },
+    { id: 'ram', label: 'Mémoire RAM', group: 'pc' },
+    { id: 'gpu', label: 'Carte graphique', group: 'pc' },
+    { id: 'storage', label: 'Stockage (SSD / HDD)', group: 'pc' },
+    { id: 'psu', label: 'Alimentation', group: 'pc' },
+    { id: 'case', label: 'Boîtier', group: 'pc' },
+    { id: 'monitor', label: 'Écran', group: 'desk' },
+    { id: 'keyboard', label: 'Clavier', group: 'desk' },
+    { id: 'mouse', label: 'Souris', group: 'desk' },
+    { id: 'headset', label: 'Casque', group: 'desk' },
+  ];
+  readonly chipGroups = [
+    { title: 'Unité centrale', slots: this.categories.filter((c) => c.group === 'pc') },
+    { title: 'Poste de travail (facultatif)', slots: this.categories.filter((c) => c.group === 'desk') },
   ];
 
   readonly slotLabels = Object.fromEntries(this.categories.map((c) => [c.id, c.label])) as Record<Slot, string>;

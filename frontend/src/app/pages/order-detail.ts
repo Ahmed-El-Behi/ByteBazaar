@@ -1,4 +1,5 @@
 import { Component, inject, input } from '@angular/core';
+import { Icon } from '../components/icon';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
@@ -7,12 +8,12 @@ import { TndPipe } from '../core/tnd.pipe';
 
 @Component({
   selector: 'app-order-detail-page',
-  imports: [RouterLink, TndPipe],
+  imports: [Icon, RouterLink, TndPipe],
   template: `
     <div class="container page">
       @if (order(); as o) {
         <div class="card confirm-box">
-          <span class="icon">✅</span>
+          <span class="icon"><app-icon name="checkCircle" [size]="30" [stroke]="2" /></span>
           <h2>Commande confirmée !</h2>
           <p class="muted">Référence : <strong>{{ o.reference }}</strong></p>
 
@@ -63,19 +64,19 @@ import { TndPipe } from '../core/tnd.pipe';
   styles: `
     .page { display: flex; justify-content: center; padding-block: 3rem; }
     .confirm-box { width: min(520px, 100%); padding: 2rem; text-align: center; }
-    .icon { font-size: 3rem; }
-    .details { text-align: left; background: var(--surface-2); padding: 1rem; border-radius: 14px; margin-block: 1rem; }
+    .icon { font-size: var(--fs-5xl); }
+    .details { text-align: left; background: var(--surface-2); padding: 1rem; border-radius: var(--r-md); margin-block: 1rem; }
     .row { margin-bottom: 0.4rem; }
     
     .items-table { width: 100%; border-collapse: collapse; margin-block: 1rem; text-align: left; }
     .items-table td { padding: 0.6rem 0; border-bottom: 1px solid var(--border); }
     
     .product-col { display: flex; align-items: center; gap: 0.8rem; }
-    .item-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
-    .item-thumb-placeholder { width: 44px; height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
-    .item-name { font-size: 0.95rem; line-height: 1.3; }
+    .item-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
+    .item-thumb-placeholder { width: 44px; height: 44px; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
+    .item-name { font-size: var(--fs-ui); line-height: 1.3; }
 
-    .total-row { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; font-size: 1.1rem; }
+    .total-row { display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; font-size: var(--fs-lg); }
     .price { color: var(--accent); }
   `,
 })

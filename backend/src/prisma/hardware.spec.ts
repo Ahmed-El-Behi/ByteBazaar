@@ -1,5 +1,11 @@
 import {
   cpuFromSpecs,
+  headsetFromSpecs,
+  keyboardFromSpecs,
+  monitorFromSpecs,
+  mouseFromSpecs,
+  speakerFromSpecs,
+  webcamFromSpecs,
   gpuBoardPower,
   motherboardFromSpecs,
   pcCaseFromSpecs,
@@ -120,5 +126,71 @@ describe('hardware derivation', () => {
         product('boitiers', 'Silverstone GD09B', { Type: 'HTPC' }),
       )?.supportedFormFactors,
     ).toContain('ATX');
+  });
+
+  it('derives peripheral data from accessory specs', () => {
+    const monitor = monitorFromSpecs(
+      product('ecrans', 'LG 27GP850-B', {
+        'Screen Size': '27"',
+        Resolution: '2560 x 1440',
+        'Refresh Rate': '165 Hz',
+        'Response Time (G2G)': '1 ms',
+        'Panel Type': 'IPS',
+      }),
+    );
+    expect(monitor).toMatchObject({
+      screenSizeIn: 27,
+      resolutionWidth: 2560,
+      resolutionHeight: 1440,
+      refreshRateHz: 165,
+      panelType: 'IPS',
+    });
+    expect(
+      monitorFromSpecs(product('ecrans', 'x', { 'Screen Size': '27"' })),
+    ).toBeNull();
+
+    expect(
+      mouseFromSpecs(
+        product('souris', 'x', {
+          'Connection Type': 'Wired, Bluetooth Wireless',
+          'Maximum DPI': '26000 DPI',
+        }),
+      ),
+    ).toMatchObject({
+      wireless: true,
+      maxDpi: 26000,
+    });
+    expect(
+      keyboardFromSpecs(
+        product('claviers', 'x', {
+          'Connection Type': 'Wired',
+          Tenkeyless: 'Yes',
+        }),
+      ),
+    ).toMatchObject({
+      wireless: false,
+      tenkeyless: true,
+    });
+    expect(
+      headsetFromSpecs(
+        product('casques', 'x', { Wireless: 'No', Microphone: 'Yes' }),
+      ),
+    ).toMatchObject({ wireless: false, microphone: true });
+    expect(
+      speakerFromSpecs(
+        product('enceintes', 'x', { Configuration: '2.1', Wattage: '65 W' }),
+      ),
+    ).toEqual({ channels: 2.1, wattage: 65 });
+    expect(
+      webcamFromSpecs(
+        product('webcams', 'x', {
+          Resolutions: '4k, 1080p',
+          'Field of View': '90°',
+        }),
+      ),
+    ).toMatchObject({
+      maxResolution: '4K',
+      fovDegrees: 90,
+    });
   });
 });

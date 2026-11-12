@@ -1,4 +1,5 @@
 import { Component, effect, inject, signal } from '@angular/core';
+import { Icon } from '../components/icon';
 import {
   AbstractControl,
   FormControl,
@@ -61,7 +62,7 @@ const MESSAGES: Record<string, string> = {
 
 @Component({
   selector: 'app-checkout',
-  imports: [ReactiveFormsModule, RouterLink, TndPipe],
+  imports: [Icon, ReactiveFormsModule, RouterLink, TndPipe],
   template: `
     <div class="container page">
       <h1>Finaliser la commande</h1>
@@ -248,7 +249,7 @@ const MESSAGES: Record<string, string> = {
               <button class="btn primary block" type="button" [disabled]="submitting()" (click)="confirmOrder()">
                 {{ submitting() ? 'Validation…' : 'Confirmer la commande' }}
               </button>
-              <a routerLink="/panier" class="back">← Modifier le panier</a>
+              <a routerLink="/panier" class="back"><app-icon name="arrowLeft" [size]="16" /> Modifier le panier</a>
             </aside>
           </div>
         }
@@ -259,25 +260,25 @@ const MESSAGES: Record<string, string> = {
   `,
   styles: `
     .page { padding-block: 2rem 3rem; }
-    h1 { font-size: 2rem; margin-bottom: 1.5rem; }
+    h1 { font-size: var(--fs-3xl); margin-bottom: 1.5rem; }
     .layout { display: grid; gap: 1.5rem; grid-template-columns: 1fr 360px; align-items: start; }
     .steps { display: grid; gap: 1.2rem; }
     .block { padding: 1.5rem; }
     .block header { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1.1rem; }
-    .block h2 { margin: 0; font-size: 1.2rem; }
-    .num { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 0.9rem; }
+    .block h2 { margin: 0; font-size: var(--fs-xl); }
+    .num { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: var(--fs-md); }
 
     .choices { display: grid; gap: 0.6rem; }
-    .choice { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 1.1rem; border: 1.5px solid var(--border); border-radius: 18px; background: var(--bg); transition: border-color 0.15s, background 0.15s; cursor: pointer; }
+    .choice { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 1.1rem; border: 1.5px solid var(--border); border-radius: var(--r-lg); background: var(--bg); transition: border-color 0.15s, background 0.15s; cursor: pointer; }
     .choice:hover { border-color: var(--accent); }
     .choice.on { border-color: var(--accent); background: var(--accent-soft); }
     .choice input { accent-color: var(--accent); width: 18px; height: 18px; flex: none; margin: 0; }
     .body { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0; }
-    .body small { font-size: 0.85rem; }
-    .tag { font-size: 0.72rem; font-weight: 700; padding: 0.1rem 0.55rem; margin-left: 0.3rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+    .body small { font-size: var(--fs-md); }
+    .tag { font-size: var(--fs-xs); font-weight: 700; padding: 0.1rem 0.55rem; margin-left: 0.3rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
 
     .brands { display: flex; align-items: center; gap: 0.4rem; }
-    .brand { display: inline-flex; align-items: center; justify-content: center; height: 26px; padding: 0 0.6rem; border-radius: 7px; background: #fff; border: 1px solid #dfe5f3; font-size: 0.75rem; }
+    .brand { display: inline-flex; align-items: center; justify-content: center; height: 26px; padding: 0 0.6rem; border-radius: 7px; background: #fff; border: 1px solid #dfe5f3; font-size: var(--fs-xs); }
     .visa { color: #1a1f71; font-weight: 800; font-style: italic; letter-spacing: 0.02em; }
     .mc { width: 38px; padding: 0; }
     .mc i { width: 16px; height: 16px; border-radius: 50%; background: #eb001b; }
@@ -286,32 +287,32 @@ const MESSAGES: Record<string, string> = {
     .pp b { color: #003087; }
 
     .detail { padding: 0.4rem 0.2rem 0.6rem 2.2rem; }
-    .note { font-size: 0.85rem; color: var(--muted); margin: 0.6rem 0 0; }
+    .note { font-size: var(--fs-md); color: var(--muted); margin: 0.6rem 0 0; }
 
     .grid { display: grid; gap: 0.2rem 0.9rem; grid-template-columns: repeat(6, 1fr); margin-top: 1rem; }
     .detail .grid { margin-top: 0.4rem; }
     .field { margin-bottom: 0.6rem; }
     .s2 { grid-column: span 2; } .s3 { grid-column: span 3; } .s6 { grid-column: span 6; }
-    .field select { padding: 0.7rem 1rem; border-radius: 14px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+    .field select { padding: 0.7rem 1rem; border-radius: var(--r-md); border: 1px solid var(--border); background-color: var(--bg); color: var(--text); font: inherit; }
     .field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
-    .err { color: var(--red); font-size: 0.8rem; }
+    .err { color: var(--red); font-size: var(--fs-sm); }
 
     /* RÉCAPITULATIF - IMAGES & ARTICLES */
     .summary { padding: 1.5rem; position: sticky; top: 90px; }
-    .summary h2 { font-size: 1.2rem; margin-bottom: 1rem; }
+    .summary h2 { font-size: var(--fs-xl); margin-bottom: 1rem; }
     .summary ul { list-style: none; padding: 0; margin: 0 0 1rem; display: flex; flex-direction: column; gap: 0.8rem; }
     
-    .summary-item { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; font-size: 0.92rem; }
+    .summary-item { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; font-size: var(--fs-ui); }
     .summary-item-left { display: flex; align-items: center; gap: 0.75rem; flex: 1; min-width: 0; }
-    .summary-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
-    .summary-thumb-placeholder { width: 44px; height: 44px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); flex-shrink: 0; }
+    .summary-thumb { width: 44px; height: 44px; object-fit: cover; border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface-2); flex-shrink: 0; }
+    .summary-thumb-placeholder { width: 44px; height: 44px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border); flex-shrink: 0; }
     .summary-product-name { word-break: break-word; line-height: 1.3; }
     .summary-item-price { font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 
     .row { display: flex; justify-content: space-between; padding: 0.35rem 0; }
-    .total { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; border-top: 1px solid var(--border); margin-top: 0.4rem; padding-top: 0.8rem; color: var(--accent); }
+    .total { font-family: var(--font-display); font-weight: 700; font-size: var(--fs-xl); border-top: 1px solid var(--border); margin-top: 0.4rem; padding-top: 0.8rem; color: var(--accent); }
     .summary .btn { margin-top: 1rem; }
-    .back { display: block; text-align: center; margin-top: 0.9rem; font-size: 0.9rem; color: var(--muted); }
+    .back { display: block; text-align: center; margin-top: 0.9rem; font-size: var(--fs-md); color: var(--muted); }
     .empty { padding: 2.5rem; text-align: center; display: grid; gap: 1rem; justify-items: center; }
 
     @media (max-width: 900px) {

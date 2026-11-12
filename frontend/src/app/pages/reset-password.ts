@@ -1,4 +1,5 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { Icon } from '../components/icon';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -8,14 +9,12 @@ import { apiErrors } from '../core/utils';
 @Component({
   standalone: true,
   selector: 'app-reset-password',
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [Icon, CommonModule, FormsModule, RouterLink],
   template: `
     <div class="reset-wrapper">
       <div class="card reset-card">
         <div class="icon-shield">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#10b981" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-          </svg>
+          <app-icon name="shield" [size]="28" />
         </div>
 
         <h2>Nouveau mot de passe</h2>
@@ -48,15 +47,9 @@ import { apiErrors } from '../core/utils';
                 />
                 <button type="button" class="eye-btn" (click)="showNewPassword.set(!showNewPassword())">
                   @if (showNewPassword()) {
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                      <line x1="1" y1="1" x2="23" y2="23"/>
-                    </svg>
+                    <app-icon name="eyeOff" [size]="18" />
                   } @else {
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
+                    <app-icon name="eye" [size]="18" />
                   }
                 </button>
               </div>
@@ -81,15 +74,9 @@ import { apiErrors } from '../core/utils';
                 />
                 <button type="button" class="eye-btn" (click)="showConfirmPassword.set(!showConfirmPassword())">
                   @if (showConfirmPassword()) {
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                      <line x1="1" y1="1" x2="23" y2="23"/>
-                    </svg>
+                    <app-icon name="eyeOff" [size]="18" />
                   } @else {
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
+                    <app-icon name="eye" [size]="18" />
                   }
                 </button>
               </div>
@@ -101,25 +88,25 @@ import { apiErrors } from '../core/utils';
           </form>
         }
 
-        <a routerLink="/connexion" class="back-link">← Retour à la connexion</a>
+        <a routerLink="/connexion" class="back-link"><app-icon name="arrowLeft" [size]="16" /> Retour à la connexion</a>
       </div>
     </div>
   `,
   styles: `
     .reset-wrapper { display: flex; justify-content: center; align-items: center; min-height: 70vh; padding: 1.5rem; }
-    .reset-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 16px; padding: 2.5rem; width: 100%; max-width: 440px; text-align: center; }
+    .reset-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 2.5rem; width: 100%; max-width: 440px; text-align: center; }
     
-    .icon-shield { background: rgba(16, 185, 129, 0.1); width: 50px; height: 50px; border-radius: 12px; display: grid; place-items: center; margin: 0 auto 1.2rem; }
-    h2 { margin: 0 0 0.4rem; color: var(--text); font-size: 1.5rem; }
-    .subtitle { color: var(--muted); font-size: 0.88rem; margin: 0 0 1.5rem; }
+    .icon-shield { background: color-mix(in srgb, var(--green) 10%, transparent); width: 50px; height: 50px; border-radius: var(--r-md); display: grid; place-items: center; margin: 0 auto 1.2rem; }
+    h2 { margin: 0 0 0.4rem; color: var(--text); font-size: var(--fs-2xl); }
+    .subtitle { color: var(--muted); font-size: var(--fs-md); margin: 0 0 1.5rem; }
 
     .reset-form { display: flex; flex-direction: column; gap: 1.2rem; text-align: left; }
     .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
-    .form-group label { font-size: 0.85rem; color: var(--muted); }
+    .form-group label { font-size: var(--fs-md); color: var(--muted); }
 
     .input-field {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-      padding: 0.7rem 0.9rem; color: var(--text); font-size: 0.95rem; width: 100%;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 0.7rem 0.9rem; color: var(--text); font-size: var(--fs-ui); width: 100%;
     }
     .input-field:focus { outline: none; border-color: var(--accent); }
 
@@ -130,24 +117,24 @@ import { apiErrors } from '../core/utils';
     /* BARRE ROBUSTESSE */
     .strength-bar-container { height: 4px; background: var(--border); border-radius: 2px; margin-top: 0.4rem; overflow: hidden; }
     .strength-bar { height: 100%; transition: all 0.3s ease; }
-    .strength-label { font-size: 0.75rem; font-weight: 600; }
+    .strength-label { font-size: var(--fs-xs); font-weight: 600; }
     
-    .text-red { color: #ef4444; } .bg-red { background: #ef4444; }
-    .text-orange { color: #f59e0b; } .bg-orange { background: #f59e0b; }
-    .text-green { color: #10b981; } .bg-green { background: #10b981; }
+    .text-red { color: var(--red); } .bg-red { background: var(--red); }
+    .text-orange { color: var(--warn); } .bg-orange { background: var(--warn); }
+    .text-green { color: var(--green); } .bg-green { background: var(--green); }
 
     .btn-submit {
-      background: var(--accent); color: #000; font-weight: 700; border: none;
-      border-radius: 8px; padding: 0.8rem; cursor: pointer; font-size: 0.95rem; margin-top: 0.5rem;
+      background: var(--accent); color: var(--on-accent); font-weight: 700; border: none;
+      border-radius: var(--r-sm); padding: 0.8rem; cursor: pointer; font-size: var(--fs-ui); margin-top: 0.5rem;
       width: 100%; text-decoration: none; display: inline-block; box-sizing: border-box;
     }
     .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
     
-    .alert { padding: 0.8rem 1rem; border-radius: 8px; font-size: 0.88rem; margin-bottom: 1.2rem; text-align: left; }
-    .alert-error { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); color: #ef4444; }
-    .alert-success { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.4); color: #22c55e; }
+    .alert { padding: 0.8rem 1rem; border-radius: var(--r-sm); font-size: var(--fs-md); margin-bottom: 1.2rem; text-align: left; }
+    .alert-error { background: color-mix(in srgb, var(--red) 15%, transparent); border: 1px solid color-mix(in srgb, var(--red) 40%, transparent); color: var(--red); }
+    .alert-success { background: color-mix(in srgb, var(--green) 15%, transparent); border: 1px solid color-mix(in srgb, var(--green) 40%, transparent); color: var(--green); }
 
-    .back-link { display: inline-block; margin-top: 1.5rem; color: var(--muted); font-size: 0.85rem; text-decoration: none; }
+    .back-link { display: inline-block; margin-top: 1.5rem; color: var(--muted); font-size: var(--fs-md); text-decoration: none; }
     .back-link:hover { color: var(--text); }
   `
 })

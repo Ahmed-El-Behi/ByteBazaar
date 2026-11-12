@@ -61,6 +61,27 @@ const PART_SELECT = {
     select: { wattage: true, formFactor: true, efficiency: true },
   },
   pcCase: { select: { supportedFormFactors: true, sfxOnly: true } },
+  // Poste de travail (utilisé aussi par la vue 3D : taille d'écran, format du clavier…)
+  monitor: {
+    select: {
+      screenSizeIn: true,
+      resolutionWidth: true,
+      resolutionHeight: true,
+      refreshRateHz: true,
+      panelType: true,
+    },
+  },
+  keyboard: {
+    select: {
+      wireless: true,
+      tenkeyless: true,
+      style: true,
+      switches: true,
+      backlight: true,
+    },
+  },
+  mouse: { select: { wireless: true, maxDpi: true } },
+  headset: { select: { wireless: true, microphone: true, type: true } },
 } satisfies Prisma.ProductSelect;
 
 type PartRow = Prisma.ProductGetPayload<{ select: typeof PART_SELECT }>;
@@ -77,6 +98,10 @@ const HARDWARE_FILTER: Partial<Record<Slot, Prisma.ProductWhereInput>> = {
   gpu: { gpu: { isNot: null } },
   psu: { powerSupply: { isNot: null } },
   case: { pcCase: { isNot: null } },
+  monitor: { monitor: { isNot: null } },
+  keyboard: { keyboard: { isNot: null } },
+  mouse: { mouse: { isNot: null } },
+  headset: { headset: { isNot: null } },
 };
 
 export interface ConfiguratorPart extends BuildPart {
@@ -85,6 +110,31 @@ export interface ConfiguratorPart extends BuildPart {
   stockQuantity: number;
   image: { url: string; altText: string | null } | null;
   highlights: string[];
+  cooler?: { liquid: boolean; radiatorMm: number | null };
+  monitor?: {
+    screenSizeIn: number;
+    resolutionWidth: number;
+    resolutionHeight: number;
+    refreshRateHz: number;
+    panelType: string | null;
+  };
+  keyboard?: {
+    wireless: boolean;
+    tenkeyless: boolean;
+    style: string | null;
+    switches: string | null;
+    backlight: string | null;
+  };
+  mouse?: { wireless: boolean; maxDpi: number | null };
+  headset?: { wireless: boolean; microphone: boolean; type: string | null };
+}
+
+/** Ventirad : watercooling AIO (taille du radiateur) ou ventirad à air, d'après les specs. */
+function coolerOf(row: PartRow) {
+  const radiator = row.specs.find((s) => s.name === 'Radiator Size')?.valueText;
+  const mm = radiator ? Number.parseInt(radiator, 10) : NaN;
+  const liquid = !!radiator || /\bAIO\b/i.test(row.name);
+  return { liquid, radiatorMm: Number.isFinite(mm) ? mm : liquid ? 240 : null };
 }
 
 function highlights(row: PartRow): string[] {
@@ -115,6 +165,42 @@ function highlights(row: PartRow): string[] {
     );
     return row.pcCase.sfxOnly ? [...formats, 'Alim. SFX'] : formats;
   }
+  if (row.monitor) {
+    const m = row.monitor;
+    return [
+      `${Number(m.screenSizeIn)}"`,
+      `${m.resolutionWidth}×${m.resolutionHeight}`,
+      `${m.refreshRateHz} Hz`,
+    ];
+  }
+  if (row.keyboard) {
+    const k = row.keyboard;
+    return [
+      k.tenkeyless ? 'TKL' : 'Complet',
+      k.wireless ? 'Sans fil' : 'Filaire',
+      k.switches ?? k.backlight,
+    ].filter((v): v is string => !!v);
+  }
+  if (row.mouse) {
+    return [
+      row.mouse.wireless ? 'Sans fil' : 'Filaire',
+      row.mouse.maxDpi ? `${row.mouse.maxDpi} DPI` : null,
+    ].filter((v): v is string => !!v);
+  }
+  if (row.headset) {
+    return [
+      row.headset.wireless ? 'Sans fil' : 'Filaire',
+      row.headset.microphone ? 'Micro' : 'Sans micro',
+    ];
+  }
+  if (row.category.slug === SLOT_CATEGORY.cooler) {
+    const { liquid, radiatorMm } = coolerOf(row);
+    return [
+      liquid ? `AIO ${radiatorMm} mm` : 'Ventirad à air',
+      spec('Fan RPM'),
+      spec('Noise Level'),
+    ].filter((v): v is string => !!v);
+  }
   return [spec('Capacity'), spec('Form Factor'), spec('Interface')].filter(
     (v): v is string => !!v,
   );
@@ -131,6 +217,11 @@ function toPart(row: PartRow): ConfiguratorPart | null {
     storage: true,
     psu: row.powerSupply,
     case: row.pcCase,
+    cooler: true,
+    monitor: row.monitor,
+    keyboard: row.keyboard,
+    mouse: row.mouse,
+    headset: row.headset,
   };
   if (!hardware[slot]) return null; // caractéristiques inexploitables : hors configurateur
   return {
@@ -149,6 +240,13 @@ function toPart(row: PartRow): ConfiguratorPart | null {
     gpu: row.gpu ?? undefined,
     psu: row.powerSupply ?? undefined,
     pcCase: row.pcCase ?? undefined,
+    cooler: slot === 'cooler' ? coolerOf(row) : undefined,
+    monitor: row.monitor
+      ? { ...row.monitor, screenSizeIn: Number(row.monitor.screenSizeIn) }
+      : undefined,
+    keyboard: row.keyboard ?? undefined,
+    mouse: row.mouse ?? undefined,
+    headset: row.headset ?? undefined,
   };
 }
 

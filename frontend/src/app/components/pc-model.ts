@@ -18,11 +18,20 @@
 
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import type { ConfiguratorPart, FormFactor, Slot } from '../core/configurator-api';
+import { DESK_SLOTS, PC_SLOTS, type ConfiguratorPart, type FormFactor, type Slot } from '../core/configurator-api';
+import { buildDesk, buildHeadset, buildKeyboard, buildMonitor, buildMouse } from './desk-model';
+import { canvasTexture, seeded } from './three-utils';
 
 export type Selection = Record<Slot, ConfiguratorPart | null>;
 
-export const SLOT_ORDER: Slot[] = ['case', 'motherboard', 'psu', 'storage', 'gpu', 'ram', 'cpu'];
+// Ordre de construction (le boîtier d'abord : les autres pièces s'y logent)
+const PC_ORDER: Slot[] = ['case', 'motherboard', 'psu', 'storage', 'gpu', 'ram', 'cpu', 'cooler'];
+const BUILD_ORDER: Slot[] = [...PC_ORDER, ...DESK_SLOTS];
+
+/** Cible de survol : une pièce, ou le PC entier en vue d'ensemble */
+export type HoverTarget = Slot | 'pc';
+/** Vue d'ensemble (bureau) ou intérieur du PC */
+export type SceneMode = 'desk' | 'pc';
 
 const BOARD_SIZE: Record<FormFactor, [number, number]> = {
   ATX: [24.4, 30.5],
@@ -44,6 +53,8 @@ interface Layout {
   m2: { x: number; y: number };
   gpu: { top: number; length: number; end: number };
   floorY: number;
+  /** Radiateur de watercooling AIO (mm) monté en haut du boîtier, sinon null */
+  aioMm: number | null;
 }
 
 function layoutFor(sel: Selection): Layout {
@@ -60,30 +71,11 @@ function layoutFor(sel: Selection): Layout {
     m2: { x: cpu.x, y: itx ? cpu.y - 6.6 : cpu.y - 8.2 },
     gpu: { top: itx ? y0 + 1.5 : BOARD_TOP - 21, length, end: GPU_BRACKET_X + length },
     floorY: sel.case ? SHROUD_TOP : 0.8,
+    aioMm: sel.cooler?.cooler?.liquid ? Math.min(420, Math.max(120, sel.cooler.cooler.radiatorMm ?? 240)) : null,
   };
 }
 
 const isWhite = (part: ConfiguratorPart | null) => !!part && /\b(white|blanc)\b/i.test(part.name);
-
-// Générateur pseudo-aléatoire déterministe (pistes du circuit imprimé)
-function seeded(seed: number) {
-  let s = seed >>> 0 || 1;
-  return () => {
-    s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-    return s / 4294967296;
-  };
-}
-
-function canvasTexture(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void, srgb = true) {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  draw(canvas.getContext('2d')!);
-  const texture = new THREE.CanvasTexture(canvas);
-  if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
-  return texture;
-}
 
 /** Textures partagées par toutes les pièces (créées une fois). */
 class SharedTextures {
@@ -165,7 +157,7 @@ interface RgbMaterials {
   strip: THREE.Material;
 }
 
-interface SlotView {
+export interface SlotView {
   slot: Slot;
   group: THREE.Group;
   partId: number | null;
@@ -176,9 +168,10 @@ interface SlotView {
   disposables: { dispose(): void }[];
   install: number; // 0 → 1 : animation d'installation
   lift: number; // décalage vers l'avant au survol
+  axis: 'z' | 'y'; // pièces du PC : glissent vers la vitre ; poste de travail : se posent d'en haut
 }
 
-class Builder {
+export class Builder {
   constructor(
     readonly view: SlotView,
     private readonly accent: THREE.Color,
@@ -229,6 +222,13 @@ class Builder {
     const mesh = this.add(new THREE.Mesh(this.track(new THREE.CylinderGeometry(r, r, length, segments)), material), x, y, z);
     if (axis === 'x') mesh.rotation.z = Math.PI / 2;
     if (axis === 'z') mesh.rotation.x = Math.PI / 2;
+    return mesh;
+  }
+
+  /** Forme quelconque éclairée en RGB (anneaux, logos). */
+  glowMesh(geometry: THREE.BufferGeometry) {
+    const mesh = new THREE.Mesh(this.track(geometry), this.rgb.ring);
+    mesh.userData['noShadow'] = true;
     return mesh;
   }
 
@@ -379,12 +379,17 @@ class Builder {
 
 export class PcModel {
   readonly root = new THREE.Group();
+  /** Le PC (boîtier et pièces), à droite sur le bureau */
+  private readonly pcRoot = new THREE.Group();
+  /** Décor fixe : bureau, tapis, support de casque */
+  private readonly deskRoot = new THREE.Group();
+  private readonly deskDisposables: { dispose(): void }[] = [];
 
   private readonly accent = new THREE.Color();
   private readonly tex = new SharedTextures();
   private readonly views = new Map<Slot, SlotView>();
   private spinners: THREE.Object3D[] = [];
-  private hovered: Slot | null = null;
+  private hovered: HoverTarget | null = null;
   private rgbOn = false;
 
   // Éclairage RGB partagé (texture arc-en-ciel animée)
@@ -421,27 +426,53 @@ export class PcModel {
     ];
     this.rgbLights.forEach(({ light }, i) => {
       light.position.set(positions[i][0], positions[i][1], positions[i][2]);
-      this.root.add(light);
+      this.pcRoot.add(light);
     });
+    this.root.add(this.pcRoot, this.deskRoot);
+
+    // Décor du bureau (construit une fois ; jamais survolable)
+    const deskView = this.emptyView('case', this.deskRoot);
+    buildDesk(new Builder(deskView, this.accent, this.tex, this.rgb, []));
+    this.deskDisposables.push(...deskView.disposables);
+    this.applyShadows(this.deskRoot);
+  }
+
+  private emptyView(slot: Slot, group = new THREE.Group()): SlotView {
+    return {
+      slot,
+      group,
+      partId: null,
+      mats: [],
+      ghostFills: [],
+      ghostEdges: [],
+      accentMats: [],
+      disposables: [],
+      install: 1,
+      lift: 0,
+      axis: (DESK_SLOTS as Slot[]).includes(slot) ? 'y' : 'z',
+    };
   }
 
   // --------------------------------------------------------------- API
 
   setSelection(selection: Selection, animate: boolean) {
     this.spinners.length = 0;
-    for (const slot of SLOT_ORDER) {
+    for (const slot of BUILD_ORDER) {
       const part = selection[slot];
       const old = this.views.get(slot);
       const changed = (old?.partId ?? null) !== (part?.id ?? null);
+      // Le poste de travail ne dépend que de sa propre pièce : inutile de le reconstruire sinon
+      if (old && old.axis === 'y' && !changed) continue;
+      const parent = (PC_SLOTS as Slot[]).includes(slot) ? this.pcRoot : this.root;
       if (old) {
-        this.root.remove(old.group);
+        parent.remove(old.group);
         old.disposables.forEach((d) => d.dispose());
       }
       const view = this.build(slot, selection);
       view.install = animate && changed && !!part ? 0 : 1;
       view.lift = old?.lift ?? 0;
       this.views.set(slot, view);
-      this.root.add(view.group);
+      parent.add(view.group);
     }
     this.rgbOn = !!selection.case;
     this.applyHover();
@@ -453,32 +484,43 @@ export class PcModel {
     this.applyHover();
   }
 
-  setHover(slot: Slot | null) {
-    if (slot === this.hovered) return;
-    this.hovered = slot;
+  setHover(target: HoverTarget | null) {
+    if (target === this.hovered) return;
+    this.hovered = target;
     this.applyHover();
   }
 
-  /** Objets testés par le lancer de rayon (survol / clic). */
-  hitTargets(): THREE.Object3D[] {
-    return [...this.views.values()].map((v) => v.group);
+  /**
+   * Objets testés par le lancer de rayon. En vue d'ensemble, le PC est une seule cible
+   * (ses pièces ne réagissent pas individuellement) ; dans le PC, seules ses pièces comptent.
+   */
+  hitTargets(mode: SceneMode): THREE.Object3D[] {
+    const views = [...this.views.values()];
+    if (mode === 'pc') return views.filter((v) => v.axis === 'z').map((v) => v.group);
+    return [this.pcRoot, ...views.filter((v) => v.axis === 'y').map((v) => v.group)];
   }
 
-  slotOf(object: THREE.Object3D | null): Slot | null {
+  slotOf(object: THREE.Object3D | null, mode: SceneMode): HoverTarget | null {
     for (let o = object; o; o = o.parent) {
       if (o.userData['noHit']) return null;
-      if (o.userData['slot']) return o.userData['slot'] as Slot;
+      if (mode === 'desk' && o === this.pcRoot) return 'pc';
+      if (o.userData['slot'] && !(mode === 'desk' && this.isInPc(o))) return o.userData['slot'] as Slot;
     }
     return null;
   }
 
-  /** Point d'ancrage (haut du composant) pour positionner l'info-bulle. */
-  anchorOf(slot: Slot, target: THREE.Vector3) {
-    const view = this.views.get(slot);
-    if (!view) return target.set(0, 0, 0);
-    const box = new THREE.Box3().setFromObject(view.group);
-    if (slot === 'case') return target.set(box.max.x - 4, box.max.y, box.max.z);
-    return box.getCenter(target).setY(box.max.y);
+  private isInPc(object: THREE.Object3D) {
+    for (let o: THREE.Object3D | null = object; o; o = o.parent) if (o === this.pcRoot) return true;
+    return false;
+  }
+
+  /** Point d'ancrage (haut de l'élément) pour positionner l'info-bulle. */
+  anchorOf(target: HoverTarget, out: THREE.Vector3) {
+    const object = target === 'pc' ? this.pcRoot : this.views.get(target)?.group;
+    if (!object) return out.set(0, 0, 0);
+    const box = new THREE.Box3().setFromObject(object);
+    if (target === 'case') return out.set(box.max.x - 4, box.max.y, box.max.z);
+    return box.getCenter(out).setY(box.max.y);
   }
 
   update(dt: number, time: number, reducedMotion: boolean) {
@@ -487,9 +529,11 @@ export class PcModel {
       // Installation : la pièce glisse depuis l'ouverture du boîtier
       if (view.install < 1) view.install = reducedMotion ? 1 : Math.min(1, view.install + dt * 1.6);
       const ease = 1 - Math.pow(1 - view.install, 3);
-      const targetLift = view.slot === this.hovered && view.slot !== 'case' ? 0.9 : 0;
+      const targetLift = view.slot === this.hovered && view.slot !== 'case' ? (view.axis === 'y' ? 1.2 : 0.9) : 0;
       view.lift += (targetLift - view.lift) * Math.min(1, dt * 10);
-      view.group.position.z = (1 - ease) * 14 + view.lift;
+      // Pièces du PC : glissent depuis la vitre ; poste de travail : se posent depuis le dessus
+      if (view.axis === 'z') view.group.position.z = (1 - ease) * 14 + view.lift;
+      else view.group.position.y = (1 - ease) * 22 + view.lift;
       view.group.scale.setScalar(0.92 + 0.08 * ease);
 
       const hovered = view.slot === this.hovered;
@@ -508,6 +552,7 @@ export class PcModel {
   }
 
   dispose() {
+    this.deskDisposables.forEach((d) => d.dispose());
     for (const view of this.views.values()) view.disposables.forEach((d) => d.dispose());
     this.views.clear();
     Object.values(this.rgb).forEach((m) => m.dispose());
@@ -517,30 +562,31 @@ export class PcModel {
   // --------------------------------------------------------------- Construction
 
   private applyHover() {
+    const wholePc = this.hovered === 'pc';
     for (const view of this.views.values()) {
-      const on = view.slot === this.hovered;
+      const on = view.slot === this.hovered || (wholePc && view.axis === 'z');
       for (const m of view.mats) {
         m.emissive.copy(on ? this.accent : new THREE.Color(0x000000));
-        m.emissiveIntensity = on ? 0.4 : 0;
+        m.emissiveIntensity = on ? (wholePc ? 0.2 : 0.4) : 0;
       }
     }
   }
 
+  private applyShadows(group: THREE.Object3D) {
+    group.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      const material = o.material as THREE.Material;
+      const skip = !!o.userData['noShadow'] || material.transparent;
+      o.castShadow = !skip && !o.userData['noCast'];
+      o.receiveShadow = !skip;
+    });
+  }
+
   private build(slot: Slot, sel: Selection): SlotView {
-    const group = new THREE.Group();
-    group.userData['slot'] = slot;
-    const view: SlotView = {
-      slot,
-      group,
-      partId: sel[slot]?.id ?? null,
-      mats: [],
-      ghostFills: [],
-      ghostEdges: [],
-      accentMats: [],
-      disposables: [],
-      install: 1,
-      lift: 0,
-    };
+    const view = this.emptyView(slot);
+    view.group.userData['slot'] = slot;
+    view.partId = sel[slot]?.id ?? null;
+    const group = view.group;
     const b = new Builder(view, this.accent, this.tex, this.rgb, this.spinners);
     const layout = layoutFor(sel);
     const part = sel[slot];
@@ -567,16 +613,25 @@ export class PcModel {
       case 'psu':
         this.buildPsu(b, part, sel, layout);
         break;
+      case 'cooler':
+        this.buildCooler(b, part, layout);
+        break;
+      case 'monitor':
+        buildMonitor(b, part);
+        break;
+      case 'keyboard':
+        buildKeyboard(b, part);
+        break;
+      case 'mouse':
+        buildMouse(b, part);
+        break;
+      case 'headset':
+        buildHeadset(b, part);
+        break;
     }
 
     // Ombres : les pièces en projettent et en reçoivent, sauf éléments lumineux / fantômes
-    group.traverse((o) => {
-      if (!(o instanceof THREE.Mesh)) return;
-      const material = o.material as THREE.Material;
-      const skip = !!o.userData['noShadow'] || material.transparent;
-      o.castShadow = !skip && !o.userData['noCast'];
-      o.receiveShadow = !skip;
-    });
+    this.applyShadows(group);
     return view;
   }
 
@@ -703,7 +758,7 @@ export class PcModel {
 
     // Ventilateurs RGB : 3 en façade, 2 au sommet, 1 à l'arrière
     for (const y of [16, 28, 40]) b.add(b.fan(11.6, true), 20.5, y, 0).rotation.y = Math.PI / 2;
-    for (const x of [-6.5, 6.5]) b.add(b.fan(11.6, true), x, 44.6, 0).rotation.x = Math.PI / 2;
+    if (!l.aioMm) for (const x of [-6.5, 6.5]) b.add(b.fan(11.6, true), x, 44.6, 0).rotation.x = Math.PI / 2;
     b.add(b.fan(11, true), -20.5, 36, 0).rotation.y = Math.PI / 2;
 
     // Bandeaux LED : montant avant et bord supérieur
@@ -836,14 +891,45 @@ export class PcModel {
 
   private buildCpu(b: Builder, part: ConfiguratorPart | null, l: Layout) {
     const { x, y } = l.cpu;
+    // Zone de survol un peu plus large que le ventirad : le processeur reste accessible dessous
+    const hit = b.box(13, 14.5, 1.6, b.track(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })), x, y, TRAY_Z + 0.9);
+    hit.userData['noShadow'] = true;
     if (!part) {
-      b.ghost(9, 12, 12, x, y, TRAY_Z + 6);
+      b.ghost(5, 5, 1.2, x, y, TRAY_Z + 0.6);
       return;
     }
-    const intel = /intel/i.test(part.brand);
+    // Capot (IHS) gravé du nom du processeur
     b.box(4.4, 4.4, 0.5, b.brushed(0xd9dde4), x, y, TRAY_Z + 0.45);
+    const engraving = b.label(
+      [
+        { text: /intel/i.test(part.brand) ? 'INTEL' : 'AMD', size: 0.42, color: '#3a4152', spacing: 2 },
+        { text: part.name.replace(/^(AMD|Intel)\s+/i, '').replace(/\s+Tray$/, ''), size: 0.36, color: '#3a4152' },
+      ],
+      4,
+      2.2,
+    );
+    b.add(engraving, x, y, TRAY_Z + 0.71);
+  }
 
-    // Ventirad tour : socle nickelé, caloducs cuivre, ailettes, capot, ventilateur RGB
+  // --------------------------------------------------------------- Refroidissement
+
+  private buildCooler(b: Builder, part: ConfiguratorPart | null, l: Layout) {
+    const { x, y } = l.cpu;
+    if (!part) {
+      // Cadre fantôme autour du socket : le centre reste au processeur
+      b.ghost(11, 2.2, 1.2, x, y + 5.9, TRAY_Z + 1.2);
+      b.ghost(11, 2.2, 1.2, x, y - 5.9, TRAY_Z + 1.2);
+      b.ghost(2.2, 9.6, 1.2, x - 4.4, y, TRAY_Z + 1.2);
+      b.ghost(2.2, 9.6, 1.2, x + 4.4, y, TRAY_Z + 1.2);
+      return;
+    }
+    if (part.cooler?.liquid) this.buildAio(b, part, l);
+    else this.buildTower(b, part, l);
+  }
+
+  /** Ventirad tour : socle nickelé, caloducs cuivre, 34 ailettes, capot, ventilateur RGB */
+  private buildTower(b: Builder, part: ConfiguratorPart, l: Layout) {
+    const { x, y } = l.cpu;
     const copper = b.mat(0xc97a4a, { metalness: 0.95, roughness: 0.28 });
     b.rounded(4.6, 4.6, 1.2, 0.15, b.brushed(0xe8ebf0), x, y, TRAY_Z + 1.3);
     const finZ0 = TRAY_Z + 4.4;
@@ -851,24 +937,60 @@ export class PcModel {
     for (let i = 0; i < 4; i++) {
       b.cylinder(0.32, finZ1 - TRAY_Z - 1.2, copper, x - 0.9 + (i % 2) * 1.8, y - 2.7 + i * 1.8, (TRAY_Z + 1.8 + finZ1) / 2, 'z', 14);
     }
-    const fin = b.mat(0xc9ced6, { metalness: 0.92, roughness: 0.3 });
+    const white = isWhite(part);
+    const fin = b.mat(white ? 0xe9ecf1 : 0xc9ced6, { metalness: 0.92, roughness: 0.3 });
     const fins = 34;
     for (let i = 0; i < fins; i++) b.box(5, 12, 0.08, fin, x, y, finZ0 + (i / (fins - 1)) * (finZ1 - finZ0 - 0.6));
-    b.rounded(5.2, 12.2, 0.6, 0.2, b.physical(0x15171d, { metalness: 0.6, roughness: 0.35 }), x, y, finZ1);
+    b.rounded(5.2, 12.2, 0.6, 0.2, b.physical(white ? 0xf1f2f5 : 0x15171d, { metalness: 0.6, roughness: 0.35 }), x, y, finZ1);
     b.strip(11.4, 0.22, 0.22, x + 2.62, y, finZ1).rotation.z = Math.PI / 2;
-    const cover = b.label(
-      [
-        { text: intel ? 'INTEL CORE' : 'AMD RYZEN', size: 0.62, color: '#9aa3b5', spacing: 3 },
-        { text: part.name.replace(/^(AMD|Intel)\s+(Core|Ryzen)\s*/i, '').replace(/\s+Tray$/, ''), size: 0.95 },
-      ],
-      10,
-      4.4,
-    );
+    const cover = b.label([{ text: part.brand.toUpperCase(), size: 0.9, color: white ? '#3a4152' : '#e8ecf5', spacing: 4 }], 10, 2);
     cover.rotation.z = Math.PI / 2;
     b.add(cover, x - 0.2, y, finZ1 + 0.31);
-
-    // Ventilateur sur le flanc avant du radiateur
     b.add(b.fan(12, true), x + 3.85, y, (finZ0 + finZ1) / 2 - 0.4).rotation.y = Math.PI / 2;
+  }
+
+  /** Watercooling AIO : pompe sur le processeur, tuyaux gainés, radiateur et ventilateurs en haut du boîtier */
+  private buildAio(b: Builder, part: ConfiguratorPart, l: Layout) {
+    const { x, y } = l.cpu;
+    const white = isWhite(part);
+    const shell = b.physical(white ? 0xeef0f4 : 0x15171d, { metalness: 0.5, roughness: 0.35 });
+
+    // Pompe : bloc arrondi, couvercle à anneau RGB, logo
+    b.rounded(6.4, 6.4, 2.6, 0.9, shell, x, y, TRAY_Z + 1.6);
+    b.cylinder(2.7, 0.5, b.mat(0x0b0c10, { roughness: 0.3, metalness: 0.4 }), x, y, TRAY_Z + 3.05, 'z', 40);
+    const ring = b.add(b.glowMesh(new THREE.TorusGeometry(2.75, 0.2, 10, 48)), x, y, TRAY_Z + 3.3);
+    ring.rotation.z = Math.PI / 4;
+    const logo = b.label([{ text: part.brand.toUpperCase(), size: 0.55, spacing: 2 }], 4.6, 1);
+    b.add(logo, x, y, TRAY_Z + 3.32);
+
+    // Radiateur sous le panneau supérieur (longueur = taille annoncée)
+    const length = (l.aioMm ?? 240) / 10 + 3;
+    const fans = Math.round(((l.aioMm ?? 240) - 0) / 120);
+    const radY = 44.3;
+    b.rounded(length, 2.7, 12.4, 0.3, b.mat(white ? 0xe6e8ed : 0x1a1c22, { metalness: 0.7, roughness: 0.4 }), 0, radY, 0);
+    const finTex = b.mat(white ? 0xcfd3da : 0x2a2d35, { metalness: 0.8, roughness: 0.5 });
+    for (let i = 0; i < Math.floor(length / 0.6); i++) b.box(0.08, 2.4, 11.6, finTex, -length / 2 + 0.6 + i * 0.6, radY - 0.05, 0);
+    const fanSize = 11.6;
+    for (let i = 0; i < fans; i++) {
+      const fx = -((fans - 1) * fanSize) / 2 + i * fanSize;
+      b.add(b.fan(fanSize, true), fx, radY - 2.6, 0).rotation.x = Math.PI / 2;
+    }
+
+    // Tuyaux gainés de la pompe vers l'extrémité arrière du radiateur
+    const sleeve = b.mat(0x101114, { roughness: 0.75 });
+    const endX = -length / 2 + 2.2;
+    for (const dz of [-1.4, 1.4]) {
+      b.tube(
+        [
+          new THREE.Vector3(x + 2.6, y + 1.2, TRAY_Z + 2.4 + dz * 0.3),
+          new THREE.Vector3(x + 5, y + 4, TRAY_Z + 5),
+          new THREE.Vector3(endX + 2, radY - 6, dz * 1.5),
+          new THREE.Vector3(endX, radY - 1.4, dz * 2.2),
+        ],
+        0.55,
+        sleeve,
+      );
+    }
   }
 
   // --------------------------------------------------------------- Mémoire

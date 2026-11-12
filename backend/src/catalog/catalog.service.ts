@@ -164,8 +164,8 @@ export class CatalogService {
       });
     }
 
-    // Recherche : chaque mot doit apparaître dans le nom, le SKU ou la marque ("msi 4070" trouve
-    // "MSI GeForce RTX 4070 ...")
+    // Recherche : chaque mot doit apparaître dans le nom, le SKU, la marque ou la catégorie
+    // ("msi 4070" trouve "MSI GeForce RTX 4070 ...", "souris logitech" trouve "Logitech G305 ...")
     const q = get('q')?.trim().slice(0, 100) ?? '';
     const terms = q.split(/\s+/).filter(Boolean).slice(0, 8);
     for (const term of terms) {
@@ -175,6 +175,8 @@ export class CatalogService {
           { name: contains },
           { sku: contains },
           { brand: { name: contains } },
+          { category: { nameFr: contains } },
+          { category: { nameEn: contains } },
         ],
       });
     }
@@ -247,6 +249,12 @@ export class CatalogService {
         gpu: true,
         powerSupply: true,
         pcCase: true,
+        monitor: true,
+        mouse: true,
+        keyboard: true,
+        headset: true,
+        speaker: true,
+        webcam: true,
       },
     });
     if (!product) throw new NotFoundException(`Produit introuvable : ${slug}`);
@@ -258,6 +266,12 @@ export class CatalogService {
       gpu,
       powerSupply,
       pcCase,
+      monitor,
+      mouse,
+      keyboard,
+      headset,
+      speaker,
+      webcam,
       popularity: _popularity,
       ...base
     } = product;
@@ -270,6 +284,12 @@ export class CatalogService {
           ['gpu', gpu],
           ['powerSupply', powerSupply],
           ['pcCase', pcCase],
+          ['monitor', monitor],
+          ['mouse', mouse],
+          ['keyboard', keyboard],
+          ['headset', headset],
+          ['speaker', speaker],
+          ['webcam', webcam],
         ] as const
       ).find(([, value]) => value) ?? [];
 

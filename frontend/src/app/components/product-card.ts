@@ -30,11 +30,11 @@ import { TndPipe } from '../core/tnd.pipe';
   styles: `
     .product { display: block; padding: 0.6rem; height: 100%; transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s; }
     .product:hover { box-shadow: var(--shadow-lift); transform: translateY(-3px); border-color: var(--accent); }
-    .ph { border-radius: 22px; }
+    .ph { border-radius: var(--r-xl); }
     .body { padding: 0.9rem 0.6rem 0.6rem; }
-    h3 { font-size: 0.98rem; font-weight: 600; margin: 0.25rem 0 0.8rem; min-height: 2.5em; }
+    h3 { font-size: var(--fs-base); font-weight: 600; margin: 0.25rem 0 0.8rem; min-height: 2.5em; }
     .row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
-    .price { color: var(--accent); font-family: var(--font-display); font-size: 1.1rem; }
+    .price { color: var(--accent); font-family: var(--font-display); font-size: var(--fs-lg); }
   `,
 })
 export class ProductCard {

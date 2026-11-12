@@ -17,12 +17,18 @@
 //   puissance    alim ≥ puissance recommandée (CPU + GPU + reste, +25 %)
 //   graphique    CPU sans partie graphique → carte graphique nécessaire
 //                (avertissement : n'empêche pas une configuration partielle)
+//   refroidiss.  CPU sans ventirad choisi → rappel (avertissement) ; le catalogue
+//                n'indique pas les sockets pris en charge par les ventirads
+//
+// Le ventirad et les périphériques (écran, clavier, souris, casque) sont
+// facultatifs : une configuration est « complète » avec les 7 pièces du PC.
 // =====================================================================
 
 import type { FormFactor, RamType } from '../generated/prisma/client';
 import { MEMORY_BY_SOCKET } from '../prisma/hardware';
 
-export const SLOTS = [
+/** Pièces indispensables au fonctionnement du PC. */
+export const CORE_SLOTS = [
   'cpu',
   'motherboard',
   'ram',
@@ -31,6 +37,15 @@ export const SLOTS = [
   'psu',
   'case',
 ] as const;
+/** Pièces facultatives : refroidissement et poste de travail. */
+export const OPTIONAL_SLOTS = [
+  'cooler',
+  'monitor',
+  'keyboard',
+  'mouse',
+  'headset',
+] as const;
+export const SLOTS = [...CORE_SLOTS, ...OPTIONAL_SLOTS] as const;
 export type Slot = (typeof SLOTS)[number];
 
 export const SLOT_CATEGORY: Record<Slot, string> = {
@@ -41,6 +56,11 @@ export const SLOT_CATEGORY: Record<Slot, string> = {
   storage: 'stockage',
   psu: 'alimentations',
   case: 'boitiers',
+  cooler: 'refroidissement',
+  monitor: 'ecrans',
+  keyboard: 'claviers',
+  mouse: 'souris',
+  headset: 'casques',
 };
 
 export interface BuildPart {
@@ -67,7 +87,14 @@ export type Build = Partial<Record<Slot, BuildPart>>;
 export type CheckStatus = 'ok' | 'error' | 'warning' | 'pending';
 
 export interface Check {
-  id: 'socket' | 'memory' | 'formFactor' | 'psuFormat' | 'power' | 'graphics';
+  id:
+    | 'socket'
+    | 'memory'
+    | 'formFactor'
+    | 'psuFormat'
+    | 'power'
+    | 'graphics'
+    | 'cooling';
   status: CheckStatus;
   message: string;
   slots: Slot[];
@@ -329,6 +356,33 @@ function graphicsCheck({ cpu, gpu }: Build): Check {
       };
 }
 
+function coolingCheck({ cpu, cooler }: Build): Check {
+  const slots: Slot[] = ['cpu', 'cooler'];
+  if (cooler) {
+    return {
+      id: 'cooling',
+      status: 'ok',
+      message: 'Refroidissement du processeur choisi',
+      slots,
+    };
+  }
+  if (!cpu) {
+    return {
+      id: 'cooling',
+      status: 'pending',
+      message: 'Refroidissement : en attente du processeur',
+      slots,
+    };
+  }
+  return {
+    id: 'cooling',
+    status: 'warning',
+    message:
+      'Pensez au refroidissement : la plupart des processeurs récents sont vendus sans ventirad',
+    slots,
+  };
+}
+
 export function evaluate(build: Build): Evaluation {
   const checks = [
     socketCheck,
@@ -337,13 +391,20 @@ export function evaluate(build: Build): Evaluation {
     psuFormatCheck,
     powerCheck,
     graphicsCheck,
+    coolingCheck,
   ].map((rule) => rule(build));
   return {
     checks,
     valid: checks.every((c) => c.status !== 'error'),
+    // Complète = les 7 pièces du PC et aucune erreur (ventirad et périphériques facultatifs)
     complete:
-      SLOTS.every((slot) => !!build[slot]) &&
-      checks.every((c) => c.status === 'ok'),
+      CORE_SLOTS.every((slot) => !!build[slot]) &&
+      checks.every(
+        (c) =>
+          c.status !== 'error' &&
+          c.status !== 'pending' &&
+          (c.status !== 'warning' || c.id === 'cooling'),
+      ),
     ...powerBudget(build),
   };
 }

@@ -1,15 +1,15 @@
 import { Component, computed, inject } from '@angular/core';
-import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
 import { CatalogApi } from '../core/catalog-api';
 import { CategoryNode, Paginated, ProductListItem } from '../core/models';
 import { ProductCard } from '../components/product-card';
+import { Icon, type IconName } from '../components/icon';
 
 @Component({
   selector: 'app-home',
-  imports: [RouterLink, ProductCard],
+  imports: [RouterLink, ProductCard, Icon],
   template: `
     <section class="hero">
       <div class="container">
@@ -32,9 +32,7 @@ import { ProductCard } from '../components/product-card';
         </div>
         <a routerLink="/produits" class="link-arrow">
           Toutes les catégories
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M7 17L17 7M17 7H7M17 7V17"/>
-          </svg>
+          <app-icon name="arrowUpRight" [size]="15" [stroke]="2" />
         </a>
       </div>
 
@@ -42,12 +40,10 @@ import { ProductCard } from '../components/product-card';
         @for (c of tiles(); track c.id) {
           <a class="category-card" routerLink="/produits" [queryParams]="{ category: c.slug }">
             <div class="card-inner">
-              <div class="cat-icon" [innerHTML]="getCategoryIcon(c.slug)"></div>
+              <div class="cat-icon"><app-icon [name]="categoryIcon(c.slug)" [size]="24" /></div>
               <h3 class="cat-title">{{ c.nameFr }}</h3>
             </div>
-            <svg class="cat-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M7 17L17 7M17 7H7M17 7V17"/>
-            </svg>
+            <app-icon class="cat-arrow" name="arrowUpRight" [size]="16" [stroke]="2" />
           </a>
         }
       </div>
@@ -70,7 +66,7 @@ import { ProductCard } from '../components/product-card';
     .hero { position: relative; overflow: hidden; width: min(1200px, 100% - 2rem); margin: 1.5rem auto 0; padding: 4.5rem 3rem; border-radius: 40px; color: var(--hero-ink); background: var(--hero-bg); }
     .hero::after { content: ''; position: absolute; right: -90px; top: -90px; width: 340px; height: 340px; border-radius: 50%; background: var(--hero-circle); }
     .hero .container { position: relative; z-index: 1; width: 100%; margin: 0; }
-    .eyebrow { display: inline-block; padding: 0.3rem 0.9rem; border-radius: 999px; background: var(--hero-chip); font-weight: 600; font-size: 0.85rem; margin: 0 0 1rem; }
+    .eyebrow { display: inline-block; padding: 0.3rem 0.9rem; border-radius: 999px; background: var(--hero-chip); font-weight: 600; font-size: var(--fs-md); margin: 0 0 1rem; }
     h1 { font-size: clamp(2rem, 5vw, 3.2rem); max-width: 18ch; }
     h1 span { color: inherit; }
     .lead { color: var(--hero-lead); max-width: 56ch; margin-bottom: 1.8rem; }
@@ -89,7 +85,7 @@ import { ProductCard } from '../components/product-card';
       display: inline-flex;
       align-items: center;
       gap: 0.5rem;
-      font-size: 0.72rem;
+      font-size: var(--fs-xs);
       font-weight: 700;
       letter-spacing: 0.12em;
       color: var(--muted, #8c94a4);
@@ -100,7 +96,7 @@ import { ProductCard } from '../components/product-card';
     .tag-label .dot {
       width: 6px;
       height: 6px;
-      background-color: var(--accent, #3b82f6);
+      background-color: var(--accent, var(--accent));
       border-radius: 50%;
     }
 
@@ -116,9 +112,9 @@ import { ProductCard } from '../components/product-card';
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      color: var(--accent, #3b82f6);
+      color: var(--accent, var(--accent));
       font-weight: 600;
-      font-size: 0.9rem;
+      font-size: var(--fs-md);
       text-decoration: none;
       transition: gap 0.2s ease, opacity 0.2s ease;
     }
@@ -133,7 +129,7 @@ import { ProductCard } from '../components/product-card';
     .category-card {
       background: var(--surface-2, var(--surface, rgba(255, 255, 255, 0.03)));
       border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
-      border-radius: 16px;
+      border-radius: var(--r-md);
       padding: 1.4rem;
       text-decoration: none;
       color: var(--text, inherit);
@@ -151,20 +147,20 @@ import { ProductCard } from '../components/product-card';
     }
 
     .category-card:hover {
-      border-color: var(--accent, #3b82f6);
+      border-color: var(--accent, var(--accent));
       transform: translateY(-2px);
       box-shadow: var(--shadow-lift, 0 8px 20px rgba(0, 0, 0, 0.15));
     }
 
     .cat-icon {
-      color: var(--accent, #3b82f6);
+      color: var(--accent, var(--accent));
       margin-bottom: 0.6rem;
       display: flex;
       align-items: center;
     }
 
     .cat-title {
-      font-size: 0.95rem;
+      font-size: var(--fs-ui);
       font-weight: 700;
       margin: 0;
       color: var(--text, inherit);
@@ -182,7 +178,7 @@ import { ProductCard } from '../components/product-card';
 
     .category-card:hover .cat-arrow {
       opacity: 1;
-      color: var(--accent, #3b82f6);
+      color: var(--accent, var(--accent));
     }
   `,
 })
@@ -207,35 +203,22 @@ export class HomePage {
     { initialValue: null },
   );
 
-  private sanitizer = inject(DomSanitizer);
-  private iconCache = new Map<string, SafeHtml>();
-
-  // Les icônes sont des SVG constants : on les marque sûrs, sinon le sanitizer d'Angular
-  // retire les balises <svg> et la tuile reste vide.
-  getCategoryIcon(slug: string): SafeHtml {
-    let icon = this.iconCache.get(slug);
-    if (!icon) {
-      icon = this.sanitizer.bypassSecurityTrustHtml(this.categoryIconSvg(slug));
-      this.iconCache.set(slug, icon);
-    }
-    return icon;
-  }
-
-  private categoryIconSvg(slug: string): string {
+  /** Icône Lucide de chaque catégorie (d'après son slug) */
+  categoryIcon(slug: string): IconName {
     const s = slug.toLowerCase();
-    if (s.includes('graphic') || s.includes('carte-graphique') || s.includes('gpu')) {
-      return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"></rect><circle cx="7" cy="12" r="2"></circle><circle cx="17" cy="12" r="2"></circle></svg>`;
-    } else if (s.includes('processor') || s.includes('processeur') || s.includes('cpu')) {
-      return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="15" x2="23" y2="15"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="15" x2="4" y2="15"></line></svg>`;
-    } else if (s.includes('motherboard') || s.includes('carte-mere')) {
-      return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="18" rx="2"></rect><line x1="6" y1="8" x2="18" y2="8"></line><line x1="6" y1="12" x2="18" y2="12"></line><line x1="6" y1="16" x2="12" y2="16"></line></svg>`;
-    } else if (s.includes('memory') || s.includes('ram') || s.includes('memoire')) {
-      return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="1"></rect><line x1="6" y1="17" x2="6" y2="20"></line><line x1="10" y1="17" x2="10" y2="20"></line><line x1="14" y1="17" x2="14" y2="20"></line><line x1="18" y1="17" x2="18" y2="20"></line></svg>`;
-    } else if (s.includes('storage') || s.includes('stockage') || s.includes('ssd') || s.includes('hdd')) {
-      return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12H2v-2a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2z"></path><path d="M22 20H2v-2a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v2z"></path><circle cx="6" cy="9" r="1"></circle><circle cx="6" cy="17" r="1"></circle></svg>`;
-    } else if (s.includes('cooling') || s.includes('refroidissement') || s.includes('power') || s.includes('aliment')) {
-      return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a4 4 0 0 0 4 4v12a4 4 0 0 0-4 4"></path><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"></path></svg>`;
-    }
-    return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>`;
+    if (/graphi|gpu/.test(s)) return 'gpu';
+    if (/processeur|processor|cpu/.test(s)) return 'cpu';
+    if (/cartes?-meres?|motherboard/.test(s)) return 'motherboard';
+    if (/memoire|memory|ram/.test(s)) return 'memory';
+    if (/stockage|storage|ssd|hdd/.test(s)) return 'storage';
+    if (/refroidissement|cooling/.test(s)) return 'cooling';
+    if (/alimentation|power/.test(s)) return 'power';
+    if (/ecran|monitor/.test(s)) return 'monitor';
+    if (/souris|mouse/.test(s)) return 'mouse';
+    if (/clavier|keyboard/.test(s)) return 'keyboard';
+    if (/casque|headset|headphone/.test(s)) return 'headset';
+    if (/enceinte|speaker/.test(s)) return 'speaker';
+    if (/webcam/.test(s)) return 'webcam';
+    return 'box';
   }
 }

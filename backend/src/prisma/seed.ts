@@ -6,10 +6,16 @@ import { Prisma, PrismaClient } from '../generated/prisma/client';
 import {
   cpuFromSpecs,
   gpuFromSpecs,
+  headsetFromSpecs,
+  keyboardFromSpecs,
+  monitorFromSpecs,
   motherboardFromSpecs,
+  mouseFromSpecs,
   pcCaseFromSpecs,
   powerSupplyFromSpecs,
   ramFromSpecs,
+  speakerFromSpecs,
+  webcamFromSpecs,
 } from './hardware';
 
 // Caractéristiques structurées utilisées par le configurateur (une table par type de composant).
@@ -58,14 +64,56 @@ async function syncHardware(
       if (data) await tx.pcCase.create({ data: { productId, ...data } });
       return !!data;
     }
+    // Périphériques
+    case 'ecrans': {
+      const data = monitorFromSpecs(product);
+      await tx.monitor.deleteMany({ where });
+      if (data) await tx.monitor.create({ data: { productId, ...data } });
+      return !!data;
+    }
+    case 'souris': {
+      await tx.mouse.deleteMany({ where });
+      await tx.mouse.create({
+        data: { productId, ...mouseFromSpecs(product) },
+      });
+      return true;
+    }
+    case 'claviers': {
+      await tx.keyboard.deleteMany({ where });
+      await tx.keyboard.create({
+        data: { productId, ...keyboardFromSpecs(product) },
+      });
+      return true;
+    }
+    case 'casques': {
+      await tx.headset.deleteMany({ where });
+      await tx.headset.create({
+        data: { productId, ...headsetFromSpecs(product) },
+      });
+      return true;
+    }
+    case 'enceintes': {
+      const data = speakerFromSpecs(product);
+      await tx.speaker.deleteMany({ where });
+      if (data) await tx.speaker.create({ data: { productId, ...data } });
+      return !!data;
+    }
+    case 'webcams': {
+      const data = webcamFromSpecs(product);
+      await tx.webcam.deleteMany({ where });
+      if (data) await tx.webcam.create({ data: { productId, ...data } });
+      return !!data;
+    }
     default:
       return true;
   }
 }
 
 // =====================================================================
-// Import du catalogue : data/catalogue_local_images_cleaned.json est la
-// source de vérité (noms normalisés par scripts/normalize_catalogue.py).
+// Import du catalogue. Sources de vérité :
+//  - data/catalogue_local_images_cleaned.json : composants (noms normalisés
+//    par scripts/normalize_catalogue.py) ;
+//  - data/accessories_catalogue.json : périphériques (scripts/build_accessories.py).
 //
 //  - Catégories, marques et produits sont créés ou mis à jour (par SKU).
 //  - Le stock existant n'est jamais écrasé (voir seed-stock.ts).
@@ -103,28 +151,45 @@ type CatalogueProduct = {
   images?: CatalogueImage[];
   specs?: CatalogueSpec[];
   source?: { ratingCount?: number; url?: string };
+  /** Date d'ajout au catalogue (ISO) ; sinon, date de création en base */
+  addedAt?: string;
 };
 
 type CatalogueFile = {
-  categories: Array<{ slug: string; nameFr: string; nameEn: string }>;
+  categories: Array<{
+    slug: string;
+    nameFr: string;
+    nameEn: string;
+    parentSlug?: string;
+  }>;
   brands: Array<{ name: string; slug: string }>;
   products: CatalogueProduct[];
 };
 
-const CATALOGUE_PATH = resolve(
-  process.cwd(),
-  'data',
-  'catalogue_local_images_cleaned.json',
-);
+const CATALOGUE_PATHS = [
+  resolve(process.cwd(), 'data', 'catalogue_local_images_cleaned.json'),
+  resolve(process.cwd(), 'data', 'accessories_catalogue.json'),
+];
 const BATCH_SIZE = 50;
 
+function readCatalogueFile(path: string): CatalogueFile {
+  if (!existsSync(path)) throw new Error(`Catalogue introuvable : ${path}`);
+  return JSON.parse(readFileSync(path, 'utf8')) as CatalogueFile;
+}
+
+/** Fusionne les fichiers de catalogue (composants + périphériques). */
 function loadCatalogue(): CatalogueFile {
-  if (!existsSync(CATALOGUE_PATH)) {
-    throw new Error(`Catalogue introuvable : ${CATALOGUE_PATH}`);
+  const files = CATALOGUE_PATHS.map(readCatalogueFile);
+  const brandNames = new Map<string, { name: string; slug: string }>();
+  for (const b of files.flatMap((f) => f.brands ?? [])) {
+    if (!brandNames.has(b.name.toLowerCase()))
+      brandNames.set(b.name.toLowerCase(), b);
   }
-  const catalogue = JSON.parse(
-    readFileSync(CATALOGUE_PATH, 'utf8'),
-  ) as CatalogueFile;
+  const catalogue: CatalogueFile = {
+    categories: files.flatMap((f) => f.categories ?? []),
+    brands: [...brandNames.values()],
+    products: files.flatMap((f) => f.products ?? []),
+  };
   if (
     !Array.isArray(catalogue?.categories) ||
     !Array.isArray(catalogue.brands) ||
@@ -138,10 +203,14 @@ function loadCatalogue(): CatalogueFile {
     throw new Error('Le catalogue ne contient aucun produit.');
 
   const skus = new Set<string>();
+  const slugs = new Set<string>();
   for (const product of catalogue.products) {
     if (skus.has(product.sku))
       throw new Error(`SKU en double dans le catalogue : ${product.sku}`);
+    if (slugs.has(product.slug))
+      throw new Error(`Slug en double dans le catalogue : ${product.slug}`);
     skus.add(product.sku);
+    slugs.add(product.slug);
     const price = Number(product.price);
     if (!Number.isFinite(price) || price <= 0)
       throw new Error(`Prix invalide pour ${product.sku} : ${product.price}`);
@@ -157,7 +226,7 @@ async function main(): Promise<void> {
   const catalogue = loadCatalogue();
   console.log('\n===== IMPORT DU CATALOGUE BYTEBAZAAR =====');
   console.log(
-    `Catégories : ${catalogue.categories.length} | Marques : ${catalogue.brands.length} | Produits : ${catalogue.products.length}`,
+    `Fichiers : ${CATALOGUE_PATHS.length} | Catégories : ${catalogue.categories.length} | Marques : ${catalogue.brands.length} | Produits : ${catalogue.products.length}`,
   );
 
   const prisma = new PrismaClient({
@@ -167,12 +236,19 @@ async function main(): Promise<void> {
   try {
     // 1. Catégories
     const categoryIds = new Map<string, number>();
-    for (const [index, c] of catalogue.categories.entries()) {
+    const ordered = [
+      ...catalogue.categories.filter((c) => !c.parentSlug),
+      ...catalogue.categories.filter((c) => c.parentSlug),
+    ];
+    for (const c of ordered) {
+      const parentId = c.parentSlug ? categoryIds.get(c.parentSlug) : null;
+      if (parentId === undefined)
+        throw new Error(`Catégorie parente inconnue : ${c.parentSlug}`);
       const data = {
         nameFr: c.nameFr,
         nameEn: c.nameEn,
-        sortOrder: index + 1,
-        parentId: null,
+        sortOrder: catalogue.categories.indexOf(c) + 1,
+        parentId,
       };
       const saved = await prisma.category.upsert({
         where: { slug: c.slug },
@@ -238,6 +314,9 @@ async function main(): Promise<void> {
               price: Number(product.price),
               isActive: product.isActive ?? true,
               popularity: product.source?.ratingCount ?? 0,
+              ...(product.addedAt
+                ? { createdAt: new Date(product.addedAt) }
+                : {}),
               categoryId,
               brandId,
             };

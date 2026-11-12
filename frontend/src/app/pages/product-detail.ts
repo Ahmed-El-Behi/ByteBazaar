@@ -1,5 +1,6 @@
 
 import { HttpErrorResponse } from '@angular/common/http';
+import { HIDDEN_SPECS, SPEC_LABELS, translateSpecValue } from '../core/spec-labels';
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
@@ -13,6 +14,14 @@ import { apiErrors } from '../core/utils';
 type State =
   | { status: 'loading' | 'notfound' | 'error'; product: null }
   | { status: 'ok'; product: ProductDetail };
+
+// Données structurées affichées en plus des caractéristiques de la source (celles qu'elles n'ont pas)
+const TECH_EXTRAS: Record<string, string[]> = {
+  cpu: ['socket'],
+  motherboard: ['chipset', 'ramType'],
+  gpu: ['tdpWatts'],
+  pcCase: ['supportedFormFactors', 'sfxOnly'],
+};
 
 const LABELS: Record<string, string> = {
   socket: 'Socket',
@@ -39,6 +48,30 @@ const LABELS: Record<string, string> = {
   isModular: 'Modulaire',
   supportedFormFactors: 'Formats supportés',
   maxGpuLengthMm: 'Longueur GPU max (mm)',
+  sfxOnly: 'Alimentation SFX uniquement',
+  // Périphériques
+  screenSizeIn: 'Taille (pouces)',
+  resolutionWidth: 'Résolution horizontale (px)',
+  resolutionHeight: 'Résolution verticale (px)',
+  refreshRateHz: 'Fréquence (Hz)',
+  responseTimeMs: 'Temps de réponse (ms)',
+  panelType: 'Dalle',
+  aspectRatio: "Format d'image",
+  wireless: 'Sans fil',
+  maxDpi: 'DPI max',
+  trackingMethod: 'Capteur',
+  handOrientation: 'Orientation',
+  tenkeyless: 'Sans pavé numérique (TKL)',
+  style: 'Style',
+  switches: 'Switchs',
+  backlight: 'Rétroéclairage',
+  microphone: 'Microphone',
+  enclosureType: 'Conception',
+  channels: 'Canaux',
+  maxResolution: 'Résolution max',
+  focusType: 'Mise au point',
+  fovDegrees: 'Champ de vision (°)',
+  connection: 'Connexion',
 };
 
 function formatValue(value: unknown): string {
@@ -122,7 +155,7 @@ function formatValue(value: unknown): string {
           </div>
         </div>
 
-        @if (techRows().length || p.specs.length) {
+        @if (techRows().length || specRows().length) {
           <section class="card specs">
             <h2>Caractéristiques</h2>
 
@@ -134,10 +167,10 @@ function formatValue(value: unknown): string {
                 </tr>
               }
 
-              @for (s of p.specs; track s.id) {
+              @for (s of specRows(); track s.id) {
                 <tr>
-                  <th>{{ s.name }}</th>
-                  <td>{{ s.valueText }}</td>
+                  <th>{{ s.label }}</th>
+                  <td>{{ s.value }}</td>
                 </tr>
               }
             </table>
@@ -166,7 +199,7 @@ function formatValue(value: unknown): string {
     }
 
     .crumbs {
-      font-size: 0.9rem;
+      font-size: var(--fs-md);
       margin-bottom: 1.2rem;
     }
 
@@ -216,7 +249,7 @@ function formatValue(value: unknown): string {
     }
 
     h1 {
-      font-size: 1.9rem;
+      font-size: var(--fs-3xl);
       line-height: 1.25;
       margin: 0.5rem 0 0.8rem;
     }
@@ -239,7 +272,7 @@ function formatValue(value: unknown): string {
     }
 
     .price {
-      font-size: 1.7rem;
+      font-size: var(--fs-3xl);
       color: var(--accent);
       margin-right: auto;
     }
@@ -248,7 +281,7 @@ function formatValue(value: unknown): string {
     .specs {
       margin-top: 2rem;
       padding: 1.2rem 1.4rem;
-      border-radius: 28px;
+      border-radius: var(--r-xl);
     }
 
     table {
@@ -292,7 +325,7 @@ function formatValue(value: unknown): string {
       }
 
       h1 {
-        font-size: 1.6rem;
+        font-size: var(--fs-2xl);
       }
 
       .buy {
@@ -307,7 +340,7 @@ function formatValue(value: unknown): string {
       }
 
       .price {
-        font-size: 1.4rem;
+        font-size: var(--fs-2xl);
       }
     }
   `,
@@ -353,20 +386,23 @@ export class ProductDetailPage {
     },
   );
 
+  /** Caractéristiques de la source, traduites (sans doublon avec les données structurées). */
+  readonly specRows = computed(() =>
+    (this.state().product?.specs ?? [])
+      .filter((s) => !HIDDEN_SPECS.has(s.name))
+      .map((s) => ({ id: s.id, label: SPEC_LABELS[s.name] ?? s.name, value: translateSpecValue(s.valueText) })),
+  );
+
   readonly techRows = computed(() => {
     const technical = this.state().product?.technical;
 
     if (!technical) return [];
 
+    const extras = TECH_EXTRAS[String(technical['kind'])] ?? [];
     return Object.entries(technical)
-      .filter(
-        ([key, value]) =>
-          key !== 'kind' &&
-          value !== null &&
-          value !== undefined,
-      )
+      .filter(([key, value]) => extras.includes(key) && value !== null && value !== undefined)
       .map(([key, value]) => ({
-        label: LABELS[key] ?? key,
+        label: (technical['kind'] === 'gpu' && key === 'tdpWatts' ? 'Consommation (W)' : LABELS[key]) ?? key,
         value: formatValue(value),
       }));
   });
