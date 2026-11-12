@@ -5,6 +5,7 @@ import { CatalogModule } from './catalog/catalog.module';
 import { CartModule } from './cart/cart.module';
 import { OrderModule } from './order/order.module';
 import { AdminModule } from './admin/admin.module';
+import { ConfiguratorModule } from './configurator/configurator.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { MailModule } from './mail/mail.module';
 import { AppController } from './app.controller';
@@ -18,6 +19,7 @@ import { AppController } from './app.controller';
     CartModule,
     OrderModule,
     AdminModule,
+    ConfiguratorModule,
     MailModule,
   ],
   controllers: [AppController],

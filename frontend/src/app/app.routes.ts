@@ -4,7 +4,6 @@ import { Routes } from '@angular/router';
 import { HomePage } from './pages/home';
 import { ProductListPage } from './pages/product-list';
 import { ProductDetailPage } from './pages/product-detail';
-import { ConfiguratorPage } from './pages/configurator';
 
 // Pages d'information
 import { ContactPage } from './pages/contact';
@@ -39,7 +38,12 @@ export const routes: Routes = [
   { path: 'produits/:slug', component: ProductDetailPage, title: 'Produit · ByteBazaar' },
 
   // --- CONFIGURATEUR PC ---
-  { path: 'configurateur', component: ConfiguratorPage, title: 'Configurateur PC · ByteBazaar' },
+  // Chargé à la demande : la vue 3D (Three.js) n'alourdit pas le reste du site
+  {
+    path: 'configurateur',
+    loadComponent: () => import('./pages/configurator').then((m) => m.ConfiguratorPage),
+    title: 'Configurateur PC · ByteBazaar',
+  },
 
   // --- PAGES D'INFORMATION ---
   { path: 'contact', component: ContactPage, title: 'Contactez-nous · ByteBazaar' },

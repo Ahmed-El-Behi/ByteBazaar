@@ -2,7 +2,66 @@ import 'dotenv/config';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../generated/prisma/client';
+import { Prisma, PrismaClient } from '../generated/prisma/client';
+import {
+  cpuFromSpecs,
+  gpuFromSpecs,
+  motherboardFromSpecs,
+  pcCaseFromSpecs,
+  powerSupplyFromSpecs,
+  ramFromSpecs,
+} from './hardware';
+
+// Caractéristiques structurées utilisées par le configurateur (une table par type de composant).
+// Un produit dont les caractéristiques sont inexploitables n'a pas de ligne : il n'est pas proposé
+// dans le configurateur mais reste en vente dans le catalogue.
+async function syncHardware(
+  tx: Prisma.TransactionClient,
+  productId: number,
+  product: CatalogueProduct,
+): Promise<boolean> {
+  const where = { productId };
+  switch (product.categorySlug) {
+    case 'processeurs': {
+      const data = cpuFromSpecs(product);
+      await tx.cpu.deleteMany({ where });
+      if (data) await tx.cpu.create({ data: { productId, ...data } });
+      return !!data;
+    }
+    case 'cartes-meres': {
+      const data = motherboardFromSpecs(product);
+      await tx.motherboard.deleteMany({ where });
+      if (data) await tx.motherboard.create({ data: { productId, ...data } });
+      return !!data;
+    }
+    case 'memoire-ram': {
+      const data = ramFromSpecs(product);
+      await tx.ram.deleteMany({ where });
+      if (data) await tx.ram.create({ data: { productId, ...data } });
+      return !!data;
+    }
+    case 'cartes-graphiques': {
+      const data = gpuFromSpecs(product);
+      await tx.gpu.deleteMany({ where });
+      if (data) await tx.gpu.create({ data: { productId, ...data } });
+      return !!data;
+    }
+    case 'alimentations': {
+      const data = powerSupplyFromSpecs(product);
+      await tx.powerSupply.deleteMany({ where });
+      if (data) await tx.powerSupply.create({ data: { productId, ...data } });
+      return !!data;
+    }
+    case 'boitiers': {
+      const data = pcCaseFromSpecs(product);
+      await tx.pcCase.deleteMany({ where });
+      if (data) await tx.pcCase.create({ data: { productId, ...data } });
+      return !!data;
+    }
+    default:
+      return true;
+  }
+}
 
 // =====================================================================
 // Import du catalogue : data/catalogue_local_images_cleaned.json est la
@@ -43,7 +102,7 @@ type CatalogueProduct = {
   brandName: string;
   images?: CatalogueImage[];
   specs?: CatalogueSpec[];
-  source?: { ratingCount?: number };
+  source?: { ratingCount?: number; url?: string };
 };
 
 type CatalogueFile = {
@@ -148,6 +207,7 @@ async function main(): Promise<void> {
     );
     let created = 0;
     let updated = 0;
+    const notConfigurable: string[] = [];
 
     for (
       let start = 0;
@@ -219,6 +279,9 @@ async function main(): Promise<void> {
               unit: s.unit ?? null,
             }));
             if (specs.length) await tx.productSpec.createMany({ data: specs });
+
+            if (!(await syncHardware(tx, saved.id, product)))
+              notConfigurable.push(product.name);
 
             if (existingSkus.has(product.sku)) updated++;
             else created++;
@@ -303,6 +366,9 @@ async function main(): Promise<void> {
 
     console.log('\n========== IMPORT TERMINÉ ==========');
     console.log(`Produits créés : ${created} | mis à jour : ${updated}`);
+    console.log(
+      `Hors configurateur (caractéristiques incompatibles) : ${notConfigurable.length}${notConfigurable.length ? ' → ' + notConfigurable.join(', ') : ''}`,
+    );
     console.log(
       `Produits obsolètes supprimés : ${removable.length} | désactivés (liés à des commandes) : ${referenced.length}`,
     );

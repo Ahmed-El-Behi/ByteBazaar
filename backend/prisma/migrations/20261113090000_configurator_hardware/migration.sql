@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "Cpu" ALTER COLUMN "threads" DROP NOT NULL;
+
+-- AlterTable
+ALTER TABLE "PcCase" ADD COLUMN "sfxOnly" BOOLEAN NOT NULL DEFAULT false,
+ALTER COLUMN "maxGpuLengthMm" DROP NOT NULL;
+
+-- AlterTable
+ALTER TABLE "PowerSupply" ADD COLUMN "formFactor" TEXT NOT NULL DEFAULT 'ATX';

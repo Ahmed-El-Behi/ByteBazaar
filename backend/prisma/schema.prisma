@@ -319,7 +319,7 @@ model Cpu {
   product               Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   socket                String
   cores                 Int
-  threads               Int
+  threads               Int? // non fourni par la source
   baseClockGHz          Decimal  @db.Decimal(4, 2)
   boostClockGHz         Decimal? @db.Decimal(4, 2)
   tdpWatts              Int
@@ -366,11 +366,13 @@ model PowerSupply {
   wattage    Int
   efficiency String
   isModular  Boolean
+  formFactor String  @default("ATX") // ATX, SFX, Flex ATX, TFX
 }
 
 model PcCase {
   productId            Int          @id
   product              Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
   supportedFormFactors FormFactor[]
-  maxGpuLengthMm       Int
+  maxGpuLengthMm       Int? // non fourni par la source
+  sfxOnly              Boolean      @default(false) // n'accepte que les alimentations SFX
 }

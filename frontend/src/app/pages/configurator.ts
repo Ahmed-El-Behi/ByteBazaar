@@ -1,33 +1,37 @@
-import { Component, computed, signal, inject } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { CatalogApi } from '../core/catalog-api';
-import { forkJoin, of } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { concat, of, switchMap, toArray } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
+import { AuthService } from '../core/auth-service';
+import { CartStateService } from '../core/cart.service';
+import { BuildCheck, ConfiguratorApi, ConfiguratorPart, Slot } from '../core/configurator-api';
+import { apiErrors } from '../core/utils';
+import { PcScene } from '../components/pc-scene';
 
-export interface ConfiguratorItem {
-  id: string;
-  category: string;
+const STORAGE_KEY = 'bytebazaar_configurator';
+const EMPTY_SELECTION: Record<Slot, ConfiguratorPart | null> = {
+  cpu: null,
+  motherboard: null,
+  ram: null,
+  gpu: null,
+  storage: null,
+  psu: null,
+  case: null,
+};
+
+interface StoredBuild {
+  ids: number[];
+  configId: number | null;
   name: string;
-  brand: string;
-  price: number;
-  image: string;
-  stock: number;
-  specs: {
-    socket?: string;
-    ramType?: string;
-    wattage?: number;
-    wattsRequired?: number;
-    formFactor?: string;
-    capacity?: string;
-    cores?: string;
-  };
 }
 
 @Component({
   standalone: true,
   selector: 'app-configurator',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PcScene],
   template: `
     <div class="configurator-container">
       <!-- HEADER -->
@@ -42,67 +46,34 @@ export interface ConfiguratorItem {
       </div>
 
       <div class="configurator-grid">
-        <!-- SECTEUR GAUCHE : SLOTS DU CONFIGURATEUR -->
+        <!-- SECTEUR GAUCHE : PC 3D INTERACTIF -->
         <div class="selection-column">
-          <div class="slots-list">
+          <app-pc-scene
+            [selection]="selectedComponents()"
+            [labels]="slotLabels"
+            [highlighted]="highlightedSlot()"
+            (pick)="openPicker($event)"
+            (hoverChange)="highlightedSlot.set($event)"
+          />
+
+          <!-- Mêmes actions sans la 3D : clavier, lecteurs d'écran, tactile -->
+          <div class="slot-chips">
             @for (cat of categories; track cat.id) {
               @let selected = selectedComponents()[cat.id];
-              <div 
-                class="slot-card" 
-                [class.has-item]="!!selected"
-                (click)="openPicker(cat.id)"
+              <div
+                class="slot-chip"
+                [class.filled]="!!selected"
+                [class.active]="highlightedSlot() === cat.id"
+                (mouseenter)="highlightedSlot.set(cat.id)"
+                (mouseleave)="highlightedSlot.set(null)"
               >
-                <!-- ICÔNES COMPOSANT CORRIGÉES ET VECTORIELLES -->
-                <div class="slot-status">
-                  @if (selected) {
-                    <div class="status-icon check-icon" title="Composant sélectionné">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    </div>
-                  } @else {
-                    <div class="status-icon empty-icon" title="Emplacement vide">
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-                        <line x1="12" y1="5" x2="12" y2="19"/>
-                        <line x1="5" y1="12" x2="19" y2="12"/>
-                      </svg>
-                    </div>
-                  }
-                </div>
-
-                <div class="slot-thumb">
-                  @if (selected && selected.image) {
-                    <img [src]="selected.image" [alt]="selected.name" (error)="handleImgError($event)" />
-                  } @else {
-                    <div class="placeholder-icon">
-                      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <rect x="3" y="3" width="18" height="18" rx="3"/>
-                        <path d="M12 8v8M8 12h8"/>
-                      </svg>
-                    </div>
-                  }
-                </div>
-
-                <div class="slot-info">
-                  <span class="category-title">{{ cat.label.toUpperCase() }}</span>
-                  @if (selected) {
-                    <h3 class="component-name">{{ selected.name }}</h3>
-                  } @else {
-                    <p class="placeholder-text">Aucun {{ cat.label.toLowerCase() }} sélectionné</p>
-                  }
-                </div>
-
-                <div class="slot-action">
-                  @if (selected) {
-                    <span class="price">{{ selected.price }} TND</span>
-                    <div class="action-btns">
-                      <button class="btn-change" (click)="$event.stopPropagation(); openPicker(cat.id)">Changer</button>
-                      <button class="btn-remove" (click)="$event.stopPropagation(); removeComponent(cat.id)">Supprimer</button>
-                    </div>
-                  } @else {
-                    <button class="btn-add">Choisir</button>
-                  }
-                </div>
+                <button type="button" class="chip-main" (click)="openPicker(cat.id)" (focus)="highlightedSlot.set(cat.id)" (blur)="highlightedSlot.set(null)">
+                  <span class="chip-label">{{ cat.label }}</span>
+                  <span class="chip-value">{{ selected ? selected.name : 'Choisir' }}</span>
+                </button>
+                @if (selected) {
+                  <button type="button" class="chip-remove" (click)="removeComponent(cat.id)" [attr.aria-label]="'Retirer : ' + selected.name" title="Retirer">✕</button>
+                }
               </div>
             }
           </div>
@@ -116,7 +87,7 @@ export interface ConfiguratorItem {
             <div class="summary-items">
               @for (cat of categories; track cat.id) {
                 @let selected = selectedComponents()[cat.id];
-                <div class="summary-row">
+                <div class="summary-row" [class.active]="highlightedSlot() === cat.id" (mouseenter)="highlightedSlot.set(cat.id)" (mouseleave)="highlightedSlot.set(null)" (click)="openPicker(cat.id)">
                   <span class="label">{{ cat.label }}</span>
                   <span class="value" [class.empty]="!selected">
                     {{ selected ? selected.price + ' TND' : 'Non choisi' }}
@@ -147,20 +118,14 @@ export interface ConfiguratorItem {
               </div>
             </div>
 
-            <!-- CHECK COMPATIBILITÉ -->
+            <!-- CHECK COMPATIBILITÉ (calculé par le serveur) -->
             <div class="compatibility-list">
-              <div class="compat-item" [class.ok]="socketCheck().valid">
-                <span class="compat-icon">{{ socketCheck().valid ? '✓' : '⚠️' }}</span>
-                <span>{{ socketCheck().message }}</span>
-              </div>
-              <div class="compat-item" [class.ok]="ramCheck().valid">
-                <span class="compat-icon">{{ ramCheck().valid ? '✓' : '⚠️' }}</span>
-                <span>{{ ramCheck().message }}</span>
-              </div>
-              <div class="compat-item" [class.ok]="psuCheck().valid">
-                <span class="compat-icon">{{ psuCheck().valid ? '✓' : '⚠️' }}</span>
-                <span>{{ psuCheck().message }}</span>
-              </div>
+              @for (check of checks(); track check.id) {
+                <div class="compat-item" [class.ok]="check.status === 'ok'" [class.pending]="check.status === 'pending'" [class.warn]="check.status === 'warning'">
+                  <span class="compat-icon">{{ check.status === 'ok' ? '✓' : check.status === 'pending' ? '○' : '⚠️' }}</span>
+                  <span>{{ check.message }}</span>
+                </div>
+              }
             </div>
 
             <div class="compat-badge" [class.valid]="isGlobalValid() && selectedCount() > 0">
@@ -173,12 +138,31 @@ export interface ConfiguratorItem {
               }
             </div>
 
-            <button class="btn-primary block" [disabled]="!isGlobalValid() || selectedCount() === 0">
+            <button class="btn-primary block" [disabled]="!isGlobalValid() || selectedCount() === 0 || busy()" (click)="addToCart()">
               Ajouter la config au panier
             </button>
-            <button class="btn-secondary block" [disabled]="selectedCount() === 0">
-              Sauvegarder la configuration
+            <button class="btn-secondary block" [disabled]="!isGlobalValid() || selectedCount() === 0 || busy()" (click)="openSave()">
+              {{ configId() ? 'Mettre à jour la configuration' : 'Sauvegarder la configuration' }}
             </button>
+
+            @if (saveOpen()) {
+              <form class="save-form" (submit)="$event.preventDefault(); save()">
+                <input
+                  class="save-input"
+                  [ngModel]="configName()"
+                  (ngModelChange)="configName.set($event)"
+                  name="configName"
+                  maxlength="80"
+                  placeholder="Nom de la configuration"
+                  required
+                />
+                <button type="submit" class="btn-select-item" [disabled]="!configName().trim() || busy()">Enregistrer</button>
+              </form>
+            }
+
+            @if (actionMessage(); as msg) {
+              <p class="action-msg" [class.error]="msg.type === 'error'">{{ msg.text }}</p>
+            }
           </div>
         </div>
       </div>
@@ -190,7 +174,10 @@ export interface ConfiguratorItem {
             <div class="modal-header">
               <div>
                 <h2>Sélectionner : {{ currentCategoryLabel() }}</h2>
-                <p class="modal-sub">{{ filteredCatalog().length }} article(s) disponible(s)</p>
+                <p class="modal-sub">
+                  {{ filteredCatalog().length }} article(s) compatible(s) en stock
+                  @if (hiddenCount() > 0) { · {{ hiddenCount() }} masqué(s) car incompatible(s) avec votre sélection }
+                </p>
               </div>
               <button class="close-btn" (click)="closePicker()">✕</button>
             </div>
@@ -261,7 +248,7 @@ export interface ConfiguratorItem {
                 </div>
               } @else if (filteredCatalog().length === 0) {
                 <div class="empty-results">
-                  <p>Aucun composant trouvé pour cette catégorie.</p>
+                  <p>Aucun composant compatible en stock pour cette sélection.</p>
                 </div>
               } @else {
                 <div class="picker-catalog-grid">
@@ -270,7 +257,7 @@ export interface ConfiguratorItem {
                     <div class="picker-card" [class.selected]="isCurrent" (click)="selectComponent(item)">
                       <div class="picker-img-wrapper">
                         @if (item.image) {
-                          <img [src]="item.image" [alt]="item.name" (error)="handleImgError($event)" />
+                          <img [src]="item.image.url" [alt]="item.image.altText || item.name" (error)="handleImgError($event)" />
                         } @else {
                           <div class="no-img-box">Sans image</div>
                         }
@@ -278,7 +265,7 @@ export interface ConfiguratorItem {
 
                       <div class="picker-details">
                         <div class="category-brand-sub">
-                          {{ item.brand || 'Marque' }} · {{ currentCategoryLabel() }}
+                          {{ item.brand }} · {{ item.highlights.join(' · ') }}
                         </div>
                         <h4 class="product-title" [title]="item.name">{{ item.name }}</h4>
                         
@@ -313,63 +300,25 @@ export interface ConfiguratorItem {
     .btn-reset:disabled { opacity: 0.4; cursor: not-allowed; }
     .configurator-grid { display: grid; grid-template-columns: 1fr 360px; gap: 2rem; }
     @media (max-width: 1024px) { .configurator-grid { grid-template-columns: 1fr; } }
-    .selection-column { display: flex; flex-direction: column; }
-    .slots-list { display: flex; flex-direction: column; gap: 1rem; }
-    .slot-card { display: flex; align-items: center; gap: 1.2rem; background: var(--surface-2, #131927); border: 1px dashed var(--border, #1e293b); border-radius: 20px; padding: 1.2rem; cursor: pointer; transition: all 0.2s ease; }
-    .slot-card:hover { border-color: var(--accent, #f59e0b); border-style: solid; }
-    .slot-card.has-item { border-style: solid; border-color: var(--border, #1e293b); }
-    
-    /* STYLES ICÔNES STATUT (CHECK & EMPTY) */
-    .slot-status { 
-      display: flex; 
-      align-items: center; 
-      justify-content: center;
-      flex-shrink: 0;
+    .selection-column { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+    .slot-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 0.6rem; }
+    .slot-chip {
+      display: flex; align-items: stretch; border-radius: 14px; overflow: hidden;
+      border: 1px dashed var(--border, #1e293b); background: var(--surface-2, #131927); transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
-    .status-icon {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      transition: all 0.25s ease;
-    }
-    .check-icon { 
-      background: rgba(16, 185, 129, 0.15); 
-      border: 1.5px solid rgba(16, 185, 129, 0.4);
-      color: #10b981; 
-      box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
-    }
-    .empty-icon { 
-      background: rgba(255, 255, 255, 0.03);
-      border: 1.5px dashed var(--muted, #64748b); 
-      color: var(--muted, #94a3b8); 
-    }
-    .slot-card:hover .empty-icon {
-      border-color: var(--accent, #f59e0b);
-      color: var(--accent, #f59e0b);
-      background: rgba(245, 158, 11, 0.08);
-      transform: scale(1.08);
-    }
-
-    .slot-thumb { width: 60px; height: 60px; border-radius: 14px; background: var(--surface, #0d1117); display: grid; place-items: center; overflow: hidden; }
-    .slot-thumb img { width: 100%; height: 100%; object-fit: contain; }
-    .placeholder-icon { color: var(--muted, #64748b); }
-    .slot-info { flex: 1; }
-    .category-title { font-size: 0.75rem; font-weight: 700; color: var(--accent, #f59e0b); letter-spacing: 0.5px; }
-    .component-name { margin: 0.2rem 0 0.4rem; font-size: 1.05rem; font-weight: 600; }
-    .placeholder-text { margin: 0.2rem 0 0; color: var(--muted, #94a3b8); font-size: 0.9rem; }
-    .slot-action { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
-    .price { font-weight: 700; font-size: 1.1rem; color: var(--text, #fff); }
-    .action-btns { display: flex; gap: 0.6rem; }
-    .btn-change, .btn-remove, .btn-add { background: transparent; border: none; font-size: 0.85rem; cursor: pointer; padding: 0; }
-    .btn-change { color: var(--accent, #f59e0b); font-weight: 600; }
-    .btn-remove { color: #ef4444; }
-    .btn-add { background: var(--accent, #f59e0b); color: #000; font-weight: 700; padding: 0.5rem 1rem; border-radius: 12px; }
+    .slot-chip.filled { border-style: solid; }
+    .slot-chip.active, .slot-chip:hover { border-color: var(--accent, #f59e0b); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #f59e0b) 18%, transparent); }
+    .chip-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; padding: 0.6rem 0.8rem; background: none; border: 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+    .chip-label { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--accent, #f59e0b); }
+    .chip-value { font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .slot-chip:not(.filled) .chip-value { color: var(--muted, #94a3b8); font-weight: 500; }
+    .chip-remove { border: 0; background: none; color: var(--muted, #94a3b8); padding: 0 0.75rem; cursor: pointer; font-size: 0.8rem; }
+    .chip-remove:hover { color: #ef4444; }
     .summary-card { background: var(--surface-2, #131927); border: 1px solid var(--border, #1e293b); border-radius: 20px; padding: 1.5rem; position: sticky; top: 2rem; }
     .summary-card h2 { font-size: 1.3rem; margin: 0 0 1.2rem; }
     .summary-items { display: flex; flex-direction: column; gap: 0.6rem; }
-    .summary-row { display: flex; justify-content: space-between; font-size: 0.88rem; }
+    .summary-row { display: flex; justify-content: space-between; font-size: 0.88rem; cursor: pointer; border-radius: 8px; padding: 0.15rem 0.35rem; margin: 0 -0.35rem; transition: background 0.15s ease; }
+    .summary-row.active { background: color-mix(in srgb, var(--accent, #f59e0b) 14%, transparent); }
     .summary-row .label { color: var(--muted, #94a3b8); }
     .summary-row .value { font-weight: 600; }
     .summary-row .value.empty { color: var(--muted, #64748b); font-weight: 400; }
@@ -385,6 +334,12 @@ export interface ConfiguratorItem {
     .compatibility-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.2rem; }
     .compat-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: #ef4444; }
     .compat-item.ok { color: #10b981; }
+    .compat-item.pending { color: var(--muted, #94a3b8); }
+    .compat-item.warn { color: #f59e0b; }
+    .save-form { display: flex; gap: 0.5rem; margin-top: 0.6rem; }
+    .save-input { flex: 1; min-width: 0; background: var(--surface, #0d1117); border: 1px solid var(--border, #1e293b); color: var(--text, #fff); border-radius: 12px; padding: 0.55rem 0.8rem; font: inherit; font-size: 0.85rem; }
+    .action-msg { margin: 0.8rem 0 0; font-size: 0.82rem; color: #10b981; text-align: center; }
+    .action-msg.error { color: #ef4444; }
     .compat-badge { padding: 0.7rem; border-radius: 12px; text-align: center; font-size: 0.85rem; font-weight: 600; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); margin-bottom: 1.2rem; }
     .compat-badge.valid { background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3); }
     .btn-primary { background: var(--accent, #f59e0b); color: #000; font-weight: 700; border: none; border-radius: 14px; padding: 0.9rem; font-size: 0.95rem; cursor: pointer; width: 100%; margin-bottom: 0.6rem; }
@@ -655,96 +610,90 @@ export interface ConfiguratorItem {
   `
 })
 export class ConfiguratorPage {
-  readonly categories = [
-    { id: 'cpu', label: 'Processeur', apiSlug: 'processeurs' },
-    { id: 'motherboard', label: 'Carte mère', apiSlug: 'cartes-meres' },
-    { id: 'ram', label: 'Mémoire RAM', apiSlug: 'memoire-ram' },
-    { id: 'gpu', label: 'Carte graphique', apiSlug: 'cartes-graphiques' },
-    { id: 'storage', label: 'Stockage (SSD / HDD)', apiSlug: 'stockage' },
-    { id: 'psu', label: 'Alimentation', apiSlug: 'alimentations' },
-    { id: 'case', label: 'Boîtier', apiSlug: 'boitiers' },
+  readonly categories: { id: Slot; label: string }[] = [
+    { id: 'cpu', label: 'Processeur' },
+    { id: 'motherboard', label: 'Carte mère' },
+    { id: 'ram', label: 'Mémoire RAM' },
+    { id: 'gpu', label: 'Carte graphique' },
+    { id: 'storage', label: 'Stockage (SSD / HDD)' },
+    { id: 'psu', label: 'Alimentation' },
+    { id: 'case', label: 'Boîtier' },
   ];
 
-  private catalogApi = inject(CatalogApi);
+  readonly slotLabels = Object.fromEntries(this.categories.map((c) => [c.id, c.label])) as Record<Slot, string>;
+  /** Emplacement survolé, dans la vue 3D comme dans les listes */
+  readonly highlightedSlot = signal<Slot | null>(null);
 
-  readonly loading = signal<boolean>(false);
-  readonly rawProducts = signal<ConfiguratorItem[]>([]);
+  private api = inject(ConfiguratorApi);
+  private auth = inject(AuthService);
+  private cartState = inject(CartStateService);
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+  private destroyRef = inject(DestroyRef);
 
-  readonly activePickerCategory = signal<string | null>(null);
-  readonly searchQuery = signal<string>('');
+  readonly loading = signal(false);
+  readonly busy = signal(false);
+  readonly rawProducts = signal<ConfiguratorPart[]>([]);
+  readonly hiddenCount = signal(0);
+
+  readonly activePickerCategory = signal<Slot | null>(null);
+  readonly searchQuery = signal('');
   readonly sortOrder = signal<'price-asc' | 'price-desc' | 'name'>('price-asc');
-  readonly isSortDropdownOpen = signal<boolean>(false);
+  readonly isSortDropdownOpen = signal(false);
 
-  readonly selectedComponents = signal<Record<string, ConfiguratorItem | null>>({
-    cpu: null,
-    motherboard: null,
-    ram: null,
-    gpu: null,
-    storage: null,
-    psu: null,
-    case: null,
-  });
+  readonly selectedComponents = signal<Record<Slot, ConfiguratorPart | null>>({ ...EMPTY_SELECTION });
+  readonly selectedIds = computed(() =>
+    Object.values(this.selectedComponents())
+      .filter((p): p is ConfiguratorPart => !!p)
+      .map((p) => p.id),
+  );
 
-  openPicker(catId: string) {
-    this.activePickerCategory.set(catId);
+  // Configuration enregistrée en cours d'édition
+  readonly configId = signal<number | null>(null);
+  readonly configName = signal('');
+  readonly saveOpen = signal(false);
+  readonly actionMessage = signal<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Bilan de compatibilité recalculé par le serveur à chaque changement de sélection
+  readonly buildCheck = signal<BuildCheck | null>(null);
+
+  constructor() {
+    toObservable(this.selectedIds)
+      .pipe(
+        switchMap((ids) => (ids.length ? this.api.check(ids).pipe(catchError(() => of(null))) : of(null))),
+        takeUntilDestroyed(),
+      )
+      .subscribe((check) => this.buildCheck.set(check));
+
+    const configId = Number(this.route.snapshot.queryParamMap.get('configId'));
+    if (configId > 0 && this.auth.isLoggedIn()) this.loadConfiguration(configId);
+    else this.restoreLocal();
+  }
+
+  // --- Sélecteur de composants ---
+
+  openPicker(slot: Slot) {
+    this.activePickerCategory.set(slot);
     this.searchQuery.set('');
     this.isSortDropdownOpen.set(false);
-    this.fetchCategoryProducts(catId);
-  }
-
-  fetchCategoryProducts(catId: string) {
+    this.rawProducts.set([]);
+    this.hiddenCount.set(0);
     this.loading.set(true);
 
-    const catObj = this.categories.find(c => c.id === catId);
-    const apiCategorySlug = catObj ? catObj.apiSlug : catId;
-
-    const requests = [1, 2, 3].map(page => 
-      this.fetchPage(apiCategorySlug, page, catId)
-    );
-
-    forkJoin(requests).subscribe({
-      next: (results: ConfiguratorItem[][]) => {
-        const combined = results.flat();
-        const uniqueItems = Array.from(new Map(combined.map(item => [item.id, item])).values());
-        this.rawProducts.set(uniqueItems);
-        this.loading.set(false);
-      },
-      error: (err: any) => {
-        console.error('Erreur chargement catalogue:', err);
-        this.loading.set(false);
-      }
-    });
-  }
-
-  private fetchPage(categorySlug: string, page: number, catId: string) {
-    return this.catalogApi.products({
-      limit: '48',
-      page: String(page),
-      inStock: 'true',
-      category: categorySlug
-    }).pipe(
-      map((res: any) => this.mapProductsResponse(res, catId)),
-      catchError(() => of([]))
-    );
-  }
-
-  private mapProductsResponse(res: any, catId: string): ConfiguratorItem[] {
-    const rawItems: any[] = res?.data || (Array.isArray(res) ? res : []);
-    return rawItems.map((p: any) => ({
-      id: String(p.id),
-      category: catId,
-      name: p.name,
-      brand: p.brand?.name || '',
-      price: Number(p.price || 0),
-      image: p.image?.url || p.imageUrl || p.image || '',
-      stock: Number(p.stockQuantity ?? 1),
-      specs: {
-        socket: p.socket,
-        ramType: p.ramType,
-        wattage: p.wattage,
-        wattsRequired: p.wattsRequired
-      }
-    }));
+    // Seuls les composants compatibles avec le reste de la sélection sont proposés
+    const others = this.selectedIds().filter((id) => id !== this.selectedComponents()[slot]?.id);
+    this.api
+      .parts(slot, others)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          if (this.activePickerCategory() !== slot) return;
+          this.rawProducts.set(res.items);
+          this.hiddenCount.set(res.hidden);
+          this.loading.set(false);
+        },
+        error: () => this.loading.set(false),
+      });
   }
 
   closePicker() {
@@ -753,16 +702,17 @@ export class ConfiguratorPage {
   }
 
   currentCategoryLabel() {
-    const cat = this.categories.find(c => c.id === this.activePickerCategory());
-    return cat ? cat.label : '';
+    return this.categories.find((c) => c.id === this.activePickerCategory())?.label ?? '';
   }
 
   currentSortLabel = computed(() => {
     switch (this.sortOrder()) {
-      case 'price-asc': return 'Prix : Croissant';
-      case 'price-desc': return 'Prix : Décroissant';
-      case 'name': return 'Nom (A-Z)';
-      default: return 'Prix : Croissant';
+      case 'price-desc':
+        return 'Prix : Décroissant';
+      case 'name':
+        return 'Nom (A-Z)';
+      default:
+        return 'Prix : Croissant';
     }
   });
 
@@ -772,15 +722,10 @@ export class ConfiguratorPage {
   }
 
   filteredCatalog = computed(() => {
-    let list = [...this.rawProducts()];
-
     const q = this.searchQuery().toLowerCase().trim();
-    if (q) {
-      list = list.filter(item => 
-        item.name.toLowerCase().includes(q) || 
-        item.brand.toLowerCase().includes(q)
-      );
-    }
+    const list = q
+      ? this.rawProducts().filter((item) => item.name.toLowerCase().includes(q) || item.brand.toLowerCase().includes(q))
+      : [...this.rawProducts()];
 
     const sort = this.sortOrder();
     return list.sort((a, b) => {
@@ -790,81 +735,173 @@ export class ConfiguratorPage {
     });
   });
 
-  selectComponent(item: ConfiguratorItem) {
-    const cat = this.activePickerCategory();
-    if (cat) {
-      this.selectedComponents.update(prev => ({
-        ...prev,
-        [cat]: item
-      }));
-    }
+  selectComponent(item: ConfiguratorPart) {
+    this.selectedComponents.update((prev) => ({ ...prev, [item.slot]: item }));
+    this.afterChange();
     this.closePicker();
   }
 
-  removeComponent(catId: string) {
-    this.selectedComponents.update(prev => ({
-      ...prev,
-      [catId]: null
-    }));
+  removeComponent(slot: Slot) {
+    this.selectedComponents.update((prev) => ({ ...prev, [slot]: null }));
+    this.afterChange();
   }
 
   resetAll() {
-    this.selectedComponents.set({
-      cpu: null,
-      motherboard: null,
-      ram: null,
-      gpu: null,
-      storage: null,
-      psu: null,
-      case: null,
-    });
+    this.selectedComponents.set({ ...EMPTY_SELECTION });
+    this.configId.set(null);
+    this.configName.set('');
+    this.afterChange();
   }
 
   handleImgError(event: Event) {
-    const imgElement = event.target as HTMLImageElement;
-    imgElement.style.display = 'none';
+    (event.target as HTMLImageElement).style.display = 'none';
   }
 
-  selectedCount = computed(() => Object.values(this.selectedComponents()).filter(Boolean).length);
-  totalPrice = computed(() => Object.values(this.selectedComponents()).reduce((sum, item) => sum + (item?.price || 0), 0));
-  totalWatts = computed(() => {
-    const items = Object.values(this.selectedComponents());
-    const compWatts = items.reduce((sum, item) => sum + (item?.specs?.wattsRequired || 0), 0);
-    return compWatts > 0 ? compWatts + 80 : 0;
+  // --- Résumé ---
+
+  selectedCount = computed(() => this.selectedIds().length);
+  totalPrice = computed(() => {
+    const total = Object.values(this.selectedComponents()).reduce((sum, item) => sum + (item?.price ?? 0), 0);
+    return Math.round(total * 1000) / 1000;
   });
-
-  psuCapacity = computed(() => this.selectedComponents()['psu']?.specs?.wattage || 0);
-
+  checks = computed(() => this.buildCheck()?.checks ?? []);
+  totalWatts = computed(() => this.buildCheck()?.estimatedWatts ?? 0);
+  psuCapacity = computed(() => this.selectedComponents().psu?.psu?.wattage ?? 0);
   wattagePercentage = computed(() => {
     if (!this.psuCapacity()) return 0;
     return Math.min(100, Math.round((this.totalWatts() / this.psuCapacity()) * 100));
   });
+  isGlobalValid = computed(() => this.buildCheck()?.valid ?? true);
 
-  socketCheck = computed(() => {
-    const cpu = this.selectedComponents()['cpu'];
-    const mb = this.selectedComponents()['motherboard'];
-    if (!cpu || !mb) return { valid: true, message: 'Socket : En attente de choix CPU & MB' };
-    return { valid: true, message: 'Socket vérifié' };
-  });
+  // --- Actions ---
 
-  ramCheck = computed(() => {
-    const mb = this.selectedComponents()['motherboard'];
-    const ram = this.selectedComponents()['ram'];
-    if (!mb || !ram) return { valid: true, message: 'RAM : En attente de choix RAM & MB' };
-    return { valid: true, message: 'Format RAM vérifié' };
-  });
+  addToCart() {
+    const parts = Object.values(this.selectedComponents()).filter((p): p is ConfiguratorPart => !!p);
+    if (!parts.length || !this.isGlobalValid()) return;
 
-  psuCheck = computed(() => {
-    const psu = this.psuCapacity();
-    const watts = this.totalWatts();
-    if (!psu && watts > 0) return { valid: false, message: 'Alimentation non choisie' };
-    if (!psu && watts === 0) return { valid: true, message: 'Alimentation : Non définie' };
-    const valid = psu >= watts;
-    return {
-      valid,
-      message: valid ? `Puissance suffisante (${watts}W / ${psu}W)` : `Alimentation sous-dimensionnée (${watts}W requis)`
-    };
-  });
+    this.busy.set(true);
+    this.actionMessage.set(null);
+    concat(
+      ...parts.map((p) =>
+        this.cartState.addItem({
+          id: p.id,
+          name: p.name,
+          slug: p.slug,
+          price: p.price,
+          stockQuantity: p.stockQuantity,
+          image: p.image,
+        }),
+      ),
+    )
+      .pipe(toArray())
+      .subscribe({
+        next: () => {
+          this.busy.set(false);
+          this.router.navigateByUrl('/panier');
+        },
+        error: (e) => {
+          this.busy.set(false);
+          this.actionMessage.set({ type: 'error', text: apiErrors(e).join(' ') });
+        },
+      });
+  }
 
-  isGlobalValid = computed(() => this.socketCheck().valid && this.ramCheck().valid && this.psuCheck().valid);
+  openSave() {
+    this.actionMessage.set(null);
+    if (!this.auth.isLoggedIn()) {
+      // La sélection est conservée localement : elle sera retrouvée après la connexion
+      this.router.navigate(['/connexion'], { queryParams: { redirect: '/configurateur' } });
+      return;
+    }
+    if (!this.configName()) this.configName.set('Ma configuration');
+    this.saveOpen.set(!this.saveOpen());
+  }
+
+  save() {
+    const name = this.configName().trim();
+    if (!name) return;
+    const ids = this.selectedIds();
+    const id = this.configId();
+
+    this.busy.set(true);
+    (id ? this.api.update(id, name, ids) : this.api.create(name, ids)).subscribe({
+      next: (saved) => {
+        this.busy.set(false);
+        this.saveOpen.set(false);
+        this.configId.set(saved.id);
+        this.configName.set(saved.name);
+        this.persistLocal();
+        this.actionMessage.set({ type: 'success', text: `« ${saved.name} » enregistrée dans votre compte.` });
+      },
+      error: (e) => {
+        this.busy.set(false);
+        this.actionMessage.set({ type: 'error', text: apiErrors(e).join(' ') });
+      },
+    });
+  }
+
+  // --- Chargement / persistance ---
+
+  private loadConfiguration(id: number) {
+    this.api.get(id).subscribe({
+      next: (config) => {
+        this.applyParts(config.parts);
+        this.configId.set(config.id);
+        this.configName.set(config.name);
+        this.persistLocal();
+        if (config.unavailable) {
+          this.actionMessage.set({
+            type: 'error',
+            text: `${config.unavailable} composant(s) de cette configuration ne sont plus en vente et ont été retirés.`,
+          });
+        }
+      },
+      error: () => {
+        this.actionMessage.set({ type: 'error', text: 'Configuration introuvable.' });
+        this.restoreLocal();
+      },
+    });
+  }
+
+  private restoreLocal() {
+    let stored: StoredBuild | null = null;
+    try {
+      stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as StoredBuild | null;
+    } catch {
+      stored = null;
+    }
+    if (!stored?.ids?.length) return;
+
+    this.configId.set(stored.configId ?? null);
+    this.configName.set(stored.name ?? '');
+    this.api
+      .check(stored.ids)
+      .pipe(map((check) => check.parts))
+      .subscribe({
+        next: (parts) => this.applyParts(parts),
+        // Composant retiré de la vente entre-temps : on repart d'une configuration vide
+        error: () => this.resetAll(),
+      });
+  }
+
+  private applyParts(parts: ConfiguratorPart[]) {
+    const selection = { ...EMPTY_SELECTION };
+    for (const part of parts) selection[part.slot] = part;
+    this.selectedComponents.set(selection);
+  }
+
+  private afterChange() {
+    this.actionMessage.set(null);
+    this.saveOpen.set(false);
+    this.persistLocal();
+  }
+
+  private persistLocal() {
+    try {
+      const stored: StoredBuild = { ids: this.selectedIds(), configId: this.configId(), name: this.configName() };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+    } catch {
+      // stockage indisponible : la sélection ne survivra pas au rechargement
+    }
+  }
 }

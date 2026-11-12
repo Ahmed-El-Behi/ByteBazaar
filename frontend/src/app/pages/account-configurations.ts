@@ -1,11 +1,14 @@
 import { Component, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { ConfigurationSummary, ConfiguratorApi } from '../core/configurator-api';
+import { TndPipe } from '../core/tnd.pipe';
+import { apiErrors } from '../core/utils';
 
 @Component({
   standalone: true,
   selector: 'app-account-configurations',
-  imports: [CommonModule],
+  imports: [CommonModule, TndPipe],
   template: `
     <div class="card">
       <div class="card-header">
@@ -15,7 +18,13 @@ import { Router } from '@angular/router';
         </button>
       </div>
 
-      @if (configurations().length === 0) {
+      @if (errorMessage()) {
+        <p class="muted error">{{ errorMessage() }}</p>
+      }
+
+      @if (loading()) {
+        <p class="muted">Chargement de vos configurations…</p>
+      } @else if (configurations().length === 0) {
         <div class="empty-box">
           <p class="muted">Vous n'avez pas encore de configuration enregistrée.</p>
           <button type="button" class="btn-secondary mt-2" (click)="goToConfigurator()">
@@ -29,7 +38,8 @@ import { Router } from '@angular/router';
               <div class="config-top">
                 <h3 class="config-name">{{ config.name }}</h3>
                 <span class="config-date">Créée le {{ config.createdAt | date:'dd/MM/yyyy' }}</span>
-                <strong class="config-price">{{ config.totalPrice }} TND</strong>
+                <strong class="config-price">{{ config.totalPrice | tnd }}</strong>
+                <span class="config-date">{{ config.itemCount }} composant(s)@if (config.unavailableCount) { · {{ config.unavailableCount }} indisponible(s) }</span>
               </div>
               <div class="config-actions">
                 <button class="btn-secondary btn-sm" (click)="loadConfig(config.id)">Charger</button>
@@ -71,6 +81,7 @@ import { Router } from '@angular/router';
       border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
     }
     .muted { color: var(--muted); font-size: 0.9rem; margin: 0; }
+    .muted.error { color: #ef4444; margin-bottom: 1rem; }
 
     .configs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
     .config-card {
@@ -91,17 +102,38 @@ import { Router } from '@angular/router';
 })
 export class AccountConfigurationsPage {
   private readonly router = inject(Router);
-  configurations = signal<any[]>([]);
+  private readonly api = inject(ConfiguratorApi);
+
+  readonly configurations = signal<ConfigurationSummary[]>([]);
+  readonly loading = signal(true);
+  readonly errorMessage = signal<string | null>(null);
+
+  constructor() {
+    this.api.list().subscribe({
+      next: (list) => {
+        this.configurations.set(list);
+        this.loading.set(false);
+      },
+      error: (e) => {
+        this.errorMessage.set(apiErrors(e).join(' '));
+        this.loading.set(false);
+      },
+    });
+  }
 
   goToConfigurator() {
     this.router.navigate(['/configurateur']);
   }
 
-  loadConfig(id: string) {
+  loadConfig(id: number) {
     this.router.navigate(['/configurateur'], { queryParams: { configId: id } });
   }
 
-  deleteConfig(id: string) {
-    this.configurations.update(list => list.filter(c => c.id !== id));
+  deleteConfig(id: number) {
+    this.errorMessage.set(null);
+    this.api.delete(id).subscribe({
+      next: () => this.configurations.update((list) => list.filter((c) => c.id !== id)),
+      error: (e) => this.errorMessage.set(apiErrors(e).join(' ')),
+    });
   }
 }
