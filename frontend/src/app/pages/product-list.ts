@@ -6,32 +6,33 @@ import { catchError, of, switchMap, tap } from 'rxjs';
 import { CatalogApi } from '../core/catalog-api';
 import { Brand, CategoryNode, Paginated, ProductListItem } from '../core/models';
 import { ProductCard } from '../components/product-card';
+import { LocalNamePipe, TPipe } from '../core/i18n';
 
 const KEYS = ['category', 'brand', 'minPrice', 'maxPrice', 'inStock', 'sort', 'q', 'page'];
 
 @Component({
   selector: 'app-product-list',
-  imports: [Icon, ProductCard],
+  imports: [Icon, ProductCard, TPipe, LocalNamePipe],
   template: `
     <div class="container layout">
       <aside class="card filters">
-        <h3>Catégories</h3>
+        <h3>{{ 'Catégories' | t }}</h3>
         <button class="link" [class.active]="!param('category')" (click)="go({ category: null })">
-          Tout le catalogue
+          {{ 'Tout le catalogue' | t }}
         </button>
         @for (root of filteredCategories(); track root.id) {
           <button class="link root" [class.active]="param('category') === root.slug" (click)="go({ category: root.slug })">
-            {{ root.nameFr }}
+            {{ root | localName }}
             @if (!root.children.length) { <small>{{ root._count.products }}</small> }
           </button>
           @for (c of root.children; track c.id) {
             <button class="link child" [class.active]="param('category') === c.slug" (click)="go({ category: c.slug })">
-              {{ c.nameFr }} <small>{{ c._count.products }}</small>
+              {{ c | localName }} <small>{{ c._count.products }}</small>
             </button>
           }
         }
 
-        <h3>Marques</h3>
+        <h3>{{ 'Marques' | t }}</h3>
         @for (b of brands(); track b.id) {
           <label class="check">
             <input type="checkbox" [checked]="selectedBrands().includes(b.slug)" (change)="toggleBrand(b.slug)" />
@@ -39,30 +40,30 @@ const KEYS = ['category', 'brand', 'minPrice', 'maxPrice', 'inStock', 'sort', 'q
           </label>
         }
 
-        <h3>Prix (TND)</h3>
+        <h3>{{ 'Prix (TND)' | t }}</h3>
         <div class="price">
-          <input #min type="number" min="0" placeholder="Min" [value]="param('minPrice') ?? ''" (change)="go({ minPrice: min.value || null })" />
-          <input #max type="number" min="0" placeholder="Max" [value]="param('maxPrice') ?? ''" (change)="go({ maxPrice: max.value || null })" />
+          <input #min type="number" min="0" [placeholder]="'Min' | t" [value]="param('minPrice') ?? ''" (change)="go({ minPrice: min.value || null })" />
+          <input #max type="number" min="0" [placeholder]="'Max' | t" [value]="param('maxPrice') ?? ''" (change)="go({ maxPrice: max.value || null })" />
         </div>
 
         <label class="check">
           <input #stock type="checkbox" [checked]="param('inStock') === 'true'" (change)="go({ inStock: stock.checked ? 'true' : null })" />
-          En stock uniquement
+          {{ 'En stock uniquement' | t }}
         </label>
 
-        <button class="link reset" (click)="reset()">Réinitialiser les filtres</button>
+        <button class="link reset" (click)="reset()">{{ 'Réinitialiser les filtres' | t }}</button>
       </aside>
 
       <section>
         @if (result(); as r) {
           <div class="toolbar">
             <span class="muted">
-              {{ r.meta.total }} produit(s)
-              @if (param('q')) { · recherche « {{ param('q') }} » }
+              {{ '{n} produit(s)' | t: { n: r.meta.total } }}
+              @if (param('q')) { · {{ 'recherche « {q} »' | t: { q: param('q') } }} }
             </span>
             <select #sortSelect (change)="go({ sort: sortSelect.value })">
               @for (s of sorts; track s.value) {
-                <option [value]="s.value" [selected]="(param('sort') ?? 'relevance') === s.value">{{ s.label }}</option>
+                <option [value]="s.value" [selected]="(param('sort') ?? 'relevance') === s.value">{{ s.label | t }}</option>
               }
             </select>
           </div>
@@ -74,20 +75,20 @@ const KEYS = ['category', 'brand', 'minPrice', 'maxPrice', 'inStock', 'sort', 'q
               }
             </div>
           } @else {
-            <p class="card empty">Aucun produit ne correspond à ces filtres.</p>
+            <p class="card empty">{{ 'Aucun produit ne correspond à ces filtres.' | t }}</p>
           }
 
           @if (r.meta.totalPages > 1) {
             <div class="pager">
-              <button class="btn" [disabled]="r.meta.page <= 1" (click)="go({ page: '' + (r.meta.page - 1) }, false)"><app-icon name="chevronLeft" [size]="16" [stroke]="2" /> Précédent</button>
-              <span class="muted">Page {{ r.meta.page }} / {{ r.meta.totalPages }}</span>
-              <button class="btn" [disabled]="r.meta.page >= r.meta.totalPages" (click)="go({ page: '' + (r.meta.page + 1) }, false)">Suivant <app-icon name="chevronRight" [size]="16" [stroke]="2" /></button>
+              <button class="btn" [disabled]="r.meta.page <= 1" (click)="go({ page: '' + (r.meta.page - 1) }, false)"><app-icon name="chevronLeft" [size]="16" [stroke]="2" /> {{ 'Précédent' | t }}</button>
+              <span class="muted">{{ 'Page {page} / {total}' | t: { page: r.meta.page, total: r.meta.totalPages } }}</span>
+              <button class="btn" [disabled]="r.meta.page >= r.meta.totalPages" (click)="go({ page: '' + (r.meta.page + 1) }, false)">{{ 'Suivant' | t }} <app-icon name="chevronRight" [size]="16" [stroke]="2" /></button>
             </div>
           }
         } @else if (loading()) {
-          <p class="muted">Chargement…</p>
+          <p class="muted">{{ 'Chargement…' | t }}</p>
         } @else {
-          <p class="card empty">Impossible de joindre le serveur. Le backend est-il lancé ?</p>
+          <p class="card empty">{{ 'Impossible de joindre le serveur. Le backend est-il lancé ?' | t }}</p>
         }
       </section>
     </div>
@@ -121,6 +122,7 @@ export class ProductListPage {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
 
+  // i18n
   readonly sorts = [
     { value: 'relevance', label: 'Pertinence' },
     { value: 'newest', label: 'Nouveautés' },
@@ -128,6 +130,7 @@ export class ProductListPage {
     { value: 'price_desc', label: 'Prix décroissant' },
     { value: 'name', label: 'Nom (A → Z)' },
   ];
+  // /i18n
 
   private params = toSignal(this.route.queryParamMap, { requireSync: true });
   readonly loading = signal(true);

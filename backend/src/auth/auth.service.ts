@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { asRecord, badRequest, text } from '../common/input';
 import { hashPassword, verifyPassword } from './password';
+import { tr } from '../common/i18n';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PASSWORD_MIN = 8;
@@ -26,11 +27,24 @@ const PUBLIC_USER = {
   createdAt: true,
 } as const;
 
-function passwordErrors(password: string, label = 'Le mot de passe'): string[] {
+function passwordErrors(password: string, isNew = false): string[] {
+  const label = isNew
+    ? tr('Le nouveau mot de passe', 'The new password')
+    : tr('Le mot de passe', 'The password');
   if (password.length < PASSWORD_MIN)
-    return [`${label} doit contenir au moins ${PASSWORD_MIN} caractères`];
+    return [
+      tr(
+        `${label} doit contenir au moins ${PASSWORD_MIN} caractères`,
+        `${label} must contain at least ${PASSWORD_MIN} characters`,
+      ),
+    ];
   if (password.length > PASSWORD_MAX)
-    return [`${label} est trop long (${PASSWORD_MAX} caractères maximum)`];
+    return [
+      tr(
+        `${label} est trop long (${PASSWORD_MAX} caractères maximum)`,
+        `${label} is too long (${PASSWORD_MAX} characters maximum)`,
+      ),
+    ];
   return [];
 }
 
@@ -54,10 +68,13 @@ export class AuthService {
     const language = b.language === 'EN' ? 'EN' : 'FR';
 
     const errors: string[] = [];
-    if (!EMAIL_RE.test(email)) errors.push('Adresse email invalide');
+    if (!EMAIL_RE.test(email))
+      errors.push(tr('Adresse email invalide', 'Invalid email address'));
     errors.push(...passwordErrors(password));
-    if (!firstName) errors.push('Le prénom est requis');
-    if (!lastName) errors.push('Le nom est requis');
+    if (!firstName)
+      errors.push(tr('Le prénom est requis', 'First name is required'));
+    if (!lastName)
+      errors.push(tr('Le nom est requis', 'Last name is required'));
     if (errors.length) throw badRequest(...errors);
 
     const existing = await this.prisma.user.findUnique({
@@ -65,7 +82,12 @@ export class AuthService {
       select: { id: true },
     });
     if (existing)
-      throw new ConflictException('Un compte existe déjà avec cet email');
+      throw new ConflictException(
+        tr(
+          'Un compte existe déjà avec cet email',
+          'An account already exists with this email',
+        ),
+      );
 
     const user = await this.prisma.user.create({
       data: {
@@ -95,7 +117,7 @@ export class AuthService {
       select: { ...PUBLIC_USER, passwordHash: true },
     });
     const invalid = new UnauthorizedException(
-      'Email ou mot de passe incorrect',
+      tr('Email ou mot de passe incorrect', 'Incorrect email or password'),
     );
     if (!found) throw invalid;
 
@@ -107,7 +129,8 @@ export class AuthService {
   // La réponse est identique que l'adresse existe ou non : on ne révèle pas quels emails ont un compte.
   async forgotPassword(body: unknown) {
     const email = text(asRecord(body).email).toLowerCase();
-    if (!EMAIL_RE.test(email)) throw badRequest('Adresse email invalide');
+    if (!EMAIL_RE.test(email))
+      throw badRequest(tr('Adresse email invalide', 'Invalid email address'));
 
     const user = await this.prisma.user.findUnique({
       where: { email },
@@ -135,8 +158,10 @@ export class AuthService {
     }
 
     return {
-      message:
+      message: tr(
         'Si un compte est associé à cette adresse, un email contenant le lien de réinitialisation vient de vous être envoyé.',
+        'If an account is associated with this address, an email containing the reset link has just been sent to you.',
+      ),
     };
   }
 
@@ -145,12 +170,18 @@ export class AuthService {
     const token = text(b.token);
     const newPassword = typeof b.newPassword === 'string' ? b.newPassword : '';
 
-    if (!token) throw badRequest('Token de réinitialisation manquant');
+    if (!token)
+      throw badRequest(
+        tr('Token de réinitialisation manquant', 'Missing reset token'),
+      );
     const errors = passwordErrors(newPassword);
     if (errors.length) throw badRequest(...errors);
 
     const invalid = badRequest(
-      'Le lien de réinitialisation est invalide ou a expiré',
+      tr(
+        'Le lien de réinitialisation est invalide ou a expiré',
+        'The reset link is invalid or has expired',
+      ),
     );
 
     // Lecture non vérifiée de l'identifiant, puis vérification avec la clé propre à cet utilisateur
@@ -186,7 +217,12 @@ export class AuthService {
       },
     });
 
-    return { message: 'Votre mot de passe a été réinitialisé avec succès.' };
+    return {
+      message: tr(
+        'Votre mot de passe a été réinitialisé avec succès.',
+        'Your password has been successfully reset.',
+      ),
+    };
   }
 
   async me(userId: number) {
@@ -194,7 +230,10 @@ export class AuthService {
       where: { id: userId },
       select: PUBLIC_USER,
     });
-    if (!user) throw new UnauthorizedException('Compte introuvable');
+    if (!user)
+      throw new UnauthorizedException(
+        tr('Compte introuvable', 'Account not found'),
+      );
     return user;
   }
 
@@ -209,14 +248,21 @@ export class AuthService {
 
     const errors: string[] = [];
     if (b.firstName !== undefined && !firstName)
-      errors.push('Le prénom ne peut pas être vide');
+      errors.push(
+        tr('Le prénom ne peut pas être vide', 'First name cannot be empty'),
+      );
     if (b.lastName !== undefined && !lastName)
-      errors.push('Le nom ne peut pas être vide');
+      errors.push(
+        tr('Le nom ne peut pas être vide', 'Last name cannot be empty'),
+      );
     if (newPassword) {
-      errors.push(...passwordErrors(newPassword, 'Le nouveau mot de passe'));
+      errors.push(...passwordErrors(newPassword, true));
       if (!currentPassword)
         errors.push(
-          'Le mot de passe actuel est requis pour définir un nouveau mot de passe',
+          tr(
+            'Le mot de passe actuel est requis pour définir un nouveau mot de passe',
+            'The current password is required to set a new password',
+          ),
         );
     }
     if (errors.length) throw badRequest(...errors);
@@ -225,7 +271,10 @@ export class AuthService {
       where: { id: userId },
       select: { id: true, passwordHash: true },
     });
-    if (!user) throw new UnauthorizedException('Compte introuvable');
+    if (!user)
+      throw new UnauthorizedException(
+        tr('Compte introuvable', 'Account not found'),
+      );
 
     const data: {
       firstName?: string;
@@ -239,7 +288,12 @@ export class AuthService {
 
     if (newPassword) {
       if (!(await verifyPassword(currentPassword, user.passwordHash))) {
-        throw badRequest('Le mot de passe actuel est incorrect');
+        throw badRequest(
+          tr(
+            'Le mot de passe actuel est incorrect',
+            'The current password is incorrect',
+          ),
+        );
       }
       data.passwordHash = await hashPassword(newPassword);
     }

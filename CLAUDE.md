@@ -55,6 +55,7 @@ npx ng build                 # production build — must succeed
 - Sources of truth: `catalogue_local_images_cleaned.json` (≈3 000 components) + `accessories_catalogue.json` (894 peripherals). `seed.ts` merges both.
 - Names are normalised to professional-retailer format by `scripts/normalize_catalogue.py` (original kept in `source.originalName`).
 - Peripherals: `scripts/build_accessories.py` from `data/raw/pc-part-dataset/` (docyx/pc-part-dataset, MIT); photos matched strictly (brand + exact model + colour) by `scripts/match_accessory_images.py` against Amazon Reviews 2023 metadata (DuckDB), result in `data/raw/accessory_images.json`, downloaded by `download_product_images.py`. Only products with a photo are sold. Amazon dataset has no declared licence → educational use.
+- Home hero showcase: `scripts/build_showcase.py` scores every local photo (resolution, white background, framing, contrast; monitors: bottom corners + colourful screen) and keeps the 15 most-reviewed products per featured category in `data/showcase.json`. `GET /products/showcase` draws 3 in-stock products from 3 different categories on each call (weights in `SHOWCASE_WEIGHTS`: GPU/monitors/keyboards/CPU/RAM first; never webcams or speakers). Re-run the script after changing the catalogue.
 - Product images are local: `frontend/public/products/<category>/<SKU>.jpg` (accessories: `ACC-*.jpg` in `ecrans/ claviers/ souris/ casques/ enceintes/ webcams/`).
 
 ### Frontend (`frontend/src/app`)
@@ -62,6 +63,15 @@ npx ng build                 # production build — must succeed
 - `components/icon.ts` — `<app-icon name="…">` renders Lucide icons; use it for every icon (no emoji / hand-drawn SVG).
 - Design tokens in `src/styles.css`: surfaces `--bg < --surface < --surface-2 < --surface-3`, `--text/--text-2/--muted`, `--accent`, `--font-display` + `--font-body`, scale `--fs-2xs … --fs-5xl`, radii `--r-*`, shadows `--shadow*`. Reuse tokens, don't hard-code colours/sizes.
 - Routes are French (`/produits`, `/configurateur` (lazy), `/panier`, `/checkout`, `/compte/...`, `/admin/commandes`, `/admin/stock`).
+
+### Languages (FR default / EN) — every user-facing text must exist in both
+- Header toggle (`app.html`, `.lang-switch`) → `I18nService` (`core/i18n.ts`), saved in `localStorage['bytebazaar_lang']`, sets `<html lang>`.
+- **Frontend**: texts stay written in French; the French text is the key. Templates: `{{ 'Texte' | t }}`, params `{{ '{n} produits' | t: { n: x } }}`, attributes `[title]="'Texte' | t"` (apostrophe in an attribute → `&quot;L'article&quot; | t`). Code: `translate('Texte')` / `i18n.t()`. English in `core/i18n-en.ts` (British English).
+- Lists of labels kept in French (status maps, sort options…) are wrapped in `// i18n` … `// /i18n` comments and translated at display; signal values set in French and translated in the template get `// traduit à l'affichage`.
+- `| localName` for categories (API `nameFr`/`nameEn`), `| productName` for product names (translates the final colour in brackets, e.g. « (Noir) » → « (Black) »), `| tnd` follows the locale (fr-FR / en-GB). Product page: `descriptionEn` and raw English specs in EN.
+- **Check after any UI change**: `node scripts/check-i18n.mjs` (from `frontend/`) — must report 0 missing / 0 param mismatch.
+- **Backend**: interceptor sends `Accept-Language: fr|en`; `common/i18n.ts` middleware (AsyncLocalStorage) → use `tr('texte FR', 'English text')` for every message returned to the UI (exceptions, compatibility checks, configurator highlights). The configurator re-fetches its check when the language changes.
+- Not translated (out of the website): transactional e-mails (`mail/`) are French only.
 
 ### 3D configurator (`pages/configurator.ts` + `components/`)
 - `pc-scene.ts` — Three.js scene (OrbitControls, RoomEnvironment, bloom post-processing, shadows). **Two modes**:

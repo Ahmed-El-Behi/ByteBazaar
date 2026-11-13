@@ -6,6 +6,7 @@ import {
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { int } from '../common/input';
+import { tr } from '../common/i18n';
 
 const MAX_QUANTITY = 99;
 
@@ -84,8 +85,8 @@ export class CartService {
     rawProductId: unknown,
     rawQuantity: unknown = 1,
   ) {
-    const productId = int(rawProductId, 'Produit', { min: 1 });
-    const quantity = int(rawQuantity, 'Quantité', {
+    const productId = int(rawProductId, tr('Produit', 'Product'), { min: 1 });
+    const quantity = int(rawQuantity, tr('Quantité', 'Quantity'), {
       min: 1,
       max: MAX_QUANTITY,
     });
@@ -94,7 +95,12 @@ export class CartService {
       where: { id: productId, isActive: true },
     });
     if (!product)
-      throw new NotFoundException('Produit introuvable ou indisponible');
+      throw new NotFoundException(
+        tr(
+          'Produit introuvable ou indisponible',
+          'Product not found or unavailable',
+        ),
+      );
 
     const cart = await this.getOrCreateCart(userId);
     const existingItem = cart.items.find((i) => i.productId === productId);
@@ -102,7 +108,10 @@ export class CartService {
 
     if (newQty > product.stockQuantity) {
       throw new BadRequestException(
-        `Stock insuffisant. Stock disponible : ${product.stockQuantity}`,
+        tr(
+          `Stock insuffisant. Stock disponible : ${product.stockQuantity}`,
+          `Insufficient stock. Available stock: ${product.stockQuantity}`,
+        ),
       );
     }
 
@@ -121,19 +130,25 @@ export class CartService {
   }
 
   async updateItem(userId: number, itemId: number, rawQuantity: unknown) {
-    const quantity = int(rawQuantity, 'Quantité', {
+    const quantity = int(rawQuantity, tr('Quantité', 'Quantity'), {
       min: 0,
       max: MAX_QUANTITY,
     });
     const cart = await this.getOrCreateCart(userId);
     const item = cart.items.find((i) => i.id === itemId);
-    if (!item) throw new NotFoundException('Article non trouvé dans le panier');
+    if (!item)
+      throw new NotFoundException(
+        tr('Article non trouvé dans le panier', 'Item not found in the cart'),
+      );
 
     if (quantity === 0) return this.removeItem(userId, itemId);
 
     if (quantity > item.product.stockQuantity) {
       throw new BadRequestException(
-        `Stock insuffisant. Stock disponible : ${item.product.stockQuantity}`,
+        tr(
+          `Stock insuffisant. Stock disponible : ${item.product.stockQuantity}`,
+          `Insufficient stock. Available stock: ${item.product.stockQuantity}`,
+        ),
       );
     }
 
@@ -147,7 +162,9 @@ export class CartService {
   async removeItem(userId: number, itemId: number) {
     const cart = await this.getOrCreateCart(userId);
     if (!cart.items.some((i) => i.id === itemId)) {
-      throw new NotFoundException('Article non trouvé dans le panier');
+      throw new NotFoundException(
+        tr('Article non trouvé dans le panier', 'Item not found in the cart'),
+      );
     }
     await this.prisma.cartItem.delete({ where: { id: itemId } });
     return this.getCart(userId);

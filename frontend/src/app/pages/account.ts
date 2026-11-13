@@ -3,14 +3,15 @@ import { Icon } from '../components/icon';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth-service';
+import { TPipe } from '../core/i18n';
 
 @Component({
   standalone: true,
   selector: 'app-account',
-  imports: [Icon, CommonModule, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [Icon, CommonModule, RouterLink, RouterLinkActive, RouterOutlet, TPipe],
   template: `
     <div class="account-container">
-      <h1 class="page-title">Mon compte</h1>
+      <h1 class="page-title">{{ 'Mon compte' | t }}</h1>
 
       <div class="account-grid">
         <!-- Sidebar Navigation -->
@@ -18,22 +19,22 @@ import { AuthService } from '../core/auth-service';
           <nav class="nav-list">
             <a routerLink="profil" routerLinkActive="active" class="nav-item">
               <app-icon name="user" [size]="18" />
-              <span>Profil et adresses</span>
+              <span>{{ 'Profil et adresses' | t }}</span>
             </a>
 
             <a routerLink="commandes" routerLinkActive="active" class="nav-item">
               <app-icon name="orders" [size]="18" />
-              <span>Mes commandes</span>
+              <span>{{ 'Mes commandes' | t }}</span>
             </a>
 
             <a routerLink="configurations" routerLinkActive="active" class="nav-item">
               <app-icon name="monitor" [size]="18" />
-              <span>Mes configurations</span>
+              <span>{{ 'Mes configurations' | t }}</span>
             </a>
 
             <button type="button" class="nav-item logout" (click)="auth.logout()">
               <app-icon name="logout" [size]="18" />
-              <span>Déconnexion</span>
+              <span>{{ 'Déconnexion' | t }}</span>
             </button>
           </nav>
         </aside>

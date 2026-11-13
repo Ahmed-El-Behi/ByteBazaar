@@ -10,6 +10,7 @@ import { ProductDetail } from '../core/models';
 import { TndPipe } from '../core/tnd.pipe';
 import { CartStateService } from '../core/cart.service';
 import { apiErrors } from '../core/utils';
+import { I18nService, LocalNamePipe, ProductNamePipe, TPipe, localProductName, translate } from '../core/i18n';
 
 type State =
   | { status: 'loading' | 'notfound' | 'error'; product: null }
@@ -23,6 +24,8 @@ const TECH_EXTRAS: Record<string, string[]> = {
   pcCase: ['supportedFormFactors', 'sfxOnly'],
 };
 
+// Libellés traduits à l'affichage (core/i18n-en.ts)
+// i18n
 const LABELS: Record<string, string> = {
   socket: 'Socket',
   cores: 'Cœurs',
@@ -73,9 +76,10 @@ const LABELS: Record<string, string> = {
   fovDegrees: 'Champ de vision (°)',
   connection: 'Connexion',
 };
+// /i18n
 
 function formatValue(value: unknown): string {
-  if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
+  if (typeof value === 'boolean') return value ? translate('Oui') : translate('Non');
 
   if (Array.isArray(value)) {
     return value.map((v) => String(v).replaceAll('_', ' ')).join(', ');
@@ -86,19 +90,19 @@ function formatValue(value: unknown): string {
 
 @Component({
   selector: 'app-product-detail',
-  imports: [RouterLink, TndPipe],
+  imports: [RouterLink, TndPipe, TPipe, LocalNamePipe, ProductNamePipe],
   template: `
     <div class="container page">
       @if (state().product; as p) {
         <nav class="crumbs muted">
-          <a routerLink="/produits">Catalogue</a> ›
+          <a routerLink="/produits">{{ 'Catalogue' | t }}</a> ›
           <a
             routerLink="/produits"
             [queryParams]="{ category: p.category.slug }"
           >
-            {{ p.category.nameFr }}
+            {{ p.category | localName }}
           </a>
-          › {{ p.name }}
+          › {{ p.name | productName }}
         </nav>
 
         <div class="main">
@@ -106,7 +110,7 @@ function formatValue(value: unknown): string {
             @if (p.images.length) {
               <img
                 [src]="p.images[0].url"
-                [alt]="p.images[0].altText ?? p.name"
+                [alt]="(p.images[0].altText ?? p.name) | productName"
               />
             } @else {
               <span>{{ p.brand.name }}</span>
@@ -115,20 +119,18 @@ function formatValue(value: unknown): string {
 
           <div class="info">
             <small class="muted">
-              {{ p.brand.name }} · Réf. {{ p.sku }}
+              {{ p.brand.name }} · {{ 'Réf.' | t }} {{ p.sku }}
             </small>
 
-            <h1>{{ p.name }}</h1>
+            <h1>{{ p.name | productName }}</h1>
 
-            <p class="desc">{{ p.descriptionFr }}</p>
+            <p class="desc">{{ description(p) }}</p>
 
             <div class="buy card">
               <strong class="price">{{ p.price | tnd }}</strong>
 
               <span class="badge" [class.ok]="p.isAvailable">
-                {{
-                  p.isAvailable ? 'En stock' : 'Rupture de stock'
-                }}
+                {{ (p.isAvailable ? 'En stock' : 'Rupture de stock') | t }}
               </span>
 
               <button
@@ -136,7 +138,7 @@ function formatValue(value: unknown): string {
                 [disabled]="!p.isAvailable || adding()"
                 (click)="addToCart(p)"
               >
-                {{ adding() ? 'Ajout...' : 'Ajouter au panier' }}
+                {{ (adding() ? 'Ajout...' : 'Ajouter au panier') | t }}
               </button>
             </div>
 
@@ -145,7 +147,7 @@ function formatValue(value: unknown): string {
                 class="badge ok"
                 style="margin-top:0.8rem; display:inline-block;"
               >
-                {{ feedbackMsg() }}
+                {{ feedbackMsg() | t }}
               </p>
             }
 
@@ -157,7 +159,7 @@ function formatValue(value: unknown): string {
 
         @if (techRows().length || specRows().length) {
           <section class="card specs">
-            <h2>Caractéristiques</h2>
+            <h2>{{ 'Caractéristiques' | t }}</h2>
 
             <table>
               @for (r of techRows(); track r.label) {
@@ -178,17 +180,17 @@ function formatValue(value: unknown): string {
         }
       } @else if (state().status === 'notfound') {
         <p class="card empty">
-          Ce produit n'existe pas.
+          {{ "Ce produit n'existe pas." | t }}
           <a routerLink="/produits">
-            <u>Retour au catalogue</u>
+            <u>{{ 'Retour au catalogue' | t }}</u>
           </a>
         </p>
       } @else if (state().status === 'error') {
         <p class="card empty">
-          Impossible de joindre le serveur. Le backend est-il lancé ?
+          {{ 'Impossible de joindre le serveur. Le backend est-il lancé ?' | t }}
         </p>
       } @else {
-        <p class="muted">Chargement…</p>
+        <p class="muted">{{ 'Chargement…' | t }}</p>
       }
     </div>
   `,
@@ -348,6 +350,7 @@ function formatValue(value: unknown): string {
 export class ProductDetailPage {
   private api = inject(CatalogApi);
   private cartState = inject(CartStateService);
+  readonly i18n = inject(I18nService);
 
   slug = input.required<string>();
 
@@ -387,14 +390,21 @@ export class ProductDetailPage {
   );
 
   /** Caractéristiques de la source, traduites (sans doublon avec les données structurées). */
-  readonly specRows = computed(() =>
-    (this.state().product?.specs ?? [])
+  readonly specRows = computed(() => {
+    // Les caractéristiques de la source sont en anglais : traduites en français, telles quelles en anglais
+    const english = this.i18n.lang() === 'en';
+    return (this.state().product?.specs ?? [])
       .filter((s) => !HIDDEN_SPECS.has(s.name))
-      .map((s) => ({ id: s.id, label: SPEC_LABELS[s.name] ?? s.name, value: translateSpecValue(s.valueText) })),
-  );
+      .map((s) =>
+        english
+          ? { id: s.id, label: s.name, value: s.valueText }
+          : { id: s.id, label: SPEC_LABELS[s.name] ?? s.name, value: translateSpecValue(s.valueText) },
+      );
+  });
 
   readonly techRows = computed(() => {
     const technical = this.state().product?.technical;
+    this.i18n.lang(); // libellés et Oui / Non selon la langue
 
     if (!technical) return [];
 
@@ -402,10 +412,17 @@ export class ProductDetailPage {
     return Object.entries(technical)
       .filter(([key, value]) => extras.includes(key) && value !== null && value !== undefined)
       .map(([key, value]) => ({
-        label: (technical['kind'] === 'gpu' && key === 'tdpWatts' ? 'Consommation (W)' : LABELS[key]) ?? key,
+        label:
+          technical['kind'] === 'gpu' && key === 'tdpWatts' ? this.i18n.t('Consommation (W)') : this.i18n.t(LABELS[key] ?? key),
         value: formatValue(value),
       }));
   });
+
+  /** Description dans la langue choisie (le nom du produit qu'elle cite garde sa couleur traduite) */
+  description(p: ProductDetail): string {
+    if (this.i18n.lang() !== 'en' || !p.descriptionEn) return p.descriptionFr;
+    return p.descriptionEn.split(p.name).join(localProductName(p.name, 'en'));
+  }
 
   addToCart(p: ProductDetail) {
     this.adding.set(true);
@@ -423,7 +440,7 @@ export class ProductDetailPage {
     this.cartState.addItem(product, 1).subscribe({
       next: () => {
         this.adding.set(false);
-        this.feedbackMsg.set('Produit ajouté au panier !');
+        this.feedbackMsg.set('Produit ajouté au panier !'); // traduit à l'affichage
         setTimeout(() => this.feedbackMsg.set(null), 3000);
       },
       error: (e) => {

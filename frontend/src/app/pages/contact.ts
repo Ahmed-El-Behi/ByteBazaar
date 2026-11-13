@@ -1,17 +1,18 @@
 import { Component, signal } from '@angular/core';
 import { Icon } from '../components/icon';
 import { FormsModule } from '@angular/forms';
+import { TPipe } from '../core/i18n';
 
 @Component({
   selector: 'app-contact-page',
   standalone: true,
-  imports: [Icon, FormsModule],
+  imports: [Icon, FormsModule, TPipe],
   template: `
     <div class="container page">
       <div class="header">
-        <h1>Contactez-nous</h1>
+        <h1>{{ 'Contactez-nous' | t }}</h1>
         <p class="muted">
-          Une question sur un composant, une commande ou une configuration ? Notre équipe répond sous 24 h.
+          {{ 'Une question sur un composant, une commande ou une configuration ? Notre équipe répond sous 24 h.' | t }}
         </p>
       </div>
 
@@ -23,17 +24,17 @@ import { FormsModule } from '@angular/forms';
               <div class="success-icon-wrapper">
                 <app-icon name="check" [size]="30" [stroke]="2.25" />
               </div>
-              <h3>Message envoyé avec succès !</h3>
-              <p class="muted">Nous vous répondrons dans les plus brefs délais.</p>
+              <h3>{{ 'Message envoyé avec succès !' | t }}</h3>
+              <p class="muted">{{ 'Nous vous répondrons dans les plus brefs délais.' | t }}</p>
               <button class="btn primary" (click)="resetForm()" style="margin-top: 1.5rem;">
-                Envoyer un autre message
+                {{ 'Envoyer un autre message' | t }}
               </button>
             </div>
           } @else {
             <form (ngSubmit)="onSubmit()">
               <div class="form-row">
                 <div class="form-group">
-                  <label for="fullName">Nom complet</label>
+                  <label for="fullName">{{ 'Nom complet' | t }}</label>
                   <input
                     type="text"
                     id="fullName"
@@ -44,13 +45,13 @@ import { FormsModule } from '@angular/forms';
                   />
                 </div>
                 <div class="form-group">
-                  <label for="email">Email</label>
+                  <label for="email">{{ 'Email' | t }}</label>
                   <input
                     type="email"
                     id="email"
                     name="email"
                     [(ngModel)]="form.email"
-                    placeholder="prenom.nom@email.tn"
+                    [placeholder]="'prenom.nom@email.tn' | t"
                     required
                   />
                 </div>
@@ -58,10 +59,10 @@ import { FormsModule } from '@angular/forms';
 
               <!-- Menu Déroulant Personnalisé Pro -->
               <div class="form-group">
-                <label>Sujet</label>
+                <label>{{ 'Sujet' | t }}</label>
                 <div class="custom-select" (click)="dropdownOpen.set(!dropdownOpen())">
                   <div class="select-trigger">
-                    <span>{{ form.subject }}</span>
+                    <span>{{ form.subject | t }}</span>
                     <app-icon class="chevron" [class.open]="dropdownOpen()" name="chevronDown" [size]="18" />
                   </div>
 
@@ -73,7 +74,7 @@ import { FormsModule } from '@angular/forms';
                           [class.selected]="form.subject === option"
                           (click)="selectSubject(option, $event)"
                         >
-                          {{ option }}
+                          {{ option | t }}
                           @if (form.subject === option) {
                             <app-icon name="check" [size]="16" [stroke]="2.25" />
                           }
@@ -85,25 +86,25 @@ import { FormsModule } from '@angular/forms';
               </div>
 
               <div class="form-group">
-                <label for="message">Message</label>
+                <label for="message">{{ 'Message' | t }}</label>
                 <textarea
                   id="message"
                   name="message"
                   rows="5"
                   [(ngModel)]="form.message"
-                  placeholder="Bonjour, je souhaite..."
+                  [placeholder]="'Bonjour, je souhaite...' | t"
                   required
                 ></textarea>
               </div>
 
-              <button type="submit" class="btn primary">Envoyer le message</button>
+              <button type="submit" class="btn primary">{{ 'Envoyer le message' | t }}</button>
             </form>
           }
         </div>
 
         <!-- Bloc Coordonnées -->
         <div class="card info-card">
-          <h2>Nos coordonnées</h2>
+          <h2>{{ 'Nos coordonnées' | t }}</h2>
 
           <div class="info-list">
             <div class="info-item">
@@ -111,7 +112,7 @@ import { FormsModule } from '@angular/forms';
                 <app-icon name="mail" [size]="20" />
               </div>
               <div class="info-content">
-                <span class="info-label">E-mail</span>
+                <span class="info-label">{{ 'E-mail' | t }}</span>
                 <a href="mailto:contact@ByteBazaar.tn" class="info-value">contact&#64;ByteBazaar.tn</a>
               </div>
             </div>
@@ -121,8 +122,8 @@ import { FormsModule } from '@angular/forms';
                 <app-icon name="mapPin" [size]="20" />
               </div>
               <div class="info-content">
-                <span class="info-label">Adresse</span>
-                <span class="info-value">Tunis, Tunisie</span>
+                <span class="info-label">{{ 'Adresse' | t }}</span>
+                <span class="info-value">{{ 'Tunis, Tunisie' | t }}</span>
               </div>
             </div>
 
@@ -131,8 +132,8 @@ import { FormsModule } from '@angular/forms';
                 <app-icon name="headphones" [size]="20" />
               </div>
               <div class="info-content">
-                <span class="info-label">Support</span>
-                <span class="info-value">Lundi - Samedi · 9h - 18h</span>
+                <span class="info-label">{{ 'Support' | t }}</span>
+                <span class="info-value">{{ 'Lundi - Samedi · 9h - 18h' | t }}</span>
               </div>
             </div>
           </div>
@@ -363,12 +364,15 @@ export class ContactPage {
   submitted = signal(false);
   dropdownOpen = signal(false);
 
+  // Sujets en français (valeur du formulaire), traduits à l'affichage
+  // i18n
   subjectOptions = [
     'Question sur une commande',
     'Aide à la configuration PC',
     'Service après-vente (SAV)',
     'Autre demande',
   ];
+  // /i18n
 
   form = {
     fullName: '',

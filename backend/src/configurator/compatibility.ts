@@ -25,6 +25,7 @@
 // =====================================================================
 
 import type { FormFactor, RamType } from '../generated/prisma/client';
+import { tr } from '../common/i18n';
 import { MEMORY_BY_SOCKET } from '../prisma/hardware';
 
 /** Pièces indispensables au fonctionnement du PC. */
@@ -136,7 +137,10 @@ function socketCheck({ cpu, motherboard }: Build): Check {
     return {
       id: 'socket',
       status: 'pending',
-      message: 'Socket : en attente du processeur et de la carte mère',
+      message: tr(
+        'Socket : en attente du processeur et de la carte mère',
+        'Socket: waiting for the processor and the motherboard',
+      ),
       slots,
     };
   }
@@ -145,13 +149,19 @@ function socketCheck({ cpu, motherboard }: Build): Check {
     ? {
         id: 'socket',
         status: 'ok',
-        message: `Socket ${a} : processeur et carte mère compatibles`,
+        message: tr(
+          `Socket ${a} : processeur et carte mère compatibles`,
+          `Socket ${a}: processor and motherboard are compatible`,
+        ),
         slots,
       }
     : {
         id: 'socket',
         status: 'error',
-        message: `Socket incompatible : processeur ${a}, carte mère ${b}`,
+        message: tr(
+          `Socket incompatible : processeur ${a}, carte mère ${b}`,
+          `Incompatible socket: processor ${a}, motherboard ${b}`,
+        ),
         slots,
       };
 }
@@ -161,7 +171,10 @@ function memoryCheck({ cpu, motherboard, ram }: Build): Check {
     return {
       id: 'memory',
       status: 'pending',
-      message: 'Mémoire : en attente de la RAM',
+      message: tr(
+        'Mémoire : en attente de la RAM',
+        'Memory: waiting for the RAM',
+      ),
       slots: ['ram'],
     };
   }
@@ -174,7 +187,10 @@ function memoryCheck({ cpu, motherboard, ram }: Build): Check {
       return {
         id: 'memory',
         status: 'error',
-        message: `Mémoire ${r.type} incompatible avec la carte mère (${mb.ramType})`,
+        message: tr(
+          `Mémoire ${r.type} incompatible avec la carte mère (${mb.ramType})`,
+          `${r.type} memory is incompatible with the motherboard (${mb.ramType})`,
+        ),
         slots,
       };
     }
@@ -182,7 +198,10 @@ function memoryCheck({ cpu, motherboard, ram }: Build): Check {
       return {
         id: 'memory',
         status: 'error',
-        message: `${r.modules} barrettes pour ${mb.ramSlots} emplacements sur la carte mère`,
+        message: tr(
+          `${r.modules} barrettes pour ${mb.ramSlots} emplacements sur la carte mère`,
+          `${r.modules} modules for ${mb.ramSlots} slots on the motherboard`,
+        ),
         slots,
       };
     }
@@ -190,14 +209,20 @@ function memoryCheck({ cpu, motherboard, ram }: Build): Check {
       return {
         id: 'memory',
         status: 'error',
-        message: `${r.capacityGB} Go de RAM : la carte mère accepte ${mb.maxRamGB} Go maximum`,
+        message: tr(
+          `${r.capacityGB} Go de RAM : la carte mère accepte ${mb.maxRamGB} Go maximum`,
+          `${r.capacityGB} GB of RAM: the motherboard supports ${mb.maxRamGB} GB maximum`,
+        ),
         slots,
       };
     }
     return {
       id: 'memory',
       status: 'ok',
-      message: `Mémoire ${r.type} compatible (${r.modules}/${mb.ramSlots} emplacements)`,
+      message: tr(
+        `Mémoire ${r.type} compatible (${r.modules}/${mb.ramSlots} emplacements)`,
+        `${r.type} memory is compatible (${r.modules}/${mb.ramSlots} slots)`,
+      ),
       slots,
     };
   }
@@ -209,13 +234,19 @@ function memoryCheck({ cpu, motherboard, ram }: Build): Check {
       ? {
           id: 'memory',
           status: 'ok',
-          message: `Mémoire ${r.type} prise en charge par le processeur`,
+          message: tr(
+            `Mémoire ${r.type} prise en charge par le processeur`,
+            `${r.type} memory is supported by the processor`,
+          ),
           slots,
         }
       : {
           id: 'memory',
           status: 'error',
-          message: `Le processeur (${cpu.cpu.socket}) ne prend pas en charge la ${r.type}`,
+          message: tr(
+            `Le processeur (${cpu.cpu.socket}) ne prend pas en charge la ${r.type}`,
+            `The processor (${cpu.cpu.socket}) does not support ${r.type}`,
+          ),
           slots,
         };
   }
@@ -223,7 +254,10 @@ function memoryCheck({ cpu, motherboard, ram }: Build): Check {
   return {
     id: 'memory',
     status: 'pending',
-    message: `Mémoire ${r.type} : en attente de la carte mère`,
+    message: tr(
+      `Mémoire ${r.type} : en attente de la carte mère`,
+      `${r.type} memory: waiting for the motherboard`,
+    ),
     slots: ['ram'],
   };
 }
@@ -234,7 +268,10 @@ function formFactorCheck({ motherboard, case: pcCase }: Build): Check {
     return {
       id: 'formFactor',
       status: 'pending',
-      message: 'Format : en attente de la carte mère et du boîtier',
+      message: tr(
+        'Format : en attente de la carte mère et du boîtier',
+        'Form factor: waiting for the motherboard and the case',
+      ),
       slots,
     };
   }
@@ -245,13 +282,19 @@ function formFactorCheck({ motherboard, case: pcCase }: Build): Check {
     ? {
         id: 'formFactor',
         status: 'ok',
-        message: `Carte mère ${format} compatible avec le boîtier`,
+        message: tr(
+          `Carte mère ${format} compatible avec le boîtier`,
+          `${format} motherboard is compatible with the case`,
+        ),
         slots,
       }
     : {
         id: 'formFactor',
         status: 'error',
-        message: `Le boîtier n'accepte pas les cartes mères ${format}`,
+        message: tr(
+          `Le boîtier n'accepte pas les cartes mères ${format}`,
+          `The case does not accept ${format} motherboards`,
+        ),
         slots,
       };
 }
@@ -262,8 +305,10 @@ function psuFormatCheck({ psu, case: pcCase }: Build): Check {
     return {
       id: 'psuFormat',
       status: 'pending',
-      message:
+      message: tr(
         "Format d'alimentation : en attente de l'alimentation et du boîtier",
+        'Power supply form factor: waiting for the power supply and the case',
+      ),
       slots,
     };
   }
@@ -273,7 +318,10 @@ function psuFormatCheck({ psu, case: pcCase }: Build): Check {
     return {
       id: 'psuFormat',
       status: 'ok',
-      message: `Alimentation ${format} compatible avec le boîtier`,
+      message: tr(
+        `Alimentation ${format} compatible avec le boîtier`,
+        `${format} power supply is compatible with the case`,
+      ),
       slots,
     };
   }
@@ -281,8 +329,14 @@ function psuFormatCheck({ psu, case: pcCase }: Build): Check {
     id: 'psuFormat',
     status: 'error',
     message: pcCase.pcCase.sfxOnly
-      ? "Ce boîtier compact n'accepte que les alimentations SFX"
-      : `Format d'alimentation ${format} non pris en charge par le boîtier`,
+      ? tr(
+          "Ce boîtier compact n'accepte que les alimentations SFX",
+          'This compact case only accepts SFX power supplies',
+        )
+      : tr(
+          `Format d'alimentation ${format} non pris en charge par le boîtier`,
+          `${format} power supply form factor is not supported by the case`,
+        ),
     slots,
   };
 }
@@ -295,8 +349,14 @@ function powerCheck(build: Build): Check {
       id: 'power',
       status: 'pending',
       message: recommendedPsuWatts
-        ? `Puissance : alimentation de ${recommendedPsuWatts} W minimum recommandée`
-        : "Puissance : en attente de l'alimentation",
+        ? tr(
+            `Puissance : alimentation de ${recommendedPsuWatts} W minimum recommandée`,
+            `Power: a power supply of at least ${recommendedPsuWatts} W is recommended`,
+          )
+        : tr(
+            "Puissance : en attente de l'alimentation",
+            'Power: waiting for the power supply',
+          ),
       slots,
     };
   }
@@ -305,7 +365,10 @@ function powerCheck(build: Build): Check {
     return {
       id: 'power',
       status: 'pending',
-      message: `Alimentation ${wattage} W : en attente du processeur ou de la carte graphique`,
+      message: tr(
+        `Alimentation ${wattage} W : en attente du processeur ou de la carte graphique`,
+        `${wattage} W power supply: waiting for the processor or the graphics card`,
+      ),
       slots,
     };
   }
@@ -313,13 +376,19 @@ function powerCheck(build: Build): Check {
     ? {
         id: 'power',
         status: 'ok',
-        message: `Puissance suffisante (${estimatedWatts} W estimés, ${wattage} W disponibles)`,
+        message: tr(
+          `Puissance suffisante (${estimatedWatts} W estimés, ${wattage} W disponibles)`,
+          `Sufficient power (${estimatedWatts} W estimated, ${wattage} W available)`,
+        ),
         slots,
       }
     : {
         id: 'power',
         status: 'error',
-        message: `Alimentation sous-dimensionnée : ${recommendedPsuWatts} W recommandés, ${wattage} W choisis`,
+        message: tr(
+          `Alimentation sous-dimensionnée : ${recommendedPsuWatts} W recommandés, ${wattage} W choisis`,
+          `Undersized power supply: ${recommendedPsuWatts} W recommended, ${wattage} W selected`,
+        ),
         slots,
       };
 }
@@ -330,28 +399,39 @@ function graphicsCheck({ cpu, gpu }: Build): Check {
     return {
       id: 'graphics',
       status: 'ok',
-      message: 'Affichage : carte graphique dédiée',
+      message: tr(
+        'Affichage : carte graphique dédiée',
+        'Display: dedicated graphics card',
+      ),
       slots,
     };
   if (!cpu?.cpu)
     return {
       id: 'graphics',
       status: 'pending',
-      message: 'Affichage : en attente du processeur ou de la carte graphique',
+      message: tr(
+        'Affichage : en attente du processeur ou de la carte graphique',
+        'Display: waiting for the processor or the graphics card',
+      ),
       slots,
     };
   return cpu.cpu.hasIntegratedGraphics
     ? {
         id: 'graphics',
         status: 'ok',
-        message: 'Affichage : partie graphique intégrée au processeur',
+        message: tr(
+          'Affichage : partie graphique intégrée au processeur',
+          'Display: graphics integrated into the processor',
+        ),
         slots,
       }
     : {
         id: 'graphics',
         status: 'warning',
-        message:
+        message: tr(
           "Ce processeur n'a pas de partie graphique : ajoutez une carte graphique",
+          'This processor has no integrated graphics: add a graphics card',
+        ),
         slots,
       };
 }
@@ -362,7 +442,10 @@ function coolingCheck({ cpu, cooler }: Build): Check {
     return {
       id: 'cooling',
       status: 'ok',
-      message: 'Refroidissement du processeur choisi',
+      message: tr(
+        'Refroidissement du processeur choisi',
+        'Processor cooling selected',
+      ),
       slots,
     };
   }
@@ -370,15 +453,20 @@ function coolingCheck({ cpu, cooler }: Build): Check {
     return {
       id: 'cooling',
       status: 'pending',
-      message: 'Refroidissement : en attente du processeur',
+      message: tr(
+        'Refroidissement : en attente du processeur',
+        'Cooling: waiting for the processor',
+      ),
       slots,
     };
   }
   return {
     id: 'cooling',
     status: 'warning',
-    message:
+    message: tr(
       'Pensez au refroidissement : la plupart des processeurs récents sont vendus sans ventirad',
+      'Remember cooling: most recent processors are sold without a CPU cooler',
+    ),
     slots,
   };
 }

@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { translate } from './i18n';
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { EMPTY, Observable, catchError, concatMap, finalize, from, of, tap, throwError, toArray } from 'rxjs';
 import { AuthService } from './auth-service';
@@ -125,7 +126,7 @@ export class CartStateService {
     const newQty = (existing?.quantity ?? 0) + quantity;
     if (newQty > product.stockQuantity) {
       return throwError(
-        () => new HttpErrorResponse({ status: 400, error: { message: 'Quantité maximale atteinte pour ce produit.' } }),
+        () => new HttpErrorResponse({ status: 400, error: { message: translate('Quantité maximale atteinte pour ce produit.') } }),
       );
     }
 

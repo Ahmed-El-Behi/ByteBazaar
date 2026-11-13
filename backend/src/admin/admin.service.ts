@@ -12,6 +12,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { asRecord, badRequest, int, oneOf, text } from '../common/input';
+import { tr } from '../common/i18n';
 
 const ORDER_STATUSES = Object.values(OrderStatus);
 const PAYMENT_STATUSES = Object.values(PaymentStatus);
@@ -36,6 +37,14 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   SHIPPED: 'Expédiée',
   DELIVERED: 'Livrée',
   CANCELLED: 'Annulée',
+};
+const STATUS_LABELS_EN: Record<OrderStatus, string> = {
+  PENDING: 'Pending',
+  CONFIRMED: 'Confirmed',
+  PREPARING: 'Being prepared',
+  SHIPPED: 'Shipped',
+  DELIVERED: 'Delivered',
+  CANCELLED: 'Cancelled',
 };
 
 const ORDER_INCLUDE = {
@@ -74,12 +83,18 @@ function assertTransition(from: OrderStatus, to: OrderStatus) {
   if (from === to) return;
   if (FINAL_STATUSES.includes(from)) {
     throw new BadRequestException(
-      `Une commande ${STATUS_LABELS[from].toLowerCase()} ne peut plus changer de statut`,
+      tr(
+        `Une commande ${STATUS_LABELS[from].toLowerCase()} ne peut plus changer de statut`,
+        `A ${STATUS_LABELS_EN[from].toLowerCase()} order can no longer change status`,
+      ),
     );
   }
   if (to !== 'CANCELLED' && STATUS_RANK[to] < STATUS_RANK[from]) {
     throw new BadRequestException(
-      `Impossible de repasser de « ${STATUS_LABELS[from]} » à « ${STATUS_LABELS[to]} »`,
+      tr(
+        `Impossible de repasser de « ${STATUS_LABELS[from]} » à « ${STATUS_LABELS[to]} »`,
+        `Cannot go back from "${STATUS_LABELS_EN[from]}" to "${STATUS_LABELS_EN[to]}"`,
+      ),
     );
   }
 }
@@ -101,20 +116,35 @@ export class AdminService {
         brand: { select: { name: true } },
       },
     });
-    if (!product) throw new NotFoundException(`Produit #${id} introuvable`);
+    if (!product)
+      throw new NotFoundException(
+        tr(`Produit #${id} introuvable`, `Product #${id} not found`),
+      );
     return { ...product, price: Number(product.price) };
   }
 
   async updateStock(adminUserId: number, body: unknown) {
     const b = asRecord(body);
-    const productId = int(b.productId, 'ID produit', { min: 1 });
-    const quantityChange = int(b.quantityChange, 'Variation de stock', {
-      min: -100_000,
-      max: 100_000,
+    const productId = int(b.productId, tr('ID produit', 'Product ID'), {
+      min: 1,
     });
+    const quantityChange = int(
+      b.quantityChange,
+      tr('Variation de stock', 'Stock change'),
+      {
+        min: -100_000,
+        max: 100_000,
+      },
+    );
     if (quantityChange === 0)
-      throw badRequest('La variation de stock doit être différente de 0');
-    const reason = oneOf(b.reason, STOCK_REASONS, 'Motif') ?? 'ADJUSTMENT';
+      throw badRequest(
+        tr(
+          'La variation de stock doit être différente de 0',
+          'The stock change must be different from 0',
+        ),
+      );
+    const reason =
+      oneOf(b.reason, STOCK_REASONS, tr('Motif', 'Reason')) ?? 'ADJUSTMENT';
     const note =
       text(b.note) || `Ajustement manuel admin (User #${adminUserId})`;
 
@@ -125,7 +155,10 @@ export class AdminService {
       });
       if (!product)
         throw new NotFoundException(
-          `Produit #${productId} introuvable dans le catalogue`,
+          tr(
+            `Produit #${productId} introuvable dans le catalogue`,
+            `Product #${productId} not found in the catalogue`,
+          ),
         );
 
       // Mise à jour conditionnelle : le stock ne peut pas devenir négatif, même en concurrence
@@ -135,7 +168,10 @@ export class AdminService {
       });
       if (changed.count === 0) {
         throw new BadRequestException(
-          `Stock insuffisant. Stock actuel : ${product.stockQuantity}`,
+          tr(
+            `Stock insuffisant. Stock actuel : ${product.stockQuantity}`,
+            `Insufficient stock. Current stock: ${product.stockQuantity}`,
+          ),
         );
       }
 
@@ -156,13 +192,18 @@ export class AdminService {
   async setProductStatus(productId: number, body: unknown) {
     const isActive = asRecord(body).isActive;
     if (typeof isActive !== 'boolean')
-      throw badRequest('isActive doit être un booléen');
+      throw badRequest(
+        tr('isActive doit être un booléen', 'isActive must be a boolean'),
+      );
 
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       select: { id: true },
     });
-    if (!product) throw new NotFoundException('Produit non trouvé');
+    if (!product)
+      throw new NotFoundException(
+        tr('Produit non trouvé', 'Product not found'),
+      );
 
     return this.prisma.product.update({
       where: { id: productId },
@@ -172,7 +213,7 @@ export class AdminService {
 
   async getStockMovements(rawProductId?: string) {
     const productId = rawProductId
-      ? int(rawProductId, 'ID produit', { min: 1 })
+      ? int(rawProductId, tr('ID produit', 'Product ID'), { min: 1 })
       : undefined;
     const movements = await this.prisma.stockMovement.findMany({
       where: productId ? { productId } : undefined,
@@ -204,7 +245,7 @@ export class AdminService {
   // --- COMMANDES ---
 
   async getAllOrders(rawStatus?: string) {
-    const status = oneOf(rawStatus, ORDER_STATUSES, 'Statut');
+    const status = oneOf(rawStatus, ORDER_STATUSES, tr('Statut', 'Status'));
     const orders = await this.prisma.order.findMany({
       where: status ? { status } : undefined,
       orderBy: { createdAt: 'desc' },
@@ -218,20 +259,29 @@ export class AdminService {
       where: { id },
       include: ORDER_INCLUDE,
     });
-    if (!order) throw new NotFoundException('Commande non trouvée');
+    if (!order)
+      throw new NotFoundException(
+        tr('Commande non trouvée', 'Order not found'),
+      );
     return formatOrder(order);
   }
 
   async updateOrderStatus(adminUserId: number, id: number, body: unknown) {
     const b = asRecord(body);
-    const status = oneOf(b.status, ORDER_STATUSES, 'Statut de commande');
+    const status = oneOf(
+      b.status,
+      ORDER_STATUSES,
+      tr('Statut de commande', 'Order status'),
+    );
     const paymentStatus = oneOf(
       b.paymentStatus,
       PAYMENT_STATUSES,
-      'Statut de paiement',
+      tr('Statut de paiement', 'Payment status'),
     );
     if (!status && !paymentStatus)
-      throw badRequest('Aucune modification demandée');
+      throw badRequest(
+        tr('Aucune modification demandée', 'No change requested'),
+      );
 
     const { order, statusChanged } = await this.prisma.$transaction(
       async (tx) => {
@@ -239,7 +289,10 @@ export class AdminService {
           where: { id },
           include: { items: true },
         });
-        if (!current) throw new NotFoundException('Commande non trouvée');
+        if (!current)
+          throw new NotFoundException(
+            tr('Commande non trouvée', 'Order not found'),
+          );
 
         const data: Prisma.OrderUpdateInput = {};
         const now = new Date();

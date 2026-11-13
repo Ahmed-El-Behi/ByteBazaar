@@ -1,18 +1,19 @@
 import { Component } from '@angular/core';
 import { Icon } from '../components/icon';
 import { RouterLink } from '@angular/router';
+import { TPipe } from '../core/i18n';
 
 @Component({
   selector: 'app-about-page',
   standalone: true,
-  imports: [Icon, RouterLink],
+  imports: [Icon, RouterLink, TPipe],
   template: `
     <div class="container page">
       <div class="hero-section">
-        <span class="badge">À propos de ByteBazaar</span>
-        <h1>Le bazar des <span>composants PC</span> en Tunisie</h1>
+        <span class="badge">{{ 'À propos de ByteBazaar' | t }}</span>
+        <h1>{{ 'Le bazar des' | t }} <span>{{ 'composants PC' | t }}</span> {{ 'en Tunisie' | t }}</h1>
         <p class="subtitle muted">
-          ByteBazaar est né avec une mission simple : proposer le meilleur des composants high-tech au prix le plus juste en Tunisie, avec une transparence totale sur les prix et la compatibilité.
+          {{ 'ByteBazaar est né avec une mission simple : proposer le meilleur des composants high-tech au prix le plus juste en Tunisie, avec une transparence totale sur les prix et la compatibilité.' | t }}
         </p>
       </div>
 
@@ -22,9 +23,9 @@ import { RouterLink } from '@angular/router';
           <div class="feature-icon">
             <app-icon name="award" [size]="22" />
           </div>
-          <h3>Multi-marques & Authentique</h3>
+          <h3>{{ 'Multi-marques & Authentique' | t }}</h3>
           <p class="muted">
-            Nous collaborons directement avec les plus grands constructeurs (Asus, MSI, Corsair, AMD, Intel, NVIDIA) pour vous garantir des produits originaux sous garantie.
+            {{ 'Nous collaborons directement avec les plus grands constructeurs (Asus, MSI, Corsair, AMD, Intel, NVIDIA) pour vous garantir des produits originaux sous garantie.' | t }}
           </p>
         </div>
 
@@ -32,9 +33,9 @@ import { RouterLink } from '@angular/router';
           <div class="feature-icon">
             <app-icon name="wrench" [size]="22" />
           </div>
-          <h3>Configurateur sur mesure</h3>
+          <h3>{{ 'Configurateur sur mesure' | t }}</h3>
           <p class="muted">
-            Notre outil de configuration intelligent vérifie la compatibilité de vos composants en temps réel pour créer la machine de vos rêves sans mauvaise surprise.
+            {{ 'Notre outil de configuration intelligent vérifie la compatibilité de vos composants en temps réel pour créer la machine de vos rêves sans mauvaise surprise.' | t }}
           </p>
         </div>
 
@@ -42,9 +43,9 @@ import { RouterLink } from '@angular/router';
           <div class="feature-icon">
             <app-icon name="truck" [size]="22" />
           </div>
-          <h3>Livraison rapide en Tunisie</h3>
+          <h3>{{ 'Livraison rapide en Tunisie' | t }}</h3>
           <p class="muted">
-            Commandez en toute confiance avec notre système de livraison à domicile partout en Tunisie et le paiement sécurisé à la livraison.
+            {{ 'Commandez en toute confiance avec notre système de livraison à domicile partout en Tunisie et le paiement sécurisé à la livraison.' | t }}
           </p>
         </div>
       </div>
@@ -53,22 +54,22 @@ import { RouterLink } from '@angular/router';
       <div class="card stats-card">
         <div class="stat-item">
           <span class="stat-number">100%</span>
-          <span class="stat-label">Produits garantis</span>
+          <span class="stat-label">{{ 'Produits garantis' | t }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-number">24h</span>
-          <span class="stat-label">Support réactif</span>
+          <span class="stat-label">{{ 'Support réactif' | t }}</span>
         </div>
         <div class="stat-item">
           <span class="stat-number">TND</span>
-          <span class="stat-label">Prix transparents</span>
+          <span class="stat-label">{{ 'Prix transparents' | t }}</span>
         </div>
       </div>
 
       <!-- CTA BOX -->
       <div class="card cta-box">
-        <h2>Prêt à assembler votre prochain PC ?</h2>
-        <a routerLink="/produits" class="btn primary">Découvrir le catalogue</a>
+        <h2>{{ 'Prêt à assembler votre prochain PC ?' | t }}</h2>
+        <a routerLink="/produits" class="btn primary">{{ 'Découvrir le catalogue' | t }}</a>
       </div>
     </div>
   `,

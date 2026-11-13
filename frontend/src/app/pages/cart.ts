@@ -5,13 +5,14 @@ import { AuthService } from '../core/auth-service';
 import { CartStateService } from '../core/cart.service';
 import { SHIPPING_FEE } from '../core/models';
 import { TndPipe } from '../core/tnd.pipe';
+import { ProductNamePipe, TPipe } from '../core/i18n';
 
 @Component({
   selector: 'app-cart-page',
-  imports: [Icon, RouterLink, TndPipe],
+  imports: [Icon, RouterLink, TndPipe, TPipe, ProductNamePipe],
   template: `
     <div class="container page">
-      <h2>Mon Panier</h2>
+      <h2>{{ 'Mon Panier' | t }}</h2>
 
       @if (cartState.cart(); as c) {
         @if (c.items.length) {
@@ -24,7 +25,7 @@ import { TndPipe } from '../core/tnd.pipe';
                     @if (item.product.image?.url) {
                       <img
                         [src]="item.product.image?.url"
-                        [alt]="item.product.image?.altText || item.product.name"
+                        [alt]="(item.product.image?.altText || item.product.name) | productName"
                         class="product-thumb"
                       />
                     } @else {
@@ -32,8 +33,8 @@ import { TndPipe } from '../core/tnd.pipe';
                     }
 
                     <div class="item-details">
-                      <h4>{{ item.product.name }}</h4>
-                      <span class="muted">{{ item.unitPrice | tnd }} l'unité</span>
+                      <h4>{{ item.product.name | productName }}</h4>
+                      <span class="muted">{{ "{price} l'unité" | t: { price: (item.unitPrice | tnd) } }}</span>
                     </div>
                   </div>
 
@@ -45,43 +46,43 @@ import { TndPipe } from '../core/tnd.pipe';
 
                   <div class="item-total">
                     <strong>{{ item.lineTotal | tnd }}</strong>
-                    <button class="btn-del" (click)="removeItem(item.id)" aria-label="Retirer l'article" title="Retirer"><app-icon name="trash" [size]="17" /></button>
+                    <button class="btn-del" (click)="removeItem(item.id)" [attr.aria-label]="&quot;Retirer l'article&quot; | t" [title]="'Retirer' | t"><app-icon name="trash" [size]="17" /></button>
                   </div>
                 </div>
               }
             </div>
 
             <div class="card summary">
-              <h3>Récapitulatif</h3>
+              <h3>{{ 'Récapitulatif' | t }}</h3>
               <div class="sum-row">
-                <span>Sous-total</span>
+                <span>{{ 'Sous-total' | t }}</span>
                 <strong>{{ c.total | tnd }}</strong>
               </div>
               <div class="sum-row">
-                <span>Frais de livraison</span>
+                <span>{{ 'Frais de livraison' | t }}</span>
                 <span>{{ shipping | tnd }}</span>
               </div>
               <hr class="divider" />
               <div class="sum-row total">
-                <span>Total</span>
+                <span>{{ 'Total' | t }}</span>
                 <strong>{{ (c.total + shipping) | tnd }}</strong>
               </div>
               @if (auth.isLoggedIn()) {
-                <a routerLink="/checkout" class="btn primary full">Passer la commande</a>
+                <a routerLink="/checkout" class="btn primary full">{{ 'Passer la commande' | t }}</a>
               } @else {
-                <a routerLink="/connexion" [queryParams]="{ redirect: '/checkout' }" class="btn primary full">Se connecter pour commander</a>
-                <p class="muted note">Ton panier est conservé : tu le retrouveras après connexion.</p>
+                <a routerLink="/connexion" [queryParams]="{ redirect: '/checkout' }" class="btn primary full">{{ 'Se connecter pour commander' | t }}</a>
+                <p class="muted note">{{ 'Ton panier est conservé : tu le retrouveras après connexion.' | t }}</p>
               }
             </div>
           </div>
         } @else {
           <div class="card empty">
-            <p>Votre panier est vide.</p>
-            <a routerLink="/produits" class="btn primary">Découvrir nos produits</a>
+            <p>{{ 'Votre panier est vide.' | t }}</p>
+            <a routerLink="/produits" class="btn primary">{{ 'Découvrir nos produits' | t }}</a>
           </div>
         }
       } @else {
-        <p class="muted">Chargement du panier...</p>
+        <p class="muted">{{ 'Chargement du panier...' | t }}</p>
       }
     </div>
   `,

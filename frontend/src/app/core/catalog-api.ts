@@ -18,6 +18,11 @@ export class CatalogApi {
     return this.http.get<Paginated<ProductListItem>>(`${API_URL}/products`, { params: query });
   }
 
+  /** 3 produits phares pour la vitrine de l'accueil (différents à chaque appel) */
+  showcase() {
+    return this.http.get<ProductListItem[]>(`${API_URL}/products/showcase`);
+  }
+
   product(slug: string) {
     return this.http.get<ProductDetail>(`${API_URL}/products/${encodeURIComponent(slug)}`);
   }

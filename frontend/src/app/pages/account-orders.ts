@@ -6,17 +6,18 @@ import { AuthService } from '../core/auth-service';
 import { OrdersApiService, type CustomerOrder, type OrderStatus } from '../core/orders-api';
 import { TndPipe } from '../core/tnd.pipe';
 import { apiErrors } from '../core/utils';
+import { ProductNamePipe, TPipe } from '../core/i18n';
 
 @Component({
   standalone: true,
   selector: 'app-account-orders',
-  imports: [Icon, CommonModule, TndPipe],
+  imports: [Icon, CommonModule, TndPipe, TPipe, ProductNamePipe],
   template: `
     <div class="orders-section">
       <div class="card orders-card">
         <div class="orders-card-header">
-          <h3>Mes commandes</h3>
-          <button class="btn-refresh" (click)="loadOrders()" title="Actualiser les commandes" type="button">
+          <h3>{{ 'Mes commandes' | t }}</h3>
+          <button class="btn-refresh" (click)="loadOrders()" [title]="'Actualiser les commandes' | t" type="button">
             <app-icon name="refresh" [size]="16" />
           </button>
         </div>
@@ -26,9 +27,9 @@ import { apiErrors } from '../core/utils';
         }
 
         @if (loadingOrders()) {
-          <p class="muted" style="padding-block: 0.5rem;">Chargement de vos commandes...</p>
+          <p class="muted" style="padding-block: 0.5rem;">{{ 'Chargement de vos commandes...' | t }}</p>
         } @else if (orders().length === 0) {
-          <p class="muted" style="padding-block: 0.5rem;">Vous n'avez pas encore passé de commande.</p>
+          <p class="muted" style="padding-block: 0.5rem;">{{ "Vous n'avez pas encore passé de commande." | t }}</p>
         } @else {
           <div class="orders-list">
             @for (order of orders(); track order.id) {
@@ -36,12 +37,12 @@ import { apiErrors } from '../core/utils';
                 
                 <div class="order-item-header" (click)="toggleOrder(order.id)">
                   <div class="order-main">
-                    <span class="ref">Réf: <strong>{{ order.reference }}</strong></span>
+                    <span class="ref">{{ 'Réf:' | t }} <strong>{{ order.reference }}</strong></span>
                     <span class="date">{{ order.createdAt | date:'dd/MM/yyyy HH:mm' }}</span>
                   </div>
                   <div class="order-meta">
                     <span class="badge-status" [ngClass]="getStatusBadgeClass(order.status)">
-                      {{ getStatusLabel(order.status) }}
+                      {{ getStatusLabel(order.status) | t }}
                     </span>
                     <strong class="total-price">{{ order.total | tnd }}</strong>
                     <button class="chevron-btn" [class.open]="expandedOrderId() === order.id" type="button">
@@ -52,30 +53,30 @@ import { apiErrors } from '../core/utils';
 
                 <div class="progress-box">
                   @if (order.status === 'CANCELLED') {
-                    <div class="cancelled-banner">Commande annulée</div>
+                    <div class="cancelled-banner">{{ 'Commande annulée' | t }}</div>
                   } @else {
                     <div class="stepper" [ngClass]="getStepperThemeClass(order.status)">
                       <div class="step" [class.completed]="isStepReached(order.status, 'PENDING')">
                         <div class="circle">1</div>
-                        <span class="step-label">Reçue</span>
+                        <span class="step-label">{{ 'Reçue' | t }}</span>
                       </div>
                       <div class="line" [class.completed]="isStepReached(order.status, 'CONFIRMED')"></div>
 
                       <div class="step" [class.completed]="isStepReached(order.status, 'CONFIRMED')">
                         <div class="circle">2</div>
-                        <span class="step-label">Confirmée</span>
+                        <span class="step-label">{{ 'Confirmée' | t }}</span>
                       </div>
                       <div class="line" [class.completed]="isStepReached(order.status, 'SHIPPED')"></div>
 
                       <div class="step" [class.completed]="isStepReached(order.status, 'SHIPPED')">
                         <div class="circle">3</div>
-                        <span class="step-label">Expédiée</span>
+                        <span class="step-label">{{ 'Expédiée' | t }}</span>
                       </div>
                       <div class="line" [class.completed]="isStepReached(order.status, 'DELIVERED')"></div>
 
                       <div class="step" [class.completed]="isStepReached(order.status, 'DELIVERED')">
                         <div class="circle">4</div>
-                        <span class="step-label">Livrée</span>
+                        <span class="step-label">{{ 'Livrée' | t }}</span>
                       </div>
                     </div>
                   }
@@ -84,22 +85,22 @@ import { apiErrors } from '../core/utils';
                 @if (expandedOrderId() === order.id) {
                   <div class="order-details-pane">
                     <hr class="divider" />
-                    <h4 style="margin: 0 0 0.6rem 0;">Articles</h4>
+                    <h4 style="margin: 0 0 0.6rem 0;">{{ 'Articles' | t }}</h4>
                     <ul class="items-list">
                       @for (item of order.items; track item.id) {
                         <li>
                           <div>
-                            <strong>{{ item.productName }}</strong>
-                            <br><small class="muted">SKU: {{ item.productSku }} · Qté: {{ item.quantity }}</small>
+                            <strong>{{ item.productName | productName }}</strong>
+                            <br><small class="muted">{{ 'SKU : {sku} · Qté : {qty}' | t: { sku: item.productSku, qty: item.quantity } }}</small>
                           </div>
                           <span class="item-total">{{ item.lineTotal | tnd }}</span>
                         </li>
                       }
                     </ul>
                     <div class="financials">
-                      <p>Sous-total: <span>{{ order.subtotal | tnd }}</span></p>
-                      <p>Livraison: <span>{{ order.shippingFee | tnd }}</span></p>
-                      <p class="final-total">Total TTC: <strong>{{ order.total | tnd }}</strong></p>
+                      <p>{{ 'Sous-total :' | t }} <span>{{ order.subtotal | tnd }}</span></p>
+                      <p>{{ 'Livraison :' | t }} <span>{{ order.shippingFee | tnd }}</span></p>
+                      <p class="final-total">{{ 'Total TTC :' | t }} <strong>{{ order.total | tnd }}</strong></p>
                     </div>
                   </div>
                 }
@@ -247,7 +248,9 @@ export class AccountOrdersPage implements OnInit {
     }
   }
 
+  /** Libellé du statut en français (traduit à l'affichage) */
   getStatusLabel(status: OrderStatus): string {
+    // i18n
     switch (status) {
       case 'PENDING': return 'En attente';
       case 'CONFIRMED': return 'Confirmée';
@@ -257,6 +260,7 @@ export class AccountOrdersPage implements OnInit {
       case 'CANCELLED': return 'Annulée';
       default: return status;
     }
+    // /i18n
   }
 
   getStatusBadgeClass(status: OrderStatus): string {

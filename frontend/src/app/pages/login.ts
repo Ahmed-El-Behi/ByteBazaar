@@ -3,16 +3,17 @@ import { Icon } from '../components/icon';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth-service';
 import { apiErrors, safeRedirect } from '../core/utils';
+import { TPipe, translate } from '../core/i18n';
 
 @Component({
   selector: 'app-login',
-  imports: [Icon, RouterLink],
+  imports: [Icon, RouterLink, TPipe],
   template: `
     <div class="card auth-card">
       @if (!forgotMode()) {
         <!-- FORMULAIRE DE CONNEXION -->
-        <h1>Connexion</h1>
-        <p class="muted">Retrouve ton compte ByteBazaar.</p>
+        <h1>{{ 'Connexion' | t }}</h1>
+        <p class="muted">{{ 'Retrouve ton compte ByteBazaar.' | t }}</p>
 
         @if (errors().length) {
           <div class="alert">
@@ -22,14 +23,14 @@ import { apiErrors, safeRedirect } from '../core/utils';
 
         <form (submit)="submit($event, email.value, password.value)">
           <div class="field">
-            <label for="email">Email</label>
+            <label for="email">{{ 'Email' | t }}</label>
             <input #email id="email" type="email" required autocomplete="email" />
           </div>
           <div class="field">
             <div class="field-header">
-              <label for="password">Mot de passe</label>
+              <label for="password">{{ 'Mot de passe' | t }}</label>
               <button type="button" class="link-btn" (click)="toggleForgotMode(true)">
-                Mot de passe oublié ?
+                {{ 'Mot de passe oublié ?' | t }}
               </button>
             </div>
             
@@ -45,7 +46,7 @@ import { apiErrors, safeRedirect } from '../core/utils';
                 type="button"
                 class="eye-btn"
                 (click)="showPassword.set(!showPassword())"
-                aria-label="Afficher/Masquer le mot de passe"
+                [attr.aria-label]="'Afficher/Masquer le mot de passe' | t"
               >
                 @if (showPassword()) {
                   <app-icon name="eyeOff" [size]="18" />
@@ -56,15 +57,15 @@ import { apiErrors, safeRedirect } from '../core/utils';
             </div>
           </div>
           <button class="btn primary block" type="submit" [disabled]="busy()">
-            {{ busy() ? 'Connexion…' : 'Se connecter' }}
+            {{ (busy() ? 'Connexion…' : 'Se connecter') | t }}
           </button>
         </form>
 
-        <p class="muted switch">Pas encore de compte ? <a routerLink="/inscription" class="create-account-link">Créer un compte</a></p>
+        <p class="muted switch">{{ 'Pas encore de compte ?' | t }} <a routerLink="/inscription" class="create-account-link">{{ 'Créer un compte' | t }}</a></p>
       } @else {
         <!-- FORMULAIRE MOT DE PASSE OUBLIÉ -->
-        <h1>Mot de passe oublié</h1>
-        <p class="muted">Saisis ton adresse email pour recevoir un lien de réinitialisation.</p>
+        <h1>{{ 'Mot de passe oublié' | t }}</h1>
+        <p class="muted">{{ 'Saisis ton adresse email pour recevoir un lien de réinitialisation.' | t }}</p>
 
         @if (errors().length) {
           <div class="alert">
@@ -79,18 +80,18 @@ import { apiErrors, safeRedirect } from '../core/utils';
         } @else {
           <form (submit)="submitForgot($event, forgotEmail.value)">
             <div class="field">
-              <label for="forgotEmail">Email</label>
-              <input #forgotEmail id="forgotEmail" type="email" required autocomplete="email" placeholder="exemple@email.tn" />
+              <label for="forgotEmail">{{ 'Email' | t }}</label>
+              <input #forgotEmail id="forgotEmail" type="email" required autocomplete="email" [placeholder]="'exemple@email.tn' | t" />
             </div>
             <button class="btn primary block" type="submit" [disabled]="busy()">
-              {{ busy() ? 'Envoi en cours…' : 'Envoyer le lien de réinitialisation' }}
+              {{ (busy() ? 'Envoi en cours…' : 'Envoyer le lien de réinitialisation') | t }}
             </button>
           </form>
         }
 
         <p class="muted switch">
           <button type="button" class="link-btn" (click)="toggleForgotMode(false)">
-            <app-icon name="arrowLeft" [size]="16" /> Retour à la connexion
+            <app-icon name="arrowLeft" [size]="16" /> {{ 'Retour à la connexion' | t }}
           </button>
         </p>
       }
@@ -210,7 +211,7 @@ export class LoginPage {
       next: (res: any) => {
         this.busy.set(false);
         this.successMessage.set(
-          res?.message || 'Un email contenant le lien de réinitialisation vous a été envoyé.'
+          res?.message || translate('Un email contenant le lien de réinitialisation vous a été envoyé.')
         );
       },
       error: (e) => {

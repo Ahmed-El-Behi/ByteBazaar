@@ -66,6 +66,8 @@ export interface Order {
   }[];
 }
 
+// Libellés en français, traduits à l'affichage (pipe « t »)
+// i18n
 export const PAYMENT_LABELS: Record<string, string> = {
   CASH_ON_DELIVERY: 'Paiement à la livraison',
   CARD: 'Carte bancaire',
@@ -81,6 +83,7 @@ export const STATUS_LABELS: Record<string, string> = {
   DELIVERED: 'Livrée',
   CANCELLED: 'Annulée',
 };
+// /i18n
 
 const DELETED_ADDR_KEY = 'bytebazaar_deleted_addresses';
 const DEFAULT_ADDR_KEY = 'bytebazaar_default_address_id';

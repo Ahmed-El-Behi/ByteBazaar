@@ -1,7 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { relevanceOrder } from './relevance';
+import { tr } from '../common/i18n';
 
 export type ProductQuery = Record<string, string | undefined>;
 
@@ -14,6 +17,42 @@ const SORTS = new Map<string, Prisma.ProductOrderByWithRelationInput[]>([
 const DEFAULT_SORT = 'relevance';
 
 const RAM_TYPES = ['DDR4', 'DDR5'] as const;
+
+/**
+ * Vitrine de l'accueil : catégories mises en avant et leur poids dans le tirage.
+ * Les produits candidats (les plus appréciés, avec une belle photo) sont listés par
+ * scripts/build_showcase.py dans data/showcase.json.
+ */
+const SHOWCASE_WEIGHTS: Record<string, number> = {
+  'cartes-graphiques': 8,
+  ecrans: 8,
+  claviers: 6,
+  processeurs: 6,
+  'memoire-ram': 6,
+  souris: 1,
+  casques: 1,
+  boitiers: 1,
+  'cartes-meres': 1,
+  refroidissement: 1,
+};
+const SHOWCASE_FILE = resolve(process.cwd(), 'data', 'showcase.json');
+
+/** Tire `count` éléments distincts, chacun avec une probabilité proportionnelle à son poids. */
+function weightedSample<T>(
+  items: T[],
+  weight: (item: T) => number,
+  count: number,
+): T[] {
+  const pool = [...items];
+  const picked: T[] = [];
+  while (picked.length < count && pool.length) {
+    const total = pool.reduce((sum, item) => sum + weight(item), 0);
+    let r = Math.random() * total;
+    const index = pool.findIndex((item) => (r -= weight(item)) < 0);
+    picked.push(...pool.splice(index === -1 ? pool.length - 1 : index, 1));
+  }
+  return picked;
+}
 
 const LIST_SELECT = {
   id: true,
@@ -68,7 +107,64 @@ function describeTechnical(kind: string, row: object) {
 
 @Injectable()
 export class CatalogService {
+  private readonly logger = new Logger(CatalogService.name);
+  private showcaseSkus?: Record<string, string[]>;
+
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Trois produits pour la vitrine de l'accueil, différents à chaque appel : trois catégories
+   * tirées au sort (cartes graphiques, écrans, claviers, processeurs et RAM en priorité),
+   * puis un produit au hasard dans chacune, parmi les favoris en stock.
+   */
+  async showcase() {
+    const skus = this.loadShowcase();
+    const rows = await this.prisma.product.findMany({
+      where: {
+        sku: { in: Object.values(skus).flat() },
+        isActive: true,
+        stockQuantity: { gt: 0 },
+        images: { some: {} },
+      },
+      select: LIST_SELECT,
+    });
+
+    const byCategory = new Map<string, ListRow[]>();
+    for (const row of rows) {
+      const list = byCategory.get(row.category.slug) ?? [];
+      list.push(row);
+      byCategory.set(row.category.slug, list);
+    }
+    const categories = weightedSample(
+      [...byCategory.keys()],
+      (slug) => SHOWCASE_WEIGHTS[slug] ?? 1,
+      3,
+    );
+    return categories.map((slug) => {
+      const list = byCategory.get(slug)!;
+      return this.toListItem(list[Math.floor(Math.random() * list.length)]);
+    });
+  }
+
+  private loadShowcase(): Record<string, string[]> {
+    if (this.showcaseSkus) return this.showcaseSkus;
+    let data: Record<string, string[]> = {};
+    if (existsSync(SHOWCASE_FILE)) {
+      data = JSON.parse(readFileSync(SHOWCASE_FILE, 'utf8')) as Record<
+        string,
+        string[]
+      >;
+    } else {
+      this.logger.warn(
+        `${SHOWCASE_FILE} absent : lancez scripts/build_showcase.py`,
+      );
+    }
+    // Seules les catégories mises en avant sont retenues (jamais de webcams ni d'enceintes)
+    this.showcaseSkus = Object.fromEntries(
+      Object.entries(data).filter(([slug]) => slug in SHOWCASE_WEIGHTS),
+    );
+    return this.showcaseSkus;
+  }
 
   // Seules les catégories qui contiennent des produits en vente sont renvoyées
   async listCategories() {
@@ -257,7 +353,10 @@ export class CatalogService {
         webcam: true,
       },
     });
-    if (!product) throw new NotFoundException(`Produit introuvable : ${slug}`);
+    if (!product)
+      throw new NotFoundException(
+        tr(`Produit introuvable : ${slug}`, `Product not found: ${slug}`),
+      );
 
     const {
       cpu,

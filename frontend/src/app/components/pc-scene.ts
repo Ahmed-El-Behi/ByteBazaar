@@ -21,6 +21,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { PC_SLOTS, type Slot } from '../core/configurator-api';
 import { DESK_TARGET } from './desk-model';
 import { Icon } from './icon';
+import { ProductNamePipe, TPipe } from '../core/i18n';
 import { PcModel, type HoverTarget, type SceneMode, type Selection } from './pc-model';
 
 /** Cadrage de chaque vue : point visé, position de départ et limites de la caméra */
@@ -50,6 +51,15 @@ const VIEWS: Record<
   },
 };
 const IDLE_MS = 5000;
+const QUALITY_KEY = 'bytebazaar_configurator_quality';
+
+function readLowGraphics() {
+  try {
+    return localStorage.getItem(QUALITY_KEY) === 'low';
+  } catch {
+    return false;
+  }
+}
 const ZOOM_SECONDS = 1.1;
 
 /**
@@ -59,14 +69,14 @@ const ZOOM_SECONDS = 1.1;
  *  - intérieur du PC : chaque pièce s'illumine au survol et se choisit d'un clic.
  */
 @Component({
-  imports: [Icon],
+  imports: [Icon, TPipe, ProductNamePipe],
   selector: 'app-pc-scene',
   template: `
     <div class="scene" #host>
       <canvas
         #canvas
         role="img"
-        aria-label="Vue 3D du poste : cliquez sur le PC pour en choisir les pièces, ou sur un périphérique pour le choisir. La liste des emplacements sous la vue offre les mêmes actions au clavier."
+        [attr.aria-label]="'Vue 3D du poste : cliquez sur le PC pour en choisir les pièces, ou sur un périphérique pour le choisir. La liste des emplacements sous la vue offre les mêmes actions au clavier.' | t"
         (pointermove)="onPointerMove($event)"
         (pointerleave)="onPointerLeave()"
         (pointerdown)="onPointerDown($event)"
@@ -74,45 +84,56 @@ const ZOOM_SECONDS = 1.1;
       ></canvas>
 
       @if (webglFailed()) {
-        <div class="fallback">La vue 3D n'est pas disponible sur cet appareil : utilisez la liste des emplacements ci-dessous.</div>
+        <div class="fallback">{{ "La vue 3D n'est pas disponible sur cet appareil : utilisez la liste des emplacements ci-dessous." | t }}</div>
       }
 
       <div class="tip" #tip [hidden]="!tipTarget()">
         @if (tipTarget() === 'pc') {
-          <span class="tip-slot">Votre PC</span>
-          <strong class="tip-name">{{ pcSummary().count }} / {{ pcSlotCount }} pièces choisies</strong>
+          <span class="tip-slot">{{ 'Votre PC' | t }}</span>
+          <strong class="tip-name">{{ '{count} / {total} pièces choisies' | t: { count: pcSummary().count, total: pcSlotCount } }}</strong>
           @if (pcSummary().total > 0) {
             <span class="tip-meta">{{ pcSummary().total }} TND</span>
           }
-          <span class="tip-hint">Cliquer pour ouvrir le PC et choisir ses pièces</span>
+          <span class="tip-hint">{{ 'Cliquer pour ouvrir le PC et choisir ses pièces' | t }}</span>
         } @else if (tipSlot(); as slot) {
-          <span class="tip-slot">{{ labels()[slot] }}</span>
+          <span class="tip-slot">{{ labels()[slot] | t }}</span>
           @if (selection()[slot]; as part) {
-            <strong class="tip-name">{{ part.name }}</strong>
+            <strong class="tip-name">{{ part.name | productName }}</strong>
             <span class="tip-meta">{{ part.price }} TND · {{ part.highlights.join(' · ') }}</span>
-            <span class="tip-hint">Cliquer pour changer</span>
+            <span class="tip-hint">{{ 'Cliquer pour changer' | t }}</span>
           } @else {
-            <strong class="tip-name">Emplacement libre</strong>
-            <span class="tip-hint">Cliquer pour choisir</span>
+            <strong class="tip-name">{{ 'Emplacement libre' | t }}</strong>
+            <span class="tip-hint">{{ 'Cliquer pour choisir' | t }}</span>
           }
         }
       </div>
 
       @if (mode() === 'pc') {
-        <button type="button" class="back" (click)="setMode('desk')" title="Revenir au poste complet (Échap)">
-          <app-icon name="arrowLeft" [size]="16" [stroke]="2" /> Vue d'ensemble
+        <button type="button" class="back" (click)="setMode('desk')" [title]="'Revenir au poste complet (Échap)' | t">
+          <app-icon name="arrowLeft" [size]="16" [stroke]="2" /> {{ "Vue d'ensemble" | t }}
         </button>
       }
 
       <div class="hud">
         <span class="hint">
           @if (mode() === 'desk') {
-            Cliquez sur le PC pour choisir ses pièces · survolez un périphérique pour le choisir · glissez pour tourner
+            {{ 'Cliquez sur le PC pour choisir ses pièces · survolez un périphérique pour le choisir · glissez pour tourner' | t }}
           } @else {
-            Survolez une pièce · cliquez pour la choisir · glissez pour tourner · Échap pour revenir
+            {{ 'Survolez une pièce · cliquez pour la choisir · glissez pour tourner · Échap pour revenir' | t }}
           }
         </span>
-        <button type="button" class="reset-view" (click)="resetView()" title="Recentrer la vue" aria-label="Recentrer la vue">
+        <button
+          type="button"
+          class="quality"
+          [class.on]="lowGraphics()"
+          (click)="toggleLowGraphics()"
+          [attr.aria-pressed]="lowGraphics()"
+          [title]="(lowGraphics() ? 'Réactiver les effets (RGB, ventilateurs, ombres)' : 'Mode performance : couper le RGB, les animations et les effets') | t"
+        >
+          <app-icon [name]="lowGraphics() ? 'sparkles' : 'gauge'" [size]="15" />
+          {{ (lowGraphics() ? 'Effets' : 'Performance') | t }}
+        </button>
+        <button type="button" class="reset-view" (click)="resetView()" [title]="'Recentrer la vue' | t" [attr.aria-label]="'Recentrer la vue' | t">
           <app-icon name="reset" [size]="16" />
         </button>
       </div>
@@ -154,6 +175,12 @@ const ZOOM_SECONDS = 1.1;
       border: 1px solid var(--border, #1e293b); background: var(--surface, #0d1117); color: var(--text, #fff);
     }
     .reset-view:hover { border-color: var(--accent); color: var(--accent); }
+    .quality {
+      pointer-events: auto; margin-left: auto; flex-shrink: 0; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.35rem;
+      height: 34px; padding: 0 0.8rem; border-radius: 999px; border: 1px solid var(--border, #1e293b);
+      background: var(--surface, #0d1117); color: var(--text, #fff); font-size: var(--fs-xs); font-weight: 700;
+    }
+    .quality:hover, .quality.on { border-color: var(--accent); color: var(--accent); }
     @media (max-width: 700px) { .scene { height: 440px; } .hint { display: none; } }
   `,
 })
@@ -168,6 +195,9 @@ export class PcScene {
 
   readonly webglFailed = signal(false);
   readonly mode = signal<SceneMode>('desk');
+  /** Mode performance : graphismes allégés (choix mémorisé dans le navigateur) */
+  readonly lowGraphics = signal(readLowGraphics());
+  private applyQuality?: (low: boolean) => void;
   private readonly pointerTarget = signal<HoverTarget | null>(null);
   private readonly transitioning = signal(false);
 
@@ -235,6 +265,17 @@ export class PcScene {
     this.mode.set(mode);
     this.setPointerTarget(null);
     this.flyTo(mode);
+  }
+
+  toggleLowGraphics() {
+    const low = !this.lowGraphics();
+    this.lowGraphics.set(low);
+    try {
+      localStorage.setItem(QUALITY_KEY, low ? 'low' : 'high');
+    } catch {
+      /* stockage indisponible : le choix vaut pour la session */
+    }
+    this.applyQuality?.(low);
   }
 
   resetView() {
@@ -430,6 +471,18 @@ export class PcScene {
     scene.add(model.root);
     this.model = model;
 
+    // Mode performance : ni halo (bloom), ni ombres, résolution 1x, LED et ventilateurs à l'arrêt
+    let low = false;
+    this.applyQuality = (on: boolean) => {
+      low = on;
+      model.setLowGraphics(on);
+      key.castShadow = !on;
+      const ratio = on ? 1 : pixelRatio;
+      renderer.setPixelRatio(ratio);
+      composer.setPixelRatio(ratio);
+      resize();
+    };
+
     const controls = (this.controls = new OrbitControls(camera, canvas));
     controls.enableDamping = true;
     controls.enablePan = false;
@@ -455,7 +508,7 @@ export class PcScene {
     };
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(host);
-    resize();
+    this.applyQuality(this.lowGraphics());
 
     // Couleur d'accent du thème (claire / sombre)
     const themeObserver = new MutationObserver(() => {
@@ -485,7 +538,7 @@ export class PcScene {
 
       if (this.flight) this.stepFlight(dt);
       // Balancement lent de la caméra quand personne n'interagit
-      else if (!this.reducedMotion && !this.tipTarget() && now - this.lastInteraction > IDLE_MS) {
+      else if (!low && !this.reducedMotion && !this.tipTarget() && now - this.lastInteraction > IDLE_MS) {
         const [min, max] = VIEWS[this.mode()].sway;
         const spherical = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
         if (spherical.theta > max) this.swayDirection = -1;
@@ -496,7 +549,8 @@ export class PcScene {
 
       controls.update();
       model.update(dt, now / 1000, this.reducedMotion);
-      composer.render();
+      if (low) renderer.render(scene, camera);
+      else composer.render();
 
       // Info-bulle accrochée au-dessus de l'élément survolé
       const target = this.tipTarget();
@@ -526,6 +580,7 @@ export class PcScene {
       background?.dispose();
       renderer.dispose();
       this.model = undefined;
+      this.applyQuality = undefined;
     };
   }
 

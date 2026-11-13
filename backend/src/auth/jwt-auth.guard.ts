@@ -7,6 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
+import { tr } from '../common/i18n';
 
 export type RoleName = 'CUSTOMER' | 'ADMIN';
 export interface AuthUser {
@@ -32,17 +33,23 @@ export class JwtAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<AuthedRequest>();
     const [type, token] = (request.headers.authorization ?? '').split(' ');
     if (type !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Connexion requise');
+      throw new UnauthorizedException(
+        tr('Connexion requise', 'Login required'),
+      );
     }
 
     let payload: SessionPayload;
     try {
       payload = await this.jwt.verifyAsync<SessionPayload>(token);
     } catch {
-      throw new UnauthorizedException('Session invalide ou expirée');
+      throw new UnauthorizedException(
+        tr('Session invalide ou expirée', 'Invalid or expired session'),
+      );
     }
     if (payload.purpose)
-      throw new UnauthorizedException('Session invalide ou expirée');
+      throw new UnauthorizedException(
+        tr('Session invalide ou expirée', 'Invalid or expired session'),
+      );
 
     // Le rôle est relu en base : une promotion / rétrogradation s'applique immédiatement,
     // et un compte supprimé ou dont le mot de passe a changé perd ses anciennes sessions.
@@ -54,7 +61,9 @@ export class JwtAuthGuard implements CanActivate {
       ? Math.floor(user.passwordChangedAt.getTime() / 1000)
       : 0;
     if (!user || payload.iat < changedAt) {
-      throw new UnauthorizedException('Session invalide ou expirée');
+      throw new UnauthorizedException(
+        tr('Session invalide ou expirée', 'Invalid or expired session'),
+      );
     }
 
     request.user = { id: user.id, role: user.role };

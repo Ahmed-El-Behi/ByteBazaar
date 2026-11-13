@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { tr } from './i18n';
 
 // Petits utilitaires de validation des corps de requête (aucune dépendance externe).
 // Les erreurs renvoyées suivent le format attendu par le frontend : { message: string[] }.
@@ -9,6 +10,14 @@ export function badRequest(...messages: string[]): BadRequestException {
     error: 'Bad Request',
     message: messages,
   });
+}
+
+/** « Quantité invalide » / « Invalid quantity » (le libellé est déjà traduit par l'appelant). */
+function invalid(label: string): string {
+  return tr(
+    `${label} invalide`,
+    `Invalid ${label.charAt(0).toLowerCase()}${label.slice(1)}`,
+  );
 }
 
 export function asRecord(body: unknown): Record<string, unknown> {
@@ -30,7 +39,7 @@ export function int(
   const n =
     typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
   if (typeof n !== 'number' || !Number.isInteger(n) || n < min || n > max) {
-    throw badRequest(`${label} invalide`);
+    throw badRequest(invalid(label));
   }
   return n;
 }
@@ -47,5 +56,5 @@ export function oneOf<T extends string>(
     (allowed as readonly string[]).includes(value)
   )
     return value as T;
-  throw badRequest(`${label} invalide`);
+  throw badRequest(invalid(label));
 }

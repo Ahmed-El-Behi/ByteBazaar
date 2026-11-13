@@ -5,11 +5,12 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth-service';
 import { apiErrors } from '../core/utils';
+import { TPipe, translate } from '../core/i18n';
 
 @Component({
   standalone: true,
   selector: 'app-reset-password',
-  imports: [Icon, CommonModule, FormsModule, RouterLink],
+  imports: [Icon, CommonModule, FormsModule, RouterLink, TPipe],
   template: `
     <div class="reset-wrapper">
       <div class="card reset-card">
@@ -17,8 +18,8 @@ import { apiErrors } from '../core/utils';
           <app-icon name="shield" [size]="28" />
         </div>
 
-        <h2>Nouveau mot de passe</h2>
-        <p class="subtitle">Choisissez un mot de passe d'au moins 8 caractères.</p>
+        <h2>{{ 'Nouveau mot de passe' | t }}</h2>
+        <p class="subtitle">{{ "Choisissez un mot de passe d'au moins 8 caractères." | t }}</p>
 
         @if (errors().length) {
           <div class="alert alert-error">
@@ -30,11 +31,11 @@ import { apiErrors } from '../core/utils';
           <div class="alert alert-success">
             <p>{{ successMessage() }}</p>
           </div>
-          <a routerLink="/connexion" class="btn-submit block-link">Se connecter</a>
+          <a routerLink="/connexion" class="btn-submit block-link">{{ 'Se connecter' | t }}</a>
         } @else {
           <form (ngSubmit)="onSubmit()" class="reset-form">
             <div class="form-group">
-              <label>Nouveau mot de passe</label>
+              <label>{{ 'Nouveau mot de passe' | t }}</label>
               <div class="password-wrapper">
                 <input 
                   [type]="showNewPassword() ? 'text' : 'password'" 
@@ -58,11 +59,11 @@ import { apiErrors } from '../core/utils';
               <div class="strength-bar-container">
                 <div class="strength-bar" [style.width.%]="strengthScore() * 25" [ngClass]="strengthColor()"></div>
               </div>
-              <span class="strength-label" [ngClass]="strengthColor()">{{ strengthText() }}</span>
+              <span class="strength-label" [ngClass]="strengthColor()">{{ strengthText() | t }}</span>
             </div>
 
             <div class="form-group">
-              <label>Confirmer le mot de passe</label>
+              <label>{{ 'Confirmer le mot de passe' | t }}</label>
               <div class="password-wrapper">
                 <input 
                   [type]="showConfirmPassword() ? 'text' : 'password'" 
@@ -83,12 +84,12 @@ import { apiErrors } from '../core/utils';
             </div>
 
             <button type="submit" class="btn-submit" [disabled]="busy() || !token()">
-              {{ busy() ? 'Mise à jour…' : 'Réinitialiser le mot de passe' }}
+              {{ (busy() ? 'Mise à jour…' : 'Réinitialiser le mot de passe') | t }}
             </button>
           </form>
         }
 
-        <a routerLink="/connexion" class="back-link"><app-icon name="arrowLeft" [size]="16" /> Retour à la connexion</a>
+        <a routerLink="/connexion" class="back-link"><app-icon name="arrowLeft" [size]="16" /> {{ 'Retour à la connexion' | t }}</a>
       </div>
     </div>
   `,
@@ -161,7 +162,7 @@ export class ResetPasswordPage implements OnInit {
     if (queryToken) {
       this.token.set(queryToken);
     } else {
-      this.errors.set(['Token de réinitialisation manquant ou invalide dans l\'URL.']);
+      this.errors.set([translate("Token de réinitialisation manquant ou invalide dans l'URL.")]);
     }
   }
 
@@ -182,25 +183,25 @@ export class ResetPasswordPage implements OnInit {
 
     this.strengthScore.set(score);
     if (score <= 2) {
-      this.strengthText.set('Mot de passe faible');
+      this.strengthText.set('Mot de passe faible'); // traduit à l'affichage
       this.strengthColor.set('text-red bg-red');
     } else if (score === 3) {
-      this.strengthText.set('Mot de passe moyen');
+      this.strengthText.set('Mot de passe moyen'); // traduit à l'affichage
       this.strengthColor.set('text-orange bg-orange');
     } else {
-      this.strengthText.set('Mot de passe solide');
+      this.strengthText.set('Mot de passe solide'); // traduit à l'affichage
       this.strengthColor.set('text-green bg-green');
     }
   }
 
   onSubmit() {
     if (this.newPassword !== this.confirmPassword) {
-      this.errors.set(['Les mots de passe ne correspondent pas.']);
+      this.errors.set([translate('Les mots de passe ne correspondent pas.')]);
       return;
     }
 
     if (!this.token()) {
-      this.errors.set(['Le token de réinitialisation est invalide.']);
+      this.errors.set([translate('Le token de réinitialisation est invalide.')]);
       return;
     }
 
@@ -211,7 +212,7 @@ export class ResetPasswordPage implements OnInit {
     this.auth.resetPassword(this.token(), this.newPassword).subscribe({
       next: (res: any) => {
         this.busy.set(false);
-        this.successMessage.set(res?.message || 'Mot de passe réinitialisé avec succès !');
+        this.successMessage.set(res?.message || translate('Mot de passe réinitialisé avec succès !'));
       },
       error: (err) => {
         this.busy.set(false);

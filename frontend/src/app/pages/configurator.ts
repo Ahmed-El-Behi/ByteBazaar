@@ -1,16 +1,18 @@
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Icon } from '../components/icon';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { concat, of, switchMap, toArray } from 'rxjs';
+import { concat, distinctUntilChanged, of, switchMap, toArray } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { AuthService } from '../core/auth-service';
 import { CartStateService } from '../core/cart.service';
 import { BuildCheck, ConfiguratorApi, ConfiguratorPart, Slot } from '../core/configurator-api';
 import { apiErrors } from '../core/utils';
 import { PcScene } from '../components/pc-scene';
+import { I18nService, ProductNamePipe, TPipe, translate } from '../core/i18n';
 
 const STORAGE_KEY = 'bytebazaar_configurator';
 const EMPTY_SELECTION: Record<Slot, ConfiguratorPart | null> = {
@@ -37,17 +39,17 @@ interface StoredBuild {
 @Component({
   standalone: true,
   selector: 'app-configurator',
-  imports: [Icon, CommonModule, FormsModule, PcScene],
+  imports: [Icon, CommonModule, FormsModule, PcScene, TPipe, ProductNamePipe],
   template: `
     <div class="configurator-container">
       <!-- HEADER -->
       <div class="config-header">
         <div>
-          <h1>Configurateur PC</h1>
-          <p class="subtitle">Créez votre configuration sur-mesure pièce par pièce parmi tout notre catalogue en stock.</p>
+          <h1>{{ 'Configurateur PC' | t }}</h1>
+          <p class="subtitle">{{ 'Créez votre configuration sur-mesure pièce par pièce parmi tout notre catalogue en stock.' | t }}</p>
         </div>
         <button class="btn-reset" (click)="resetAll()" [disabled]="selectedCount() === 0">
-          Réinitialiser la configuration
+          {{ 'Réinitialiser la configuration' | t }}
         </button>
       </div>
 
@@ -64,7 +66,7 @@ interface StoredBuild {
 
           <!-- Mêmes actions sans la 3D : clavier, lecteurs d'écran, tactile -->
           @for (group of chipGroups; track group.title) {
-          <h3 class="chips-title">{{ group.title }}</h3>
+          <h3 class="chips-title">{{ group.title | t }}</h3>
           <div class="slot-chips">
             @for (cat of group.slots; track cat.id) {
               @let selected = selectedComponents()[cat.id];
@@ -76,11 +78,11 @@ interface StoredBuild {
                 (mouseleave)="highlightedSlot.set(null)"
               >
                 <button type="button" class="chip-main" (click)="openPicker(cat.id)" (focus)="highlightedSlot.set(cat.id)" (blur)="highlightedSlot.set(null)">
-                  <span class="chip-label">{{ cat.label }}</span>
-                  <span class="chip-value">{{ selected ? selected.name : 'Choisir' }}</span>
+                  <span class="chip-label">{{ cat.label | t }}</span>
+                  <span class="chip-value">{{ selected ? (selected.name | productName) : ('Choisir' | t) }}</span>
                 </button>
                 @if (selected) {
-                  <button type="button" class="chip-remove" (click)="removeComponent(cat.id)" [attr.aria-label]="'Retirer : ' + selected.name" title="Retirer"><app-icon name="close" [size]="15" /></button>
+                  <button type="button" class="chip-remove" (click)="removeComponent(cat.id)" [attr.aria-label]="('Retirer :' | t) + ' ' + (selected.name | productName)" [title]="'Retirer' | t"><app-icon name="close" [size]="15" /></button>
                 }
               </div>
             }
@@ -91,15 +93,15 @@ interface StoredBuild {
         <!-- SECTEUR DROITE : RÉSUMÉ & COMPATIBILITÉ -->
         <div class="summary-column">
           <div class="summary-card">
-            <h2>Votre configuration</h2>
+            <h2>{{ 'Votre configuration' | t }}</h2>
 
             <div class="summary-items">
               @for (cat of categories; track cat.id) {
                 @let selected = selectedComponents()[cat.id];
                 <div class="summary-row" [class.active]="highlightedSlot() === cat.id" (mouseenter)="highlightedSlot.set(cat.id)" (mouseleave)="highlightedSlot.set(null)" (click)="openPicker(cat.id)">
-                  <span class="label">{{ cat.label }}</span>
+                  <span class="label">{{ cat.label | t }}</span>
                   <span class="value" [class.empty]="!selected">
-                    {{ selected ? selected.price + ' TND' : 'Non choisi' }}
+                    {{ selected ? selected.price + ' TND' : ('Non choisi' | t) }}
                   </span>
                 </div>
               }
@@ -108,14 +110,14 @@ interface StoredBuild {
             <div class="divider"></div>
 
             <div class="total-row">
-              <span>Total</span>
+              <span>{{ 'Total' | t }}</span>
               <span class="total-price">{{ totalPrice() }} TND</span>
             </div>
 
             <!-- JAUGE WATTAGE -->
             <div class="wattage-section">
               <div class="wattage-header">
-                <span>Consommation estimée</span>
+                <span>{{ 'Consommation estimée' | t }}</span>
                 <span class="watt-val">{{ totalWatts() }} W / {{ psuCapacity() ? psuCapacity() + ' W' : '—' }}</span>
               </div>
               <div class="wattage-bar-bg">
@@ -139,19 +141,19 @@ interface StoredBuild {
 
             <div class="compat-badge" [class.valid]="isGlobalValid() && selectedCount() > 0">
               @if (selectedCount() === 0) {
-                Commencez par choisir vos composants
+                {{ 'Commencez par choisir vos composants' | t }}
               } @else if (isGlobalValid()) {
-                <app-icon name="checkCircle" [size]="17" /> Configuration cohérente
+                <app-icon name="checkCircle" [size]="17" /> {{ 'Configuration cohérente' | t }}
               } @else {
-                <app-icon name="warning" [size]="17" /> Problème de compatibilité détecté
+                <app-icon name="warning" [size]="17" /> {{ 'Problème de compatibilité détecté' | t }}
               }
             </div>
 
             <button class="btn-primary block" [disabled]="!isGlobalValid() || selectedCount() === 0 || busy()" (click)="addToCart()">
-              Ajouter la config au panier
+              {{ 'Ajouter la config au panier' | t }}
             </button>
             <button class="btn-secondary block" [disabled]="!isGlobalValid() || selectedCount() === 0 || busy()" (click)="openSave()">
-              {{ configId() ? 'Mettre à jour la configuration' : 'Sauvegarder la configuration' }}
+              {{ (configId() ? 'Mettre à jour la configuration' : 'Sauvegarder la configuration') | t }}
             </button>
 
             @if (saveOpen()) {
@@ -162,10 +164,10 @@ interface StoredBuild {
                   (ngModelChange)="configName.set($event)"
                   name="configName"
                   maxlength="80"
-                  placeholder="Nom de la configuration"
+                  [placeholder]="'Nom de la configuration' | t"
                   required
                 />
-                <button type="submit" class="btn-select-item" [disabled]="!configName().trim() || busy()">Enregistrer</button>
+                <button type="submit" class="btn-select-item" [disabled]="!configName().trim() || busy()">{{ 'Enregistrer' | t }}</button>
               </form>
             }
 
@@ -182,13 +184,13 @@ interface StoredBuild {
           <div class="modal-panel" (click)="$event.stopPropagation()">
             <div class="modal-header">
               <div>
-                <h2>Sélectionner : {{ currentCategoryLabel() }}</h2>
+                <h2>{{ 'Sélectionner :' | t }} {{ currentCategoryLabel() | t }}</h2>
                 <p class="modal-sub">
-                  {{ filteredCatalog().length }} article(s) compatible(s) en stock
-                  @if (hiddenCount() > 0) { · {{ hiddenCount() }} masqué(s) car incompatible(s) avec votre sélection }
+                  {{ '{n} article(s) compatible(s) en stock' | t: { n: filteredCatalog().length } }}
+                  @if (hiddenCount() > 0) { · {{ '{n} masqué(s) car incompatible(s) avec votre sélection' | t: { n: hiddenCount() } }} }
                 </p>
               </div>
-              <button class="close-btn" (click)="closePicker()" aria-label="Fermer"><app-icon name="close" [size]="20" /></button>
+              <button class="close-btn" (click)="closePicker()" [attr.aria-label]="'Fermer' | t"><app-icon name="close" [size]="20" /></button>
             </div>
 
             <!-- BARRE DE FILTRES -->
@@ -198,7 +200,7 @@ interface StoredBuild {
                 <input 
                   #searchInput
                   type="text" 
-                  [placeholder]="'Rechercher un ' + currentCategoryLabel().toLowerCase() + '...'" 
+                  [placeholder]="'Rechercher un {cat}...' | t: { cat: (currentCategoryLabel() | t).toLowerCase() }" 
                   [ngModel]="searchQuery()"
                   (ngModelChange)="searchQuery.set($event)"
                   (input)="searchInput.scrollLeft = searchInput.scrollWidth"
@@ -213,7 +215,7 @@ interface StoredBuild {
                   (click)="isSortDropdownOpen.set(!isSortDropdownOpen())"
                   type="button"
                 >
-                  <span>{{ currentSortLabel() }}</span>
+                  <span>{{ currentSortLabel() | t }}</span>
                   <app-icon class="chevron-icon" [class.open]="isSortDropdownOpen()" name="chevronDown" [size]="14" [stroke]="2" />
                 </button>
 
@@ -224,21 +226,21 @@ interface StoredBuild {
                       [class.selected]="sortOrder() === 'price-asc'"
                       (click)="setSort('price-asc')"
                     >
-                      Prix : Croissant
+                      {{ 'Prix : Croissant' | t }}
                     </div>
                     <div 
                       class="dropdown-option" 
                       [class.selected]="sortOrder() === 'price-desc'"
                       (click)="setSort('price-desc')"
                     >
-                      Prix : Décroissant
+                      {{ 'Prix : Décroissant' | t }}
                     </div>
                     <div 
                       class="dropdown-option" 
                       [class.selected]="sortOrder() === 'name'"
                       (click)="setSort('name')"
                     >
-                      Nom (A-Z)
+                      {{ 'Nom (A-Z)' | t }}
                     </div>
                   </div>
                 }
@@ -249,11 +251,11 @@ interface StoredBuild {
               @if (loading()) {
                 <div class="empty-results">
                   <div class="spinner"></div>
-                  <p>Chargement des {{ currentCategoryLabel()?.toLowerCase() }}s...</p>
+                  <p>{{ 'Chargement des {cat}s...' | t: { cat: (currentCategoryLabel() | t).toLowerCase() } }}</p>
                 </div>
               } @else if (filteredCatalog().length === 0) {
                 <div class="empty-results">
-                  <p>Aucun composant compatible en stock pour cette sélection.</p>
+                  <p>{{ 'Aucun composant compatible en stock pour cette sélection.' | t }}</p>
                 </div>
               } @else {
                 <div class="picker-catalog-grid">
@@ -262,9 +264,9 @@ interface StoredBuild {
                     <div class="picker-card" [class.selected]="isCurrent" (click)="selectComponent(item)">
                       <div class="picker-img-wrapper">
                         @if (item.image) {
-                          <img [src]="item.image.url" [alt]="item.image.altText || item.name" (error)="handleImgError($event)" />
+                          <img [src]="item.image.url" [alt]="(item.image.altText || item.name) | productName" (error)="handleImgError($event)" />
                         } @else {
-                          <div class="no-img-box">Sans image</div>
+                          <div class="no-img-box">{{ 'Sans image' | t }}</div>
                         }
                       </div>
 
@@ -272,7 +274,7 @@ interface StoredBuild {
                         <div class="category-brand-sub">
                           {{ item.brand }} · {{ item.highlights.join(' · ') }}
                         </div>
-                        <h4 class="product-title" [title]="item.name">{{ item.name }}</h4>
+                        <h4 class="product-title" [title]="item.name | productName">{{ item.name | productName }}</h4>
                         
                         <div class="card-footer-row">
                           <span class="picker-price">{{ item.price }} TND</span>
@@ -281,7 +283,7 @@ interface StoredBuild {
                             [class.selected]="isCurrent"
                             (click)="$event.stopPropagation(); selectComponent(item)"
                           >
-                            {{ isCurrent ? 'Choisi' : 'Sélectionner' }}
+                            {{ (isCurrent ? 'Choisi' : 'Sélectionner') | t }}
                           </button>
                         </div>
                       </div>
@@ -616,6 +618,8 @@ interface StoredBuild {
   `
 })
 export class ConfiguratorPage {
+  // Libellés en français, traduits à l'affichage (et dans la vue 3D)
+  // i18n
   readonly categories: { id: Slot; label: string; group: 'pc' | 'desk' }[] = [
     { id: 'cpu', label: 'Processeur', group: 'pc' },
     { id: 'cooler', label: 'Refroidissement CPU', group: 'pc' },
@@ -634,6 +638,7 @@ export class ConfiguratorPage {
     { title: 'Unité centrale', slots: this.categories.filter((c) => c.group === 'pc') },
     { title: 'Poste de travail (facultatif)', slots: this.categories.filter((c) => c.group === 'desk') },
   ];
+  // /i18n
 
   readonly slotLabels = Object.fromEntries(this.categories.map((c) => [c.id, c.label])) as Record<Slot, string>;
   /** Emplacement survolé, dans la vue 3D comme dans les listes */
@@ -645,6 +650,7 @@ export class ConfiguratorPage {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
+  private i18n = inject(I18nService);
 
   readonly loading = signal(false);
   readonly busy = signal(false);
@@ -675,10 +681,35 @@ export class ConfiguratorPage {
   constructor() {
     toObservable(this.selectedIds)
       .pipe(
+        distinctUntilChanged((a, b) => a.join() === b.join()),
         switchMap((ids) => (ids.length ? this.api.check(ids).pipe(catchError(() => of(null))) : of(null))),
         takeUntilDestroyed(),
       )
       .subscribe((check) => this.buildCheck.set(check));
+
+    // Changement de langue : bilan de compatibilité et points forts des pièces redemandés à l'API
+    let firstLang = true;
+    effect(() => {
+      this.i18n.lang();
+      if (firstLang) {
+        firstLang = false;
+        return;
+      }
+      untracked(() => {
+        const ids = this.selectedIds();
+        if (!ids.length) return;
+        this.api
+          .check(ids)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: (check) => {
+              this.buildCheck.set(check);
+              this.applyParts(check.parts);
+            },
+            error: () => undefined,
+          });
+      });
+    });
 
     const configId = Number(this.route.snapshot.queryParamMap.get('configId'));
     if (configId > 0 && this.auth.isLoggedIn()) this.loadConfiguration(configId);
@@ -721,6 +752,7 @@ export class ConfiguratorPage {
   }
 
   currentSortLabel = computed(() => {
+    // i18n
     switch (this.sortOrder()) {
       case 'price-desc':
         return 'Prix : Décroissant';
@@ -729,6 +761,7 @@ export class ConfiguratorPage {
       default:
         return 'Prix : Croissant';
     }
+    // /i18n
   });
 
   setSort(order: 'price-asc' | 'price-desc' | 'name') {
@@ -828,7 +861,7 @@ export class ConfiguratorPage {
       this.router.navigate(['/connexion'], { queryParams: { redirect: '/configurateur' } });
       return;
     }
-    if (!this.configName()) this.configName.set('Ma configuration');
+    if (!this.configName()) this.configName.set(translate('Ma configuration'));
     this.saveOpen.set(!this.saveOpen());
   }
 
@@ -846,7 +879,7 @@ export class ConfiguratorPage {
         this.configId.set(saved.id);
         this.configName.set(saved.name);
         this.persistLocal();
-        this.actionMessage.set({ type: 'success', text: `« ${saved.name} » enregistrée dans votre compte.` });
+        this.actionMessage.set({ type: 'success', text: translate('« {name} » enregistrée dans votre compte.', { name: saved.name }) });
       },
       error: (e) => {
         this.busy.set(false);
@@ -867,12 +900,12 @@ export class ConfiguratorPage {
         if (config.unavailable) {
           this.actionMessage.set({
             type: 'error',
-            text: `${config.unavailable} composant(s) de cette configuration ne sont plus en vente et ont été retirés.`,
+            text: translate('{n} composant(s) de cette configuration ne sont plus en vente et ont été retirés.', { n: config.unavailable }),
           });
         }
       },
       error: () => {
-        this.actionMessage.set({ type: 'error', text: 'Configuration introuvable.' });
+        this.actionMessage.set({ type: 'error', text: translate('Configuration introuvable.') });
         this.restoreLocal();
       },
     });
@@ -894,8 +927,11 @@ export class ConfiguratorPage {
       .pipe(map((check) => check.parts))
       .subscribe({
         next: (parts) => this.applyParts(parts),
-        // Composant retiré de la vente entre-temps : on repart d'une configuration vide
-        error: () => this.resetAll(),
+        // Composant retiré de la vente entre-temps (404) : on repart d'une configuration vide.
+        // Serveur injoignable ou en redémarrage : la sélection enregistrée est conservée.
+        error: (e: HttpErrorResponse) => {
+          if (e.status === 404) this.resetAll();
+        },
       });
   }
 

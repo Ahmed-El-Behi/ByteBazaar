@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
+import { tr } from './i18n';
 
 const RATE_LIMIT_KEY = 'rateLimit';
 
@@ -53,7 +54,12 @@ export class RateLimitGuard implements CanActivate {
         {
           statusCode: 429,
           error: 'Too Many Requests',
-          message: [`Trop de tentatives. Réessaie dans ${minutes} min.`],
+          message: [
+            tr(
+              `Trop de tentatives. Réessaie dans ${minutes} min.`,
+              `Too many attempts. Try again in ${minutes} min.`,
+            ),
+          ],
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );

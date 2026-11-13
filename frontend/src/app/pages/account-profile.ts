@@ -6,11 +6,12 @@ import { AuthService } from '../core/auth-service';
 import { CartApi, Address } from '../core/cart-api';
 import { ComponentCanDeactivate } from '../core/pending-changes.guard';
 import { apiErrors } from '../core/utils';
+import { TPipe, translate } from '../core/i18n';
 
 @Component({
   standalone: true,
   selector: 'app-account-profile',
-  imports: [Icon, CommonModule, FormsModule],
+  imports: [Icon, CommonModule, FormsModule, TPipe],
   template: `
     <div class="profile-wrapper">
       <!-- Notifications -->
@@ -26,12 +27,12 @@ import { apiErrors } from '../core/utils';
         <div class="warning-banner">
           <div class="warning-info">
             <app-icon name="info" [size]="18" />
-            <span>Vous avez des modifications non enregistrées.</span>
+            <span>{{ 'Vous avez des modifications non enregistrées.' | t }}</span>
           </div>
           <div class="warning-btns">
-            <button type="button" class="btn-secondary" (click)="cancelChanges()" [disabled]="isSaving()">Annuler</button>
+            <button type="button" class="btn-secondary" (click)="cancelChanges()" [disabled]="isSaving()">{{ 'Annuler' | t }}</button>
             <button type="button" class="btn-primary" (click)="onSaveProfile()" [disabled]="isSaving()">
-              {{ isSaving() ? 'Enregistrement...' : 'Enregistrer' }}
+              {{ (isSaving() ? 'Enregistrement...' : 'Enregistrer') | t }}
             </button>
           </div>
         </div>
@@ -39,38 +40,38 @@ import { apiErrors } from '../core/utils';
 
       <!-- Informations Personnelles -->
       <section class="card">
-        <h2 class="card-title">Informations personnelles</h2>
+        <h2 class="card-title">{{ 'Informations personnelles' | t }}</h2>
 
         <form (ngSubmit)="onSaveProfile()" class="form-layout">
           <div class="grid-2">
             <div class="field">
-              <label>Prénom</label>
+              <label>{{ 'Prénom' | t }}</label>
               <input type="text" [(ngModel)]="userForm.firstName" name="firstName" (ngModelChange)="onFormChange()" class="input-tech" />
             </div>
 
             <div class="field">
-              <label>Nom</label>
+              <label>{{ 'Nom' | t }}</label>
               <input type="text" [(ngModel)]="userForm.lastName" name="lastName" (ngModelChange)="onFormChange()" class="input-tech" />
             </div>
 
             <div class="field">
-              <label>Email (Non modifiable)</label>
+              <label>{{ 'Email (Non modifiable)' | t }}</label>
               <input type="email" [value]="userForm.email" disabled class="input-tech disabled" />
             </div>
 
             <div class="field">
-              <label>Téléphone</label>
+              <label>{{ 'Téléphone' | t }}</label>
               <input type="tel" [(ngModel)]="userForm.phone" name="phone" (ngModelChange)="onFormChange()" class="input-tech" />
             </div>
           </div>
 
           <!-- Section Mot de Passe -->
           <div class="password-box">
-            <h3 class="sub-title">Changer le mot de passe</h3>
+            <h3 class="sub-title">{{ 'Changer le mot de passe' | t }}</h3>
             
             <div class="grid-2">
               <div class="field">
-                <label>Mot de passe actuel</label>
+                <label>{{ 'Mot de passe actuel' | t }}</label>
                 <div class="input-pass-wrapper">
                   <input 
                     [type]="showCurrentPass() ? 'text' : 'password'" 
@@ -87,14 +88,14 @@ import { apiErrors } from '../core/utils';
               </div>
 
               <div class="field">
-                <label>Nouveau mot de passe</label>
+                <label>{{ 'Nouveau mot de passe' | t }}</label>
                 <div class="input-pass-wrapper">
                   <input 
                     [type]="showNewPass() ? 'text' : 'password'" 
                     [(ngModel)]="userForm.newPassword" 
                     name="newPassword"
                     (ngModelChange)="onFormChange()"
-                    placeholder="Au moins 8 caractères"
+                    [placeholder]="'Au moins 8 caractères' | t"
                     class="input-tech"
                   />
                   <button type="button" class="eye-btn" (click)="showNewPass.set(!showNewPass())">
@@ -107,7 +108,7 @@ import { apiErrors } from '../core/utils';
 
           <div class="form-footer">
             <button type="submit" class="btn-primary" [disabled]="!hasUnsavedChanges() || isSaving()">
-              {{ isSaving() ? 'Enregistrement...' : 'Enregistrer les modifications' }}
+              {{ (isSaving() ? 'Enregistrement...' : 'Enregistrer les modifications') | t }}
             </button>
           </div>
         </form>
@@ -116,9 +117,9 @@ import { apiErrors } from '../core/utils';
       <!-- Adresses de livraison -->
       <section class="card">
         <div class="card-header">
-          <h2 class="card-title">Mes adresses de livraison</h2>
+          <h2 class="card-title">{{ 'Mes adresses de livraison' | t }}</h2>
           <button type="button" class="btn-secondary" (click)="onAddAddress()">
-            {{ showAddressForm() ? 'Annuler' : '+ Ajouter une adresse' }}
+            {{ (showAddressForm() ? 'Annuler' : '+ Ajouter une adresse') | t }}
           </button>
         </div>
 
@@ -126,12 +127,12 @@ import { apiErrors } from '../core/utils';
         @if (showAddressForm()) {
           <form (ngSubmit)="saveNewAddress()" class="address-form-box">
             <div class="field">
-              <label>Adresse</label>
+              <label>{{ 'Adresse' | t }}</label>
               <input 
                 type="text" 
                 [(ngModel)]="newAddressForm.street" 
                 name="addrStreet" 
-                placeholder="N°, rue, immeuble..." 
+                [placeholder]="'N°, rue, immeuble…' | t" 
                 class="input-tech" 
                 required
               />
@@ -139,9 +140,9 @@ import { apiErrors } from '../core/utils';
 
             <div class="grid-3">
               <div class="field">
-                <label>Gouvernorat</label>
+                <label>{{ 'Gouvernorat' | t }}</label>
                 <select [(ngModel)]="newAddressForm.governorate" name="addrGov" class="input-tech" required>
-                  <option value="" disabled selected>Choisir...</option>
+                  <option value="" disabled selected>{{ 'Choisir…' | t }}</option>
                   @for (gov of governorates; track gov) {
                     <option [value]="gov">{{ gov }}</option>
                   }
@@ -149,24 +150,24 @@ import { apiErrors } from '../core/utils';
               </div>
 
               <div class="field">
-                <label>Ville</label>
+                <label>{{ 'Ville' | t }}</label>
                 <input 
                   type="text" 
                   [(ngModel)]="newAddressForm.city" 
                   name="addrCity" 
-                  placeholder="Ex: Tunis" 
+                  [placeholder]="'Ex : Tunis' | t" 
                   class="input-tech" 
                   required
                 />
               </div>
 
               <div class="field">
-                <label>Code postal</label>
+                <label>{{ 'Code postal' | t }}</label>
                 <input 
                   type="text" 
                   [(ngModel)]="newAddressForm.postalCode" 
                   name="addrZip" 
-                  placeholder="Ex: 1000" 
+                  [placeholder]="'Ex : 1000' | t" 
                   class="input-tech" 
                   required
                 />
@@ -175,18 +176,18 @@ import { apiErrors } from '../core/utils';
 
             <div class="grid-3">
               <div class="field">
-                <label>Enregistrer sous</label>
+                <label>{{ 'Enregistrer sous' | t }}</label>
                 <select [(ngModel)]="newAddressForm.label" name="addrLabel" class="input-tech" required>
-                  <option value="Domicile">Domicile</option>
-                  <option value="Bureau">Bureau</option>
-                  <option value="Autre">Autre</option>
+                  <option value="Domicile">{{ 'Domicile' | t }}</option>
+                  <option value="Bureau">{{ 'Bureau' | t }}</option>
+                  <option value="Autre">{{ 'Autre' | t }}</option>
                 </select>
               </div>
             </div>
 
             <div class="address-form-actions">
-              <button type="button" class="btn-secondary" (click)="showAddressForm.set(false)">Annuler</button>
-              <button type="submit" class="btn-primary">Enregistrer l'adresse</button>
+              <button type="button" class="btn-secondary" (click)="showAddressForm.set(false)">{{ 'Annuler' | t }}</button>
+              <button type="submit" class="btn-primary">{{ "Enregistrer l'adresse" | t }}</button>
             </div>
           </form>
         }
@@ -203,7 +204,7 @@ import { apiErrors } from '../core/utils';
               <button 
                 type="button" 
                 class="btn-delete" 
-                title="Supprimer cette adresse"
+                [title]="'Supprimer cette adresse' | t"
                 (click)="deleteAddress(addr.id, $event)"
               >
                 &times;
@@ -217,9 +218,9 @@ import { apiErrors } from '../core/utils';
                   class="radio-tech"
                 />
                 <span class="addr-title">{{ addr.recipientName }}</span>
-                <span class="badge-label">{{ addr.label }}</span>
+                <span class="badge-label">{{ addr.label | t }}</span>
                 @if (addr.isDefault) {
-                  <span class="badge-accent">Par défaut</span>
+                  <span class="badge-accent">{{ 'Par défaut' | t }}</span>
                 }
               </div>
               <p class="addr-details">{{ addr.street }}</p>
@@ -230,7 +231,7 @@ import { apiErrors } from '../core/utils';
             </div>
           } @empty {
             @if (!showAddressForm()) {
-              <p class="muted">Aucune adresse enregistrée pour le moment.</p>
+              <p class="muted">{{ 'Aucune adresse enregistrée pour le moment.' | t }}</p>
             }
           }
         </div>
@@ -502,7 +503,7 @@ export class AccountProfilePage implements ComponentCanDeactivate {
     this.auth.updateProfile(dto).subscribe({
       next: () => {
         this.isSaving.set(false);
-        this.successMessage.set('Profil mis à jour avec succès !');
+        this.successMessage.set(translate('Profil mis à jour avec succès !'));
         this.initialForm = { ...this.userForm };
         this.userForm.currentPassword = '';
         this.userForm.newPassword = '';

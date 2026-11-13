@@ -1,3 +1,4 @@
+import { parseLang, withLang } from '../common/i18n';
 import { evaluate, fits, powerBudget, type BuildPart } from './compatibility';
 
 type Ram = 'DDR4' | 'DDR5';
@@ -190,5 +191,22 @@ describe('configurator compatibility', () => {
     });
     expect(result.valid).toBe(false);
     expect(result.checks.find((c) => c.id === 'socket')?.status).toBe('error');
+  });
+
+  it('writes its messages in the language of the request', () => {
+    const build = { cpu: cpu(10, 'AM4'), motherboard: board(1, 'AM5', 'DDR5') };
+    const socket = (lang: 'fr' | 'en') =>
+      withLang(lang, () => evaluate(build)).checks.find(
+        (c) => c.id === 'socket',
+      )?.message;
+    expect(socket('fr')).toBe(
+      'Socket incompatible : processeur AM4, carte mère AM5',
+    );
+    expect(socket('en')).toBe(
+      'Incompatible socket: processor AM4, motherboard AM5',
+    );
+    expect(parseLang('en-US,en;q=0.9')).toBe('en');
+    expect(parseLang('fr-FR,fr;q=0.9,en;q=0.8')).toBe('fr');
+    expect(parseLang(undefined)).toBe('fr');
   });
 });

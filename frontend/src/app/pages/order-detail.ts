@@ -5,23 +5,24 @@ import { RouterLink } from '@angular/router';
 import { switchMap } from 'rxjs';
 import { CartApi, Order, PAYMENT_LABELS, STATUS_LABELS } from '../core/cart-api';
 import { TndPipe } from '../core/tnd.pipe';
+import { ProductNamePipe, TPipe } from '../core/i18n';
 
 @Component({
   selector: 'app-order-detail-page',
-  imports: [Icon, RouterLink, TndPipe],
+  imports: [Icon, RouterLink, TndPipe, TPipe, ProductNamePipe],
   template: `
     <div class="container page">
       @if (order(); as o) {
         <div class="card confirm-box">
           <span class="icon"><app-icon name="checkCircle" [size]="30" [stroke]="2" /></span>
-          <h2>Commande confirmée !</h2>
-          <p class="muted">Référence : <strong>{{ o.reference }}</strong></p>
+          <h2>{{ 'Commande confirmée !' | t }}</h2>
+          <p class="muted">{{ 'Référence :' | t }} <strong>{{ o.reference }}</strong></p>
 
           <div class="details">
-            <div class="row"><span>Statut :</span> <strong>{{ status[o.status] ?? o.status }}</strong></div>
-            <div class="row"><span>Paiement :</span> {{ payment[o.paymentMethod] ?? o.paymentMethod }}</div>
-            <div class="row"><span>Destinataire :</span> {{ o.shippingName }} ({{ o.shippingPhone }})</div>
-            <div class="row"><span>Adresse :</span> {{ o.shippingAddress }}</div>
+            <div class="row"><span>{{ 'Statut :' | t }}</span> <strong>{{ (status[o.status] ?? o.status) | t }}</strong></div>
+            <div class="row"><span>{{ 'Paiement :' | t }}</span> {{ (payment[o.paymentMethod] ?? o.paymentMethod) | t }}</div>
+            <div class="row"><span>{{ 'Destinataire :' | t }}</span> {{ o.shippingName }} ({{ o.shippingPhone }})</div>
+            <div class="row"><span>{{ 'Adresse :' | t }}</span> {{ o.shippingAddress }}</div>
           </div>
 
           <table class="items-table">
@@ -33,13 +34,13 @@ import { TndPipe } from '../core/tnd.pipe';
                     @if (imgUrl) {
                       <img 
                         [src]="imgUrl" 
-                        [alt]="item.productName" 
+                        [alt]="item.productName | productName" 
                         class="item-thumb" 
                       />
                     } @else {
                       <div class="item-thumb-placeholder"></div>
                     }
-                    <span class="item-name">{{ item.productName }} <small class="muted">x{{ item.quantity }}</small></span>
+                    <span class="item-name">{{ item.productName | productName }} <small class="muted">x{{ item.quantity }}</small></span>
                   </div>
                 </td>
                 <td style="text-align: right; vertical-align: middle;">
@@ -50,14 +51,14 @@ import { TndPipe } from '../core/tnd.pipe';
           </table>
 
           <div class="total-row">
-            <span>Total réglé (Livraison incluse) :</span>
+            <span>{{ 'Total réglé (Livraison incluse) :' | t }}</span>
             <strong class="price">{{ o.total | tnd }}</strong>
           </div>
 
-          <a routerLink="/produits" class="btn primary" style="margin-top: 1.5rem;">Continuer mes achats</a>
+          <a routerLink="/produits" class="btn primary" style="margin-top: 1.5rem;">{{ 'Continuer mes achats' | t }}</a>
         </div>
       } @else {
-        <p class="muted">Chargement de la commande...</p>
+        <p class="muted">{{ 'Chargement de la commande...' | t }}</p>
       }
     </div>
   `,

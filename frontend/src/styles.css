@@ -324,6 +324,49 @@ select {
 }
 .alert p { margin: 0; }
 
+/* ---------------------------------------------------------------- Animations et interactions */
+
+/* Retour tactile : les boutons s'enfoncent légèrement au clic */
+.btn:active:not(:disabled), .btn-sm:active { transform: translateY(0) scale(0.97); transition-duration: 0.06s; }
+
+/* Apparition au défilement (directive appReveal) */
+/* (animation en « backwards » : une fois terminée, l'élément retrouve ses propres effets de survol) */
+[appReveal]:not(.in) { opacity: 0; }
+[appReveal].in { animation: rise 0.65s cubic-bezier(0.2, 0.7, 0.2, 1) var(--reveal-delay, 0ms) backwards; }
+
+/* Grilles de produits : les cartes montent en cascade à l'affichage */
+.grid-products > * { animation: rise 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) backwards; }
+.grid-products > :nth-child(2) { animation-delay: 0.04s; }
+.grid-products > :nth-child(3) { animation-delay: 0.08s; }
+.grid-products > :nth-child(4) { animation-delay: 0.12s; }
+.grid-products > :nth-child(5) { animation-delay: 0.16s; }
+.grid-products > :nth-child(6) { animation-delay: 0.2s; }
+.grid-products > :nth-child(7) { animation-delay: 0.24s; }
+.grid-products > :nth-child(8) { animation-delay: 0.28s; }
+.grid-products > :nth-child(n + 9) { animation-delay: 0.32s; }
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } }
+
+/* Squelettes de chargement */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 45%, var(--surface-2) 65%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--r-lg);
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* Transition douce entre les pages (View Transitions API, ignorée si non prise en charge) */
+::view-transition-old(root) { animation: page-out 0.18s ease-in both; }
+::view-transition-new(root) { animation: page-in 0.32s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes page-out { to { opacity: 0; } }
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } }
+.vt-instant::view-transition-old(root), .vt-instant::view-transition-new(root) { animation: none; }
+/* L'en-tête reste immobile pendant la transition */
+.topbar { view-transition-name: topbar; }
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+  [appReveal]:not(.in) { opacity: 1; }
+  [appReveal].in, .grid-products > *, .skeleton { animation: none !important; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
 }

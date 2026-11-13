@@ -16,6 +16,7 @@ import {
   type BuildPart,
   type Slot,
 } from './compatibility';
+import { tr } from '../common/i18n';
 
 const MAX_CONFIGURATIONS_PER_USER = 50;
 
@@ -141,7 +142,11 @@ function highlights(row: PartRow): string[] {
   const spec = (name: string) =>
     row.specs.find((s) => s.name === name)?.valueText;
   if (row.cpu)
-    return [row.cpu.socket, `${row.cpu.cores} cœurs`, `${row.cpu.tdpWatts} W`];
+    return [
+      row.cpu.socket,
+      tr(`${row.cpu.cores} cœurs`, `${row.cpu.cores} cores`),
+      `${row.cpu.tdpWatts} W`,
+    ];
   if (row.motherboard) {
     const mb = row.motherboard;
     return [mb.socket, mb.ramType, FORM_FACTOR_LABELS[mb.formFactor]];
@@ -149,10 +154,14 @@ function highlights(row: PartRow): string[] {
   if (row.ram)
     return [
       row.ram.type,
-      `${row.ram.capacityGB} Go`,
+      tr(`${row.ram.capacityGB} Go`, `${row.ram.capacityGB} GB`),
       `${row.ram.speedMHz} MHz`,
     ];
-  if (row.gpu) return [`${row.gpu.vramGB} Go`, `${row.gpu.tdpWatts} W`];
+  if (row.gpu)
+    return [
+      tr(`${row.gpu.vramGB} Go`, `${row.gpu.vramGB} GB`),
+      `${row.gpu.tdpWatts} W`,
+    ];
   if (row.powerSupply)
     return [
       `${row.powerSupply.wattage} W`,
@@ -163,7 +172,9 @@ function highlights(row: PartRow): string[] {
     const formats = row.pcCase.supportedFormFactors.map(
       (f) => FORM_FACTOR_LABELS[f],
     );
-    return row.pcCase.sfxOnly ? [...formats, 'Alim. SFX'] : formats;
+    return row.pcCase.sfxOnly
+      ? [...formats, tr('Alim. SFX', 'SFX PSU')]
+      : formats;
   }
   if (row.monitor) {
     const m = row.monitor;
@@ -176,27 +187,29 @@ function highlights(row: PartRow): string[] {
   if (row.keyboard) {
     const k = row.keyboard;
     return [
-      k.tenkeyless ? 'TKL' : 'Complet',
-      k.wireless ? 'Sans fil' : 'Filaire',
+      k.tenkeyless ? 'TKL' : tr('Complet', 'Full-size'),
+      k.wireless ? tr('Sans fil', 'Wireless') : tr('Filaire', 'Wired'),
       k.switches ?? k.backlight,
     ].filter((v): v is string => !!v);
   }
   if (row.mouse) {
     return [
-      row.mouse.wireless ? 'Sans fil' : 'Filaire',
+      row.mouse.wireless ? tr('Sans fil', 'Wireless') : tr('Filaire', 'Wired'),
       row.mouse.maxDpi ? `${row.mouse.maxDpi} DPI` : null,
     ].filter((v): v is string => !!v);
   }
   if (row.headset) {
     return [
-      row.headset.wireless ? 'Sans fil' : 'Filaire',
-      row.headset.microphone ? 'Micro' : 'Sans micro',
+      row.headset.wireless
+        ? tr('Sans fil', 'Wireless')
+        : tr('Filaire', 'Wired'),
+      row.headset.microphone ? tr('Micro', 'Mic') : tr('Sans micro', 'No mic'),
     ];
   }
   if (row.category.slug === SLOT_CATEGORY.cooler) {
     const { liquid, radiatorMm } = coolerOf(row);
     return [
-      liquid ? `AIO ${radiatorMm} mm` : 'Ventirad à air',
+      liquid ? `AIO ${radiatorMm} mm` : tr('Ventirad à air', 'Air cooler'),
       spec('Fan RPM'),
       spec('Noise Level'),
     ].filter((v): v is string => !!v);
@@ -258,9 +271,13 @@ export function parseIds(raw: unknown): number[] {
       ? raw.split(',')
       : [raw];
   const ids = values.map((v) =>
-    int(typeof v === 'string' ? v.trim() : v, 'Identifiant de composant', {
-      min: 1,
-    }),
+    int(
+      typeof v === 'string' ? v.trim() : v,
+      tr('Identifiant de composant', 'Component ID'),
+      {
+        min: 1,
+      },
+    ),
   );
   if (ids.length > SLOTS.length)
     throw badRequest(
@@ -293,7 +310,10 @@ export class ConfiguratorService {
     const missing = ids.filter((id) => !parts.some((p) => p?.id === id));
     if (missing.length) {
       throw new NotFoundException(
-        `Composant(s) introuvable(s) ou indisponible(s) pour le configurateur : ${missing.join(', ')}`,
+        tr(
+          `Composant(s) introuvable(s) ou indisponible(s) pour le configurateur : ${missing.join(', ')}`,
+          `Component(s) not found or unavailable for the configurator: ${missing.join(', ')}`,
+        ),
       );
     }
 
@@ -405,7 +425,9 @@ export class ConfiguratorService {
       },
     });
     if (!configuration)
-      throw new NotFoundException('Configuration introuvable');
+      throw new NotFoundException(
+        tr('Configuration introuvable', 'Configuration not found'),
+      );
 
     // Les composants retirés de la vente depuis l'enregistrement sont signalés et ignorés
     const activeIds = configuration.items
@@ -427,7 +449,10 @@ export class ConfiguratorService {
     const count = await this.prisma.configuration.count({ where: { userId } });
     if (count >= MAX_CONFIGURATIONS_PER_USER) {
       throw badRequest(
-        `Vous avez atteint la limite de ${MAX_CONFIGURATIONS_PER_USER} configurations enregistrées`,
+        tr(
+          `Vous avez atteint la limite de ${MAX_CONFIGURATIONS_PER_USER} configurations enregistrées`,
+          `You have reached the limit of ${MAX_CONFIGURATIONS_PER_USER} saved configurations`,
+        ),
       );
     }
 
@@ -446,7 +471,10 @@ export class ConfiguratorService {
       where: { id, userId },
       select: { id: true },
     });
-    if (!existing) throw new NotFoundException('Configuration introuvable');
+    if (!existing)
+      throw new NotFoundException(
+        tr('Configuration introuvable', 'Configuration not found'),
+      );
     const { name, ids } = await this.parseConfiguration(body);
 
     await this.prisma.$transaction([
@@ -468,7 +496,10 @@ export class ConfiguratorService {
     const { count } = await this.prisma.configuration.deleteMany({
       where: { id, userId },
     });
-    if (!count) throw new NotFoundException('Configuration introuvable');
+    if (!count)
+      throw new NotFoundException(
+        tr('Configuration introuvable', 'Configuration not found'),
+      );
     return { deleted: true };
   }
 
@@ -476,12 +507,26 @@ export class ConfiguratorService {
   private async parseConfiguration(body: unknown) {
     const b = asRecord(body);
     const name = text(b.name);
-    if (!name) throw badRequest('Donnez un nom à votre configuration');
+    if (!name)
+      throw badRequest(
+        tr(
+          'Donnez un nom à votre configuration',
+          'Give your configuration a name',
+        ),
+      );
     if (name.length > 80)
-      throw badRequest('Le nom est trop long (80 caractères maximum)');
+      throw badRequest(
+        tr(
+          'Le nom est trop long (80 caractères maximum)',
+          'The name is too long (80 characters maximum)',
+        ),
+      );
 
     const ids = parseIds(b.productIds);
-    if (!ids.length) throw badRequest('Choisissez au moins un composant');
+    if (!ids.length)
+      throw badRequest(
+        tr('Choisissez au moins un composant', 'Choose at least one component'),
+      );
 
     const { checks, valid } = await this.check(ids);
     if (!valid) {

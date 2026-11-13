@@ -30,6 +30,8 @@ import { authGuard } from './core/auth-guard';
 import { adminGuard } from './core/admin.guard';
 import { pendingChangesGuard } from './core/pending-changes.guard';
 
+// Titres en français, traduits par TranslatedTitleStrategy (core/i18n.ts)
+// i18n
 export const routes: Routes = [
   // --- ACCUEIL & CATALOGUE ---
   { path: '', component: HomePage, title: 'ByteBazaar · Composants PC en Tunisie' },
@@ -96,3 +98,4 @@ export const routes: Routes = [
   // --- ROUTE DE SECOURS (TOUJOURS EN DERNIER) ---
   { path: '**', redirectTo: '' }
 ];
+// /i18n

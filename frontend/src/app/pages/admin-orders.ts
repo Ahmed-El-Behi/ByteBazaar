@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { AdminApiService, type AdminOrder } from '../core/admin-api';
 import { TndPipe } from '../core/tnd.pipe';
 import { apiErrors } from '../core/utils';
+import { ProductNamePipe, TPipe, translate } from '../core/i18n';
 
 const STATUS_ORDER: Record<string, number> = {
   PENDING: 1,
@@ -24,17 +25,17 @@ interface StatusChangePayload {
 @Component({
   standalone: true,
   selector: 'app-admin-orders',
-  imports: [Icon, CommonModule, FormsModule, TndPipe],
+  imports: [Icon, CommonModule, FormsModule, TndPipe, TPipe, ProductNamePipe],
   template: `
     <div class="container page">
       <div class="header">
         <div>
-          <h1>Gestion des Commandes</h1>
-          <p class="muted">Gérez le suivi des livraisons et les statuts des commandes clients.</p>
+          <h1>{{ 'Gestion des Commandes' | t }}</h1>
+          <p class="muted">{{ 'Gérez le suivi des livraisons et les statuts des commandes clients.' | t }}</p>
         </div>
         <button class="btn primary btn-refresh-header" (click)="loadOrders()" type="button">
           <app-icon name="refresh" [size]="16" [stroke]="2" />
-          Actualiser
+          {{ 'Actualiser' | t }}
         </button>
       </div>
 
@@ -43,18 +44,18 @@ interface StatusChangePayload {
       }
 
       @if (loading()) {
-        <p class="muted">Chargement des commandes admin...</p>
+        <p class="muted">{{ 'Chargement des commandes admin...' | t }}</p>
       } @else {
         <div class="card table-wrapper">
           <table class="orders-table">
             <thead>
               <tr>
-                <th>Réf.</th>
-                <th>Client</th>
-                <th>Date</th>
-                <th>Total</th>
-                <th>Mode Paiement</th>
-                <th>Statut Commande</th>
+                <th>{{ 'Réf.' | t }}</th>
+                <th>{{ 'Client' | t }}</th>
+                <th>{{ 'Date' | t }}</th>
+                <th>{{ 'Total' | t }}</th>
+                <th>{{ 'Mode Paiement' | t }}</th>
+                <th>{{ 'Statut Commande' | t }}</th>
                 <th style="text-align: right;"></th>
               </tr>
             </thead>
@@ -74,7 +75,7 @@ interface StatusChangePayload {
                   <!-- MODE PAIEMENT -->
                   <td>
                     <span class="payment-method-badge" [ngClass]="getPaymentMethodClass(o.paymentMethod)">
-                      {{ getPaymentMethodLabel(o.paymentMethod) }}
+                      {{ getPaymentMethodLabel(o.paymentMethod) | t }}
                     </span>
                   </td>
 
@@ -89,19 +90,19 @@ interface StatusChangePayload {
                         (change)="promptStatusChange($event, o)"
                       >
                         <option value="PENDING" [disabled]="isOptionDisabled(o.status, 'PENDING')">
-                          Reçue (En attente)
+                          {{ 'Reçue (En attente)' | t }}
                         </option>
                         <option value="CONFIRMED" [disabled]="isOptionDisabled(o.status, 'CONFIRMED')">
-                          Confirmée
+                          {{ 'Confirmée' | t }}
                         </option>
                         <option value="SHIPPED" [disabled]="isOptionDisabled(o.status, 'SHIPPED')">
-                          Expédiée
+                          {{ 'Expédiée' | t }}
                         </option>
                         <option value="DELIVERED" [disabled]="isOptionDisabled(o.status, 'DELIVERED')">
-                          Livrée
+                          {{ 'Livrée' | t }}
                         </option>
                         <option value="CANCELLED" [disabled]="isOptionDisabled(o.status, 'CANCELLED')">
-                          Annulée
+                          {{ 'Annulée' | t }}
                         </option>
                       </select>
                     </div>
@@ -114,7 +115,7 @@ interface StatusChangePayload {
                         class="btn-action-icon" 
                         (click)="toggleDetails(o.id)" 
                         [class.open]="selectedOrderId() === o.id" 
-                        title="Voir les détails"
+                        [title]="'Voir les détails' | t"
                       >
                         <app-icon name="chevronDown" [size]="18" [stroke]="2" />
                       </button>
@@ -127,22 +128,22 @@ interface StatusChangePayload {
                   <tr class="details-row">
                     <td colspan="7">
                       <div class="details-box">
-                        <h4>Détails de la commande #{{ o.reference }}</h4>
+                        <h4>{{ 'Détails de la commande #{ref}' | t: { ref: o.reference } }}</h4>
                         <div class="items-list">
                           @for (item of o.items; track item.id) {
                             <div class="item-row">
                               <span>
-                                <strong>{{ item.productName }}</strong> 
-                                @if (item.productSku) { <small class="muted">(SKU: {{ item.productSku }})</small> }
+                                <strong>{{ item.productName | productName }}</strong> 
+                                @if (item.productSku) { <small class="muted">({{ 'SKU : {sku}' | t: { sku: item.productSku } }})</small> }
                               </span>
                               <span>x{{ item.quantity }} × {{ item.unitPrice | tnd }} = <strong>{{ item.lineTotal | tnd }}</strong></span>
                             </div>
                           }
                         </div>
                         <div class="details-summary">
-                          <span>Sous-total: {{ o.subtotal | tnd }}</span> |
-                          <span>Livraison: {{ o.shippingFee | tnd }}</span> |
-                          <strong>Total: {{ o.total | tnd }}</strong>
+                          <span>{{ 'Sous-total :' | t }} {{ o.subtotal | tnd }}</span> |
+                          <span>{{ 'Livraison :' | t }} {{ o.shippingFee | tnd }}</span> |
+                          <strong>{{ 'Total :' | t }} {{ o.total | tnd }}</strong>
                         </div>
                       </div>
                     </td>
@@ -158,25 +159,25 @@ interface StatusChangePayload {
       @if (pendingStatusChange(); as pending) {
         <div class="modal-backdrop" (click)="cancelStatusChange()">
           <div class="modal-card" (click)="$event.stopPropagation()">
-            <h3>Changer le statut de la commande</h3>
+            <h3>{{ 'Changer le statut de la commande' | t }}</h3>
             
             <p style="margin-top: 0.6rem; line-height: 1.5;">
-              Êtes-vous sûr de vouloir faire passer la commande <strong>#{{ pending.order.reference }}</strong> au statut :
+              {{ 'Êtes-vous sûr de vouloir faire passer la commande' | t }} <strong>#{{ pending.order.reference }}</strong> {{ 'au statut :' | t }}
               <br />
               <span class="target-status-badge" [ngClass]="getOrderStatusClass(pending.targetStatus)">
-                {{ getOrderStatusLabel(pending.targetStatus) }}
+                {{ getOrderStatusLabel(pending.targetStatus) | t }}
               </span>
             </p>
 
             @if (pending.targetStatus === 'CANCELLED') {
               <div class="warning-box">
-                <strong>Attention :</strong> L'annulation est irréversible. La commande sera définitivement verrouillée.
+                <strong>{{ 'Attention :' | t }}</strong> {{ "L'annulation est irréversible. La commande sera définitivement verrouillée." | t }}
               </div>
             }
 
             <div class="modal-actions">
-              <button class="btn secondary" (click)="cancelStatusChange()">Annuler</button>
-              <button class="btn primary" [class.danger]="pending.targetStatus === 'CANCELLED'" (click)="confirmStatusChange()">Confirmer</button>
+              <button class="btn secondary" (click)="cancelStatusChange()">{{ 'Annuler' | t }}</button>
+              <button class="btn primary" [class.danger]="pending.targetStatus === 'CANCELLED'" (click)="confirmStatusChange()">{{ 'Confirmer' | t }}</button>
             </div>
           </div>
         </div>
@@ -446,13 +447,15 @@ export class AdminOrdersPage implements OnInit {
           selectElement.value = order.status;
         }
         const msg = apiErrors(err);
-        this.errorMessage.set('Erreur lors de la mise à jour: ' + (Array.isArray(msg) ? msg.join(', ') : msg));
+        this.errorMessage.set(translate('Erreur lors de la mise à jour :') + ' ' + (Array.isArray(msg) ? msg.join(', ') : msg));
         this.pendingStatusChange.set(null);
       },
     });
   }
 
+  /** Libellés en français, traduits à l'affichage */
   getPaymentMethodLabel(method?: string): string {
+    // i18n
     switch (method) {
       case 'CASH_ON_DELIVERY': return 'À la livraison';
       case 'PAYPAL': return 'PayPal';
@@ -460,6 +463,7 @@ export class AdminOrdersPage implements OnInit {
       case 'CARD': return 'Carte Bancaire';
       default: return method || '—';
     }
+    // /i18n
   }
 
   getPaymentMethodClass(method?: string): string {
@@ -470,6 +474,7 @@ export class AdminOrdersPage implements OnInit {
   }
 
   getOrderStatusLabel(status: string): string {
+    // i18n
     switch (status) {
       case 'PENDING': return 'Reçue (En attente)';
       case 'CONFIRMED': return 'Confirmée';
@@ -478,6 +483,7 @@ export class AdminOrdersPage implements OnInit {
       case 'CANCELLED': return 'Annulée';
       default: return status;
     }
+    // /i18n
   }
 
   getOrderStatusClass(status: string): string {

@@ -15,6 +15,7 @@ import { CartStateService } from '../core/cart.service';
 import { SHIPPING_FEE } from '../core/models';
 import { TndPipe } from '../core/tnd.pipe';
 import { apiErrors } from '../core/utils';
+import { ProductNamePipe, TPipe, translate } from '../core/i18n';
 
 type PayMethod = 'CARD' | 'PAYPAL' | 'BANK_TRANSFER' | 'CASH_ON_DELIVERY';
 
@@ -47,6 +48,8 @@ const expiryValid = (c: AbstractControl): ValidationErrors | null => {
   return new Date(2000 + Number(m[2]), Number(m[1]), 1) > new Date() ? null : { expiry: true };
 };
 
+// Messages traduits à l'affichage
+// i18n
 const MESSAGES: Record<string, string> = {
   recipientName: 'Indique le nom du destinataire.',
   phone: 'Numéro invalide (8 chiffres, ex. 22 123 456).',
@@ -59,26 +62,27 @@ const MESSAGES: Record<string, string> = {
   expiry: 'Date invalide (MM/AA).',
   cvc: 'Code à 3 ou 4 chiffres.',
 };
+// /i18n
 
 @Component({
   selector: 'app-checkout',
-  imports: [Icon, ReactiveFormsModule, RouterLink, TndPipe],
+  imports: [Icon, ReactiveFormsModule, RouterLink, TndPipe, TPipe, ProductNamePipe],
   template: `
     <div class="container page">
-      <h1>Finaliser la commande</h1>
+      <h1>{{ 'Finaliser la commande' | t }}</h1>
 
       @if (cartState.cart(); as c) {
         @if (!c.items.length) {
           <div class="card empty">
-            <p>Ton panier est vide.</p>
-            <a routerLink="/produits" class="btn primary">Voir le catalogue</a>
+            <p>{{ 'Ton panier est vide.' | t }}</p>
+            <a routerLink="/produits" class="btn primary">{{ 'Voir le catalogue' | t }}</a>
           </div>
         } @else {
           <div class="layout">
             <div class="steps">
               <!-- 1. Livraison -->
               <section class="card block">
-                <header><span class="num">1</span><h2>Livraison</h2></header>
+                <header><span class="num">1</span><h2>{{ 'Livraison' | t }}</h2></header>
 
                 @if (addresses(); as list) {
                   @if (list.length) {
@@ -87,7 +91,7 @@ const MESSAGES: Record<string, string> = {
                         <label class="choice" [class.on]="!useNew() && selectedId() === a.id">
                           <input type="radio" name="addr" [checked]="!useNew() && selectedId() === a.id" (change)="pickAddress(a.id)" />
                           <span class="body">
-                            <strong>{{ a.recipientName }} <span class="tag">{{ a.label }}</span></strong>
+                            <strong>{{ a.recipientName }} <span class="tag">{{ a.label | t }}</span></strong>
                             <small class="muted">{{ a.street }}, {{ a.city }}, {{ a.governorate }} {{ a.postalCode }}</small>
                             <small class="muted">{{ a.phone }}</small>
                           </span>
@@ -95,55 +99,55 @@ const MESSAGES: Record<string, string> = {
                       }
                       <label class="choice" [class.on]="useNew()">
                         <input type="radio" name="addr" [checked]="useNew()" (change)="useNew.set(true)" />
-                        <span class="body"><strong>Utiliser une nouvelle adresse</strong></span>
+                        <span class="body"><strong>{{ 'Utiliser une nouvelle adresse' | t }}</strong></span>
                       </label>
                     </div>
                   }
                 } @else {
-                  <p class="muted">Chargement de tes adresses…</p>
+                  <p class="muted">{{ 'Chargement de tes adresses…' | t }}</p>
                 }
 
                 @if (useNew()) {
                   <div class="grid" [formGroup]="form">
                     <div class="field s3">
-                      <label for="recipientName">Nom du destinataire</label>
+                      <label for="recipientName">{{ 'Nom du destinataire' | t }}</label>
                       <input id="recipientName" formControlName="recipientName" autocomplete="name" />
                       @if (err(form, 'recipientName'); as m) { <small class="err">{{ m }}</small> }
                     </div>
                     <div class="field s3">
-                      <label for="phone">Téléphone</label>
+                      <label for="phone">{{ 'Téléphone' | t }}</label>
                       <input id="phone" formControlName="phone" inputmode="tel" autocomplete="tel" placeholder="22 123 456" />
                       @if (err(form, 'phone'); as m) { <small class="err">{{ m }}</small> }
                     </div>
                     <div class="field s6">
-                      <label for="street">Adresse</label>
-                      <input id="street" formControlName="street" autocomplete="street-address" placeholder="N°, rue, immeuble…" />
+                      <label for="street">{{ 'Adresse' | t }}</label>
+                      <input id="street" formControlName="street" autocomplete="street-address" [placeholder]="'N°, rue, immeuble…' | t" />
                       @if (err(form, 'street'); as m) { <small class="err">{{ m }}</small> }
                     </div>
                     <div class="field s2">
-                      <label for="governorate">Gouvernorat</label>
+                      <label for="governorate">{{ 'Gouvernorat' | t }}</label>
                       <select id="governorate" formControlName="governorate">
-                        <option value="" disabled>Choisir…</option>
+                        <option value="" disabled>{{ 'Choisir…' | t }}</option>
                         @for (g of governorates; track g) { <option [value]="g">{{ g }}</option> }
                       </select>
                       @if (err(form, 'governorate'); as m) { <small class="err">{{ m }}</small> }
                     </div>
                     <div class="field s2">
-                      <label for="city">Ville</label>
+                      <label for="city">{{ 'Ville' | t }}</label>
                       <input id="city" formControlName="city" autocomplete="address-level2" />
                       @if (err(form, 'city'); as m) { <small class="err">{{ m }}</small> }
                     </div>
                     <div class="field s2">
-                      <label for="postalCode">Code postal</label>
+                      <label for="postalCode">{{ 'Code postal' | t }}</label>
                       <input id="postalCode" formControlName="postalCode" inputmode="numeric" maxlength="4" autocomplete="postal-code" />
                       @if (err(form, 'postalCode'); as m) { <small class="err">{{ m }}</small> }
                     </div>
                     <div class="field s3">
-                      <label for="label">Enregistrer sous</label>
+                      <label for="label">{{ 'Enregistrer sous' | t }}</label>
                       <select id="label" formControlName="label">
-                        <option>Domicile</option>
-                        <option>Bureau</option>
-                        <option>Autre</option>
+                        <option value="Domicile">{{ 'Domicile' | t }}</option>
+                        <option value="Bureau">{{ 'Bureau' | t }}</option>
+                        <option value="Autre">{{ 'Autre' | t }}</option>
                       </select>
                     </div>
                   </div>
@@ -152,15 +156,15 @@ const MESSAGES: Record<string, string> = {
 
               <!-- 2. Paiement -->
               <section class="card block">
-                <header><span class="num">2</span><h2>Paiement</h2></header>
+                <header><span class="num">2</span><h2>{{ 'Paiement' | t }}</h2></header>
 
                 <div class="choices">
                   @for (m of methods; track m.value) {
                     <label class="choice" [class.on]="payment() === m.value">
                       <input type="radio" name="pay" [checked]="payment() === m.value" (change)="payment.set(m.value)" />
                       <span class="body">
-                        <strong>{{ m.label }}</strong>
-                        <small class="muted">{{ m.hint }}</small>
+                        <strong>{{ m.label | t }}</strong>
+                        <small class="muted">{{ m.hint | t }}</small>
                       </span>
                       <span class="brands">
                         @switch (m.value) {
@@ -181,36 +185,36 @@ const MESSAGES: Record<string, string> = {
                           @case ('CARD') {
                             <div class="grid" [formGroup]="card">
                               <div class="field s6">
-                                <label for="cardNumber">Numéro de carte</label>
+                                <label for="cardNumber">{{ 'Numéro de carte' | t }}</label>
                                 <input id="cardNumber" formControlName="number" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456" (input)="onNumber($event)" />
                                 @if (err(card, 'number'); as e) { <small class="err">{{ e }}</small> }
                               </div>
                               <div class="field s6">
-                                <label for="cardHolder">Nom sur la carte</label>
+                                <label for="cardHolder">{{ 'Nom sur la carte' | t }}</label>
                                 <input id="cardHolder" formControlName="holder" autocomplete="cc-name" />
                                 @if (err(card, 'holder'); as e) { <small class="err">{{ e }}</small> }
                               </div>
                               <div class="field s3">
-                                <label for="cardExpiry">Expiration</label>
-                                <input id="cardExpiry" formControlName="expiry" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA" maxlength="5" (input)="onExpiry($event)" />
+                                <label for="cardExpiry">{{ 'Expiration' | t }}</label>
+                                <input id="cardExpiry" formControlName="expiry" inputmode="numeric" autocomplete="cc-exp" [placeholder]="'MM/AA' | t" maxlength="5" (input)="onExpiry($event)" />
                                 @if (err(card, 'expiry'); as e) { <small class="err">{{ e }}</small> }
                               </div>
                               <div class="field s3">
-                                <label for="cardCvc">Code de sécurité</label>
+                                <label for="cardCvc">{{ 'Code de sécurité' | t }}</label>
                                 <input id="cardCvc" formControlName="cvc" inputmode="numeric" autocomplete="cc-csc" placeholder="123" maxlength="4" (input)="onCvc($event)" />
                                 @if (err(card, 'cvc'); as e) { <small class="err">{{ e }}</small> }
                               </div>
                             </div>
-                            <p class="note">Mode démonstration : les informations de carte sont vérifiées dans le navigateur, puis ni envoyées ni enregistrées.</p>
+                            <p class="note">{{ 'Mode démonstration : les informations de carte sont vérifiées dans le navigateur, puis ni envoyées ni enregistrées.' | t }}</p>
                           }
                           @case ('PAYPAL') {
-                            <p class="note">Tu seras redirigé vers PayPal pour valider le paiement (démonstration : aucune redirection réelle).</p>
+                            <p class="note">{{ 'Tu seras redirigé vers PayPal pour valider le paiement (démonstration : aucune redirection réelle).' | t }}</p>
                           }
                           @case ('BANK_TRANSFER') {
-                            <p class="note">Les coordonnées bancaires te seront communiquées après validation de la commande. Elle est expédiée à réception du virement.</p>
+                            <p class="note">{{ 'Les coordonnées bancaires te seront communiquées après validation de la commande. Elle est expédiée à réception du virement.' | t }}</p>
                           }
                           @case ('CASH_ON_DELIVERY') {
-                            <p class="note">Tu paies en espèces au livreur, à la réception de ton colis.</p>
+                            <p class="note">{{ 'Tu paies en espèces au livreur, à la réception de ton colis.' | t }}</p>
                           }
                         }
                       </div>
@@ -222,39 +226,39 @@ const MESSAGES: Record<string, string> = {
 
             <!-- Récapitulatif -->
             <aside class="card summary">
-              <h2>Récapitulatif</h2>
+              <h2>{{ 'Récapitulatif' | t }}</h2>
               <ul>
                 @for (i of c.items; track i.id) {
                   <li class="summary-item">
                     <div class="summary-item-left">
                       @if (i.product.image?.url) {
-                        <img [src]="i.product.image?.url" [alt]="i.product.image?.altText || i.product.name" class="summary-thumb" />
+                        <img [src]="i.product.image?.url" [alt]="(i.product.image?.altText || i.product.name) | productName" class="summary-thumb" />
                       } @else {
                         <div class="summary-thumb-placeholder"></div>
                       }
-                      <span class="summary-product-name">{{ i.product.name }} <small class="muted">× {{ i.quantity }}</small></span>
+                      <span class="summary-product-name">{{ i.product.name | productName }} <small class="muted">× {{ i.quantity }}</small></span>
                     </div>
                     <span class="summary-item-price">{{ i.lineTotal | tnd }}</span>
                   </li>
                 }
               </ul>
-              <div class="row"><span>Sous-total</span><span>{{ c.total | tnd }}</span></div>
-              <div class="row"><span>Livraison</span><span>{{ shipping | tnd }}</span></div>
-              <div class="row total"><span>Total</span><span>{{ c.total + shipping | tnd }}</span></div>
+              <div class="row"><span>{{ 'Sous-total' | t }}</span><span>{{ c.total | tnd }}</span></div>
+              <div class="row"><span>{{ 'Livraison' | t }}</span><span>{{ shipping | tnd }}</span></div>
+              <div class="row total"><span>{{ 'Total' | t }}</span><span>{{ c.total + shipping | tnd }}</span></div>
 
               @if (errorMsg()) {
                 <div class="alert"><p>{{ errorMsg() }}</p></div>
               }
 
               <button class="btn primary block" type="button" [disabled]="submitting()" (click)="confirmOrder()">
-                {{ submitting() ? 'Validation…' : 'Confirmer la commande' }}
+                {{ (submitting() ? 'Validation…' : 'Confirmer la commande') | t }}
               </button>
-              <a routerLink="/panier" class="back"><app-icon name="arrowLeft" [size]="16" /> Modifier le panier</a>
+              <a routerLink="/panier" class="back"><app-icon name="arrowLeft" [size]="16" /> {{ 'Modifier le panier' | t }}</a>
             </aside>
           </div>
         }
       } @else {
-        <p class="muted">Chargement…</p>
+        <p class="muted">{{ 'Chargement…' | t }}</p>
       }
     </div>
   `,
@@ -331,12 +335,14 @@ export class CheckoutPage {
 
   readonly shipping = SHIPPING_FEE;
   readonly governorates = GOVERNORATES;
+  // i18n
   readonly methods: { value: PayMethod; label: string; hint: string }[] = [
     { value: 'CARD', label: 'Carte bancaire', hint: 'Visa, Mastercard' },
     { value: 'PAYPAL', label: 'PayPal', hint: 'Paiement en ligne sécurisé' },
     { value: 'BANK_TRANSFER', label: 'Virement bancaire', hint: 'Expédition après réception du virement' },
     { value: 'CASH_ON_DELIVERY', label: 'Paiement à la livraison', hint: 'Espèces à la réception' },
   ];
+  // /i18n
 
   readonly addresses = signal<Address[] | null>(null);
   readonly selectedId = signal<number | null>(null);
@@ -398,7 +404,7 @@ export class CheckoutPage {
 
   err(group: FormGroup, name: string): string | null {
     const c = group.get(name);
-    return c && c.touched && c.invalid ? MESSAGES[name] : null;
+    return c && c.touched && c.invalid ? translate(MESSAGES[name]) : null;
   }
 
   onNumber(e: Event) {
@@ -422,7 +428,7 @@ export class CheckoutPage {
     if (!address) {
       this.form.markAllAsTouched();
       if (this.form.invalid) {
-        this.errorMsg.set("Vérifie l'adresse de livraison.");
+        this.errorMsg.set(translate("Vérifie l'adresse de livraison."));
         return;
       }
     }
@@ -430,7 +436,7 @@ export class CheckoutPage {
     if (this.payment() === 'CARD') {
       this.card.markAllAsTouched();
       if (this.card.invalid) {
-        this.errorMsg.set('Vérifie les informations de ta carte.');
+        this.errorMsg.set(translate('Vérifie les informations de ta carte.'));
         return;
       }
     }

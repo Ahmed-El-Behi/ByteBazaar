@@ -20,6 +20,12 @@ export class CatalogController {
     return this.catalog.listProducts(query);
   }
 
+  /** Vitrine de l'accueil : 3 produits phares tirés au hasard à chaque appel */
+  @Get('products/showcase')
+  showcase() {
+    return this.catalog.showcase();
+  }
+
   @Get('products/:slug')
   product(@Param('slug') slug: string) {
     return this.catalog.getProduct(slug);

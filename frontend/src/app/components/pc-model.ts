@@ -152,9 +152,9 @@ class SharedTextures {
 }
 
 interface RgbMaterials {
-  ring: THREE.Material;
-  blade: THREE.Material;
-  strip: THREE.Material;
+  ring: THREE.MeshStandardMaterial;
+  blade: THREE.MeshStandardMaterial;
+  strip: THREE.MeshStandardMaterial;
 }
 
 export interface SlotView {
@@ -391,6 +391,8 @@ export class PcModel {
   private spinners: THREE.Object3D[] = [];
   private hovered: HoverTarget | null = null;
   private rgbOn = false;
+  /** Mode performance : LED éteintes, ventilateurs à l'arrêt, lumières colorées coupées */
+  private lowGraphics = false;
 
   // Éclairage RGB partagé (texture arc-en-ciel animée)
   private readonly rgb: RgbMaterials = {
@@ -478,6 +480,17 @@ export class PcModel {
     this.applyHover();
   }
 
+  /** Active / désactive le mode performance (graphismes allégés). */
+  setLowGraphics(on: boolean) {
+    this.lowGraphics = on;
+    // LED éteintes : plastique sombre mat, sans émission (donc sans halo)
+    this.rgb.ring.emissiveIntensity = on ? 0 : 3.4;
+    this.rgb.strip.emissiveIntensity = on ? 0 : 3;
+    this.rgb.blade.emissiveIntensity = on ? 0 : 0.55;
+    for (const m of [this.rgb.ring, this.rgb.strip]) m.color.set(on ? 0x2a2d35 : 0x000000);
+    for (const { light } of this.rgbLights) light.visible = !on;
+  }
+
   setAccent(color: string) {
     this.accent.set(color);
     for (const view of this.views.values()) for (const m of view.accentMats) m.color.copy(this.accent);
@@ -541,6 +554,7 @@ export class PcModel {
       for (const edge of view.ghostEdges) edge.opacity = hovered ? 1 : 0.45 + 0.35 * pulse;
     }
 
+    if (this.lowGraphics) return;
     // Vague arc-en-ciel synchronisée sur toutes les LED
     if (!reducedMotion) this.tex.rainbow.offset.x = (this.tex.rainbow.offset.x + dt * 0.12) % 1;
     const hueBase = 1 - this.tex.rainbow.offset.x;

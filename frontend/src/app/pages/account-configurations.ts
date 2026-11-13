@@ -4,17 +4,18 @@ import { Router } from '@angular/router';
 import { ConfigurationSummary, ConfiguratorApi } from '../core/configurator-api';
 import { TndPipe } from '../core/tnd.pipe';
 import { apiErrors } from '../core/utils';
+import { TPipe } from '../core/i18n';
 
 @Component({
   standalone: true,
   selector: 'app-account-configurations',
-  imports: [CommonModule, TndPipe],
+  imports: [CommonModule, TndPipe, TPipe],
   template: `
     <div class="card">
       <div class="card-header">
-        <h2 class="card-title">Mes configurations enregistrées</h2>
+        <h2 class="card-title">{{ 'Mes configurations enregistrées' | t }}</h2>
         <button type="button" class="btn-primary" (click)="goToConfigurator()">
-          + Créer une configuration
+          {{ '+ Créer une configuration' | t }}
         </button>
       </div>
 
@@ -23,12 +24,12 @@ import { apiErrors } from '../core/utils';
       }
 
       @if (loading()) {
-        <p class="muted">Chargement de vos configurations…</p>
+        <p class="muted">{{ 'Chargement de vos configurations…' | t }}</p>
       } @else if (configurations().length === 0) {
         <div class="empty-box">
-          <p class="muted">Vous n'avez pas encore de configuration enregistrée.</p>
+          <p class="muted">{{ "Vous n'avez pas encore de configuration enregistrée." | t }}</p>
           <button type="button" class="btn-secondary mt-2" (click)="goToConfigurator()">
-            Lancer le configurateur PC
+            {{ 'Lancer le configurateur PC' | t }}
           </button>
         </div>
       } @else {
@@ -37,13 +38,13 @@ import { apiErrors } from '../core/utils';
             <div class="config-card">
               <div class="config-top">
                 <h3 class="config-name">{{ config.name }}</h3>
-                <span class="config-date">Créée le {{ config.createdAt | date:'dd/MM/yyyy' }}</span>
+                <span class="config-date">{{ 'Créée le {date}' | t: { date: (config.createdAt | date: 'dd/MM/yyyy') } }}</span>
                 <strong class="config-price">{{ config.totalPrice | tnd }}</strong>
-                <span class="config-date">{{ config.itemCount }} composant(s)@if (config.unavailableCount) { · {{ config.unavailableCount }} indisponible(s) }</span>
+                <span class="config-date">{{ '{n} composant(s)' | t: { n: config.itemCount } }}@if (config.unavailableCount) { · {{ '{n} indisponible(s)' | t: { n: config.unavailableCount } }} }</span>
               </div>
               <div class="config-actions">
-                <button class="btn-secondary btn-sm" (click)="loadConfig(config.id)">Charger</button>
-                <button class="btn-danger btn-sm" (click)="deleteConfig(config.id)">Supprimer</button>
+                <button class="btn-secondary btn-sm" (click)="loadConfig(config.id)">{{ 'Charger' | t }}</button>
+                <button class="btn-danger btn-sm" (click)="deleteConfig(config.id)">{{ 'Supprimer' | t }}</button>
               </div>
             </div>
           }

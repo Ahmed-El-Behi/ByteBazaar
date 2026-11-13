@@ -6,14 +6,15 @@ import { AdminApiService, type StockMovement } from '../core/admin-api';
 import { API_URL, type ProductDetail, type Paginated, type ProductListItem } from '../core/models';
 import { TndPipe } from '../core/tnd.pipe';
 import { apiErrors } from '../core/utils';
+import { ProductNamePipe, TPipe, translate } from '../core/i18n';
 
 @Component({
   standalone: true,
   selector: 'app-admin-stock',
-  imports: [CommonModule, FormsModule, TndPipe],
+  imports: [CommonModule, FormsModule, TndPipe, TPipe, ProductNamePipe],
   template: `
     <div class="container section">
-      <h1>Administration — Gestion des Stocks</h1>
+      <h1>{{ 'Administration — Gestion des Stocks' | t }}</h1>
 
       @if (errorMessage()) {
         <div class="alert red" style="margin-bottom: 1rem;">{{ errorMessage() }}</div>
@@ -24,122 +25,122 @@ import { apiErrors } from '../core/utils';
 
       <div class="stock-grid">
         <div class="card form-card">
-          <h3>Ajuster le stock d'un produit</h3>
+          <h3>{{ "Ajuster le stock d'un produit" | t }}</h3>
           <form (ngSubmit)="onUpdateStock()" style="display: grid; gap: 1rem;">
             
             <div class="field">
-              <label>Recherche Produit (ID ou SKU)</label>
+              <label>{{ 'Recherche Produit (ID ou SKU)' | t }}</label>
               <input 
                 type="text" 
                 [ngModel]="searchQuery()" 
                 (ngModelChange)="onSearchQueryChange($event)"
                 name="searchQuery" 
-                placeholder="Entrez un ID (ex: 1) ou un SKU (ex: PCP-540664)" 
+                [placeholder]="'Entrez un ID (ex : 1) ou un SKU (ex : PCP-540664)' | t" 
                 required 
               />
             </div>
 
             <div class="form-row" style="display: flex; gap: 1rem;">
               <div class="field" style="flex: 1;">
-                <label>Quantité</label>
+                <label>{{ 'Quantité' | t }}</label>
                 <input 
                   type="number" 
                   min="1"
                   [(ngModel)]="rawQuantity" 
                   name="rawQuantity" 
-                  placeholder="ex: 10" 
+                  [placeholder]="'ex : 10' | t" 
                   required 
                 />
               </div>
 
               <div class="field" style="flex: 1.2;">
-                <label>Motif / Type d'opération</label>
+                <label>{{ "Motif / Type d'opération" | t }}</label>
                 <select [(ngModel)]="reason" name="reason">
-                  <option value="RESTOCK">RESTOCK (+ Réapprovisionnement)</option>
-                  <option value="RETURN">RETURN (+ Retour client)</option>
-                  <option value="SALE">SALE (- Vente manuelle)</option>
-                  <option value="ADJUSTMENT">ADJUSTMENT (Ajustement manuel)</option>
+                  <option value="RESTOCK">{{ 'RESTOCK (+ Réapprovisionnement)' | t }}</option>
+                  <option value="RETURN">{{ 'RETURN (+ Retour client)' | t }}</option>
+                  <option value="SALE">{{ 'SALE (- Vente manuelle)' | t }}</option>
+                  <option value="ADJUSTMENT">{{ 'ADJUSTMENT (Ajustement manuel)' | t }}</option>
                 </select>
               </div>
 
               @if (reason === 'ADJUSTMENT') {
                 <div class="field" style="flex: 1;">
-                  <label>Opération</label>
+                  <label>{{ 'Opération' | t }}</label>
                   <select [(ngModel)]="adjustmentDirection" name="adjustmentDirection">
-                    <option value="ADD">Ajouter (+)</option>
-                    <option value="SUBTRACT">Retirer (-)</option>
+                    <option value="ADD">{{ 'Ajouter (+)' | t }}</option>
+                    <option value="SUBTRACT">{{ 'Retirer (-)' | t }}</option>
                   </select>
                 </div>
               }
             </div>
 
             <div class="field">
-              <label>Note / Remarque (optionnel)</label>
+              <label>{{ 'Note / Remarque (optionnel)' | t }}</label>
               <input 
                 type="text" 
                 [(ngModel)]="note" 
                 name="note" 
-                placeholder="ex: Reçu du fournisseur X" 
+                [placeholder]="'ex : Reçu du fournisseur X' | t" 
               />
             </div>
 
             <button type="submit" class="btn primary block" [disabled]="submitting() || !selectedProduct() || !rawQuantity">
-              {{ submitting() ? 'Enregistrement...' : 'Mettre à jour le stock' }}
+              {{ (submitting() ? 'Enregistrement...' : 'Mettre à jour le stock') | t }}
             </button>
           </form>
         </div>
 
         <div class="card preview-card">
-          <h3>Aperçu du produit</h3>
+          <h3>{{ 'Aperçu du produit' | t }}</h3>
           
           @if (loadingProduct()) {
             <div class="preview-placeholder">
-              <p>Recherche du produit en cours...</p>
+              <p>{{ 'Recherche du produit en cours...' | t }}</p>
             </div>
           } @else if (selectedProduct(); as prod) {
             <div class="product-preview-content">
               <div class="preview-image-box">
                 @if (prod.images && prod.images.length > 0 && prod.images[0].url) {
-                  <img [src]="prod.images[0].url" [alt]="prod.name" />
+                  <img [src]="prod.images[0].url" [alt]="prod.name | productName" />
                 } @else {
-                  <div class="no-img">Pas d'image</div>
+                  <div class="no-img">{{ "Pas d'image" | t }}</div>
                 }
               </div>
               <div class="preview-details">
-                <span class="badge-brand">{{ prod.brand?.name || 'Composant' }}</span>
-                <h4>{{ prod.name }}</h4>
-                <p class="muted">ID: <strong>#{{ prod.id }}</strong> · SKU: <strong>{{ prod.sku }}</strong></p>
-                <p class="price">Prix: <strong>{{ prod.price | tnd }}</strong></p>
+                <span class="badge-brand">{{ prod.brand?.name || ('Composant' | t) }}</span>
+                <h4>{{ prod.name | productName }}</h4>
+                <p class="muted">{{ 'ID :' | t }} <strong>#{{ prod.id }}</strong> · {{ 'SKU :' | t }} <strong>{{ prod.sku }}</strong></p>
+                <p class="price">{{ 'Prix :' | t }} <strong>{{ prod.price | tnd }}</strong></p>
                 <p class="stock-status">
-                  Stock actuel: 
+                  {{ 'Stock actuel :' | t }} 
                   <span [class.text-green]="prod.stockQuantity > 0" [class.text-red]="prod.stockQuantity <= 0">
-                    <strong>{{ prod.stockQuantity }} unités</strong>
+                    <strong>{{ '{n} unités' | t: { n: prod.stockQuantity } }}</strong>
                   </span>
                 </p>
               </div>
             </div>
           } @else {
             <div class="preview-placeholder">
-              <p class="muted">Entrez un ID ou SKU valide pour afficher l'aperçu du produit.</p>
+              <p class="muted">{{ "Entrez un ID ou SKU valide pour afficher l'aperçu du produit." | t }}</p>
             </div>
           }
         </div>
       </div>
 
-      <h3 style="margin-top: 2rem;">Historique des mouvements de stock</h3>
+      <h3 style="margin-top: 2rem;">{{ 'Historique des mouvements de stock' | t }}</h3>
       @if (loadingMovements()) {
-        <p>Chargement des mouvements...</p>
+        <p>{{ 'Chargement des mouvements...' | t }}</p>
       } @else {
         <div class="card table-container">
           <table class="admin-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Produit</th>
-                <th>Variation</th>
-                <th>Motif</th>
-                <th>Note</th>
-                <th>Auteur</th>
+                <th>{{ 'Date' | t }}</th>
+                <th>{{ 'Produit' | t }}</th>
+                <th>{{ 'Variation' | t }}</th>
+                <th>{{ 'Motif' | t }}</th>
+                <th>{{ 'Note' | t }}</th>
+                <th>{{ 'Auteur' | t }}</th>
               </tr>
             </thead>
             <tbody>
@@ -147,11 +148,11 @@ import { apiErrors } from '../core/utils';
                 <tr>
                   <td>{{ m.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
                   <td>
-                    <strong>{{ m.product?.name || 'Produit #' + m.productId }}</strong><br>
+                    <strong>{{ m.product?.name ? (m.product!.name | productName) : ('Produit #{id}' | t: { id: m.productId }) }}</strong><br>
                     <small class="muted">
-                      ID: #{{ m.productId }} · SKU: {{ m.product?.sku || '—' }} · Stock: 
+                      {{ 'ID :' | t }} #{{ m.productId }} · {{ 'SKU :' | t }} {{ m.product?.sku || '—' }} · {{ 'Stock :' | t }} 
                       <strong [class.text-green]="(m.historicalStock ?? 0) > 0" [class.text-red]="(m.historicalStock ?? 0) <= 0">
-                        {{ m.historicalStock ?? '—' }} unités
+                        @if (m.historicalStock !== null && m.historicalStock !== undefined) { {{ '{n} unités' | t: { n: m.historicalStock } }} } @else { — }
                       </strong>
                     </small>
                   </td>
@@ -170,7 +171,7 @@ import { apiErrors } from '../core/utils';
                     </span>
                   </td>
                   <td>{{ m.note || '—' }}</td>
-                  <td>{{ m.user ? m.user.firstName + ' ' + m.user.lastName : 'Système' }}</td>
+                  <td>{{ m.user ? m.user.firstName + ' ' + m.user.lastName : ('Système' | t) }}</td>
                 </tr>
               }
             </tbody>
@@ -393,7 +394,7 @@ export class AdminStockPage implements OnInit {
     this.adminApi.updateStock(prod.id, finalQuantityChange, this.reason, this.note).subscribe({
       next: () => {
         this.submitting.set(false);
-        this.successMessage.set(`Stock mis à jour avec succès pour le produit #${prod.id} (${prod.name}) !`);
+        this.successMessage.set(translate('Stock mis à jour avec succès pour le produit #{id} ({name}) !', { id: prod.id, name: prod.name }));
         this.searchQuery.set('');
         this.selectedProduct.set(null);
         this.rawQuantity = null;

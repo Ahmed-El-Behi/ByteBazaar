@@ -7,6 +7,7 @@ import { randomInt } from 'node:crypto';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { asRecord, badRequest, int, oneOf, text } from '../common/input';
+import { tr } from '../common/i18n';
 
 export const SHIPPING_FEE = 7; // TND — doit rester identique à SHIPPING_FEE côté frontend (core/models.ts)
 
@@ -71,7 +72,12 @@ function parseAddress(body: unknown): AddressInput {
   const b = asRecord(body);
   const missing = ADDRESS_FIELDS.filter((key) => !text(b[key]));
   if (missing.length)
-    throw badRequest(`Adresse incomplète : ${missing.join(', ')}`);
+    throw badRequest(
+      tr(
+        `Adresse incomplète : ${missing.join(', ')}`,
+        `Incomplete address: ${missing.join(', ')}`,
+      ),
+    );
   return {
     label: text(b.label) || 'Maison',
     recipientName: text(b.recipientName),
@@ -128,17 +134,23 @@ export class OrderService {
   async checkout(userId: number, body: unknown) {
     const b = asRecord(body);
     const paymentMethod =
-      oneOf(b.paymentMethod, PAYMENT_METHODS, 'Mode de paiement') ??
-      'CASH_ON_DELIVERY';
+      oneOf(
+        b.paymentMethod,
+        PAYMENT_METHODS,
+        tr('Mode de paiement', 'Payment method'),
+      ) ?? 'CASH_ON_DELIVERY';
     const addressId =
       b.addressId !== undefined && b.addressId !== null
-        ? int(b.addressId, 'Adresse', { min: 1 })
+        ? int(b.addressId, tr('Adresse', 'Address'), { min: 1 })
         : null;
     const newAddress =
       addressId === null && b.newAddress ? parseAddress(b.newAddress) : null;
     if (addressId === null && !newAddress) {
       throw new BadRequestException(
-        'Veuillez sélectionner ou fournir une adresse de livraison',
+        tr(
+          'Veuillez sélectionner ou fournir une adresse de livraison',
+          'Please select or provide a delivery address',
+        ),
       );
     }
 
@@ -174,12 +186,17 @@ export class OrderService {
       },
     });
     if (!cart?.items.length)
-      throw new BadRequestException('Votre panier est vide');
+      throw new BadRequestException(
+        tr('Votre panier est vide', 'Your cart is empty'),
+      );
 
     const address = addressId
       ? await tx.address.findFirst({ where: { id: addressId, userId } })
       : await this.saveAddress(tx, userId, newAddress!);
-    if (!address) throw new NotFoundException('Adresse spécifiée non trouvée');
+    if (!address)
+      throw new NotFoundException(
+        tr('Adresse spécifiée non trouvée', 'Specified address not found'),
+      );
 
     // Réservation du stock : décrément conditionnel atomique (aucune survente possible
     // même si deux commandes du même produit arrivent en même temps)
@@ -195,11 +212,17 @@ export class OrderService {
       if (reserved.count === 0) {
         if (!item.product.isActive) {
           throw new BadRequestException(
-            `Le produit ${item.product.name} n'est plus disponible à la vente`,
+            tr(
+              `Le produit ${item.product.name} n'est plus disponible à la vente`,
+              `The product ${item.product.name} is no longer available for sale`,
+            ),
           );
         }
         throw new BadRequestException(
-          `Le produit ${item.product.name} n'a pas assez de stock (${item.product.stockQuantity} disponible)`,
+          tr(
+            `Le produit ${item.product.name} n'a pas assez de stock (${item.product.stockQuantity} disponible)`,
+            `The product ${item.product.name} does not have enough stock (${item.product.stockQuantity} available)`,
+          ),
         );
       }
     }
@@ -264,7 +287,10 @@ export class OrderService {
       where: { id: orderId, userId },
       include: ORDER_INCLUDE,
     });
-    if (!order) throw new NotFoundException('Commande non trouvée');
+    if (!order)
+      throw new NotFoundException(
+        tr('Commande non trouvée', 'Order not found'),
+      );
     return toOrderDto(order);
   }
 }

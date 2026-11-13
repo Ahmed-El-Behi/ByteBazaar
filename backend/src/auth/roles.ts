@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { AuthedRequest, RoleName } from './jwt-auth.guard';
+import { tr } from '../common/i18n';
 
 const ROLES_KEY = 'roles';
 
@@ -26,7 +27,12 @@ export class RolesGuard implements CanActivate {
 
     const user = context.switchToHttp().getRequest<AuthedRequest>().user;
     if (!user || !required.includes(user.role)) {
-      throw new ForbiddenException('Accès réservé aux administrateurs');
+      throw new ForbiddenException(
+        tr(
+          'Accès réservé aux administrateurs',
+          'Access restricted to administrators',
+        ),
+      );
     }
     return true;
   }
