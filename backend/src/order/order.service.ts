@@ -99,7 +99,7 @@ function newReference(): string {
 export class OrderService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // --- ADRESSES ---
+  // Adresses
 
   getAddresses(userId: number) {
     return this.prisma.address.findMany({
@@ -113,6 +113,51 @@ export class OrderService {
     return this.prisma.$transaction((tx) =>
       this.saveAddress(tx, userId, address),
     );
+  }
+
+  async setDefaultAddress(userId: number, addressId: number) {
+    await this.findOwnAddress(userId, addressId);
+    await this.prisma.$transaction([
+      this.prisma.address.updateMany({
+        where: { userId },
+        data: { isDefault: false },
+      }),
+      this.prisma.address.update({
+        where: { id: addressId },
+        data: { isDefault: true },
+      }),
+    ]);
+    return this.getAddresses(userId);
+  }
+
+  // Les commandes conservent leur propre copie de l'adresse : la supprimer ne les affecte pas
+  async deleteAddress(userId: number, addressId: number) {
+    const address = await this.findOwnAddress(userId, addressId);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.address.delete({ where: { id: addressId } });
+      if (!address.isDefault) return;
+      const next = await tx.address.findFirst({
+        where: { userId },
+        orderBy: { id: 'desc' },
+      });
+      if (next)
+        await tx.address.update({
+          where: { id: next.id },
+          data: { isDefault: true },
+        });
+    });
+    return this.getAddresses(userId);
+  }
+
+  private async findOwnAddress(userId: number, addressId: number) {
+    const address = await this.prisma.address.findFirst({
+      where: { id: addressId, userId },
+    });
+    if (!address)
+      throw new NotFoundException(
+        tr('Adresse introuvable', 'Address not found'),
+      );
+    return address;
   }
 
   private async saveAddress(
@@ -129,7 +174,7 @@ export class OrderService {
     return tx.address.create({ data: { ...address, userId } });
   }
 
-  // --- PASSAGE DE COMMANDE ---
+  // Passage de commande
 
   async checkout(userId: number, body: unknown) {
     const b = asRecord(body);
@@ -271,7 +316,7 @@ export class OrderService {
     return order.id;
   }
 
-  // --- HISTORIQUE ---
+  // Historique
 
   async getMyOrders(userId: number) {
     const orders = await this.prisma.order.findMany({

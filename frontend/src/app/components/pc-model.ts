@@ -1,24 +1,18 @@
-// =====================================================================
-// Modèle 3D procédural d'un PC ouvert (Three.js), sans fichier externe.
-//
-// Repère en centimètres : x = profondeur (arrière -22 → façade +22),
-// y = hauteur (0 → 46), z = largeur (plateau carte mère -10,5 → vitre +10,5).
-// On regarde le côté vitré (+z).
-//
-// Chaque emplacement du configurateur (cpu, motherboard, ram…) est un
-// groupe distinct, reconstruit quand la sélection change :
-//   - vide  → « fantôme » translucide aux couleurs du thème, qui pulse ;
-//   - choisi → pièce détaillée, dimensionnée d'après ses caractéristiques
-//     (format de la carte mère, nombre de barrettes, longueur du GPU…).
-//
-// Éclairage RGB : une texture arc-en-ciel partagée défile en continu sur
-// tous les éléments lumineux (synchronisés, comme un logiciel RGB), et des
-// lumières colorées projettent ces teintes sur les composants.
-// =====================================================================
+// Modèle 3D procédural du PC ouvert (Three.js, sans fichier externe).
+// Repère en cm : x = profondeur (-22 arrière → +22 façade), y = hauteur (0 → 46),
+// z = largeur (-10,5 plateau → +10,5 vitre) ; la caméra regarde la vitre (+z).
+// Chaque emplacement est un groupe reconstruit quand la sélection change : fantôme
+// s'il est vide, pièce dimensionnée d'après ses caractéristiques sinon.
 
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { DESK_SLOTS, PC_SLOTS, type ConfiguratorPart, type FormFactor, type Slot } from '../core/configurator-api';
+import {
+  DESK_SLOTS,
+  PC_SLOTS,
+  type ConfiguratorPart,
+  type FormFactor,
+  type Slot,
+} from '../core/configurator-api';
 import { buildDesk, buildHeadset, buildKeyboard, buildMonitor, buildMouse } from './desk-model';
 import { canvasTexture, seeded } from './three-utils';
 
@@ -67,11 +61,17 @@ function layoutFor(sel: Selection): Layout {
   return {
     board: { x0: BOARD_LEFT, y0, w, h, right: BOARD_LEFT + w },
     cpu,
-    ram: { x: cpu.x + (itx ? 5.8 : 7), y: cpu.y - 1, slots: sel.motherboard?.motherboard?.ramSlots ?? (itx ? 2 : 4) },
+    ram: {
+      x: cpu.x + (itx ? 5.8 : 7),
+      y: cpu.y - 1,
+      slots: sel.motherboard?.motherboard?.ramSlots ?? (itx ? 2 : 4),
+    },
     m2: { x: cpu.x, y: itx ? cpu.y - 6.6 : cpu.y - 8.2 },
     gpu: { top: itx ? y0 + 1.5 : BOARD_TOP - 21, length, end: GPU_BRACKET_X + length },
     floorY: sel.case ? SHROUD_TOP : 0.8,
-    aioMm: sel.cooler?.cooler?.liquid ? Math.min(420, Math.max(120, sel.cooler.cooler.radiatorMm ?? 240)) : null,
+    aioMm: sel.cooler?.cooler?.liquid
+      ? Math.min(420, Math.max(120, sel.cooler.cooler.radiatorMm ?? 240))
+      : null,
   };
 }
 
@@ -186,14 +186,23 @@ export class Builder {
   }
 
   mat(color: THREE.ColorRepresentation, opts: THREE.MeshStandardMaterialParameters = {}) {
-    const m = this.track(new THREE.MeshStandardMaterial({ color, metalness: 0.3, roughness: 0.55, ...opts }));
+    const m = this.track(
+      new THREE.MeshStandardMaterial({ color, metalness: 0.3, roughness: 0.55, ...opts }),
+    );
     this.view.mats.push(m);
     return m;
   }
 
   physical(color: THREE.ColorRepresentation, opts: THREE.MeshPhysicalMaterialParameters = {}) {
     const m = this.track(
-      new THREE.MeshPhysicalMaterial({ color, metalness: 0.4, roughness: 0.4, clearcoat: 0.6, clearcoatRoughness: 0.25, ...opts }),
+      new THREE.MeshPhysicalMaterial({
+        color,
+        metalness: 0.4,
+        roughness: 0.4,
+        clearcoat: 0.6,
+        clearcoatRoughness: 0.25,
+        ...opts,
+      }),
     );
     this.view.mats.push(m);
     return m;
@@ -203,23 +212,72 @@ export class Builder {
     return this.mat(tint, { map: this.tex.brushed, metalness: 0.85, roughness: 0.32 });
   }
 
-  add<T extends THREE.Object3D>(object: T, x = 0, y = 0, z = 0, parent: THREE.Object3D = this.view.group): T {
+  add<T extends THREE.Object3D>(
+    object: T,
+    x = 0,
+    y = 0,
+    z = 0,
+    parent: THREE.Object3D = this.view.group,
+  ): T {
     object.position.set(x, y, z);
     parent.add(object);
     return object;
   }
 
-  box(w: number, h: number, d: number, material: THREE.Material, x: number, y: number, z: number, parent?: THREE.Object3D) {
-    return this.add(new THREE.Mesh(this.track(new THREE.BoxGeometry(w, h, d)), material), x, y, z, parent);
+  box(
+    w: number,
+    h: number,
+    d: number,
+    material: THREE.Material,
+    x: number,
+    y: number,
+    z: number,
+    parent?: THREE.Object3D,
+  ) {
+    return this.add(
+      new THREE.Mesh(this.track(new THREE.BoxGeometry(w, h, d)), material),
+      x,
+      y,
+      z,
+      parent,
+    );
   }
 
-  rounded(w: number, h: number, d: number, r: number, material: THREE.Material, x: number, y: number, z: number) {
+  rounded(
+    w: number,
+    h: number,
+    d: number,
+    r: number,
+    material: THREE.Material,
+    x: number,
+    y: number,
+    z: number,
+  ) {
     const radius = Math.max(0.01, Math.min(r, w / 2 - 0.01, h / 2 - 0.01, d / 2 - 0.01));
-    return this.add(new THREE.Mesh(this.track(new RoundedBoxGeometry(w, h, d, 3, radius)), material), x, y, z);
+    return this.add(
+      new THREE.Mesh(this.track(new RoundedBoxGeometry(w, h, d, 3, radius)), material),
+      x,
+      y,
+      z,
+    );
   }
 
-  cylinder(r: number, length: number, material: THREE.Material, x: number, y: number, z: number, axis: 'x' | 'y' | 'z', segments = 20) {
-    const mesh = this.add(new THREE.Mesh(this.track(new THREE.CylinderGeometry(r, r, length, segments)), material), x, y, z);
+  cylinder(
+    r: number,
+    length: number,
+    material: THREE.Material,
+    x: number,
+    y: number,
+    z: number,
+    axis: 'x' | 'y' | 'z',
+    segments = 20,
+  ) {
+    const mesh = this.add(
+      new THREE.Mesh(this.track(new THREE.CylinderGeometry(r, r, length, segments)), material),
+      x,
+      y,
+      z,
+    );
     if (axis === 'x') mesh.rotation.z = Math.PI / 2;
     if (axis === 'z') mesh.rotation.x = Math.PI / 2;
     return mesh;
@@ -241,14 +299,25 @@ export class Builder {
 
   tube(points: THREE.Vector3[], radius: number, material: THREE.Material) {
     const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.3);
-    return this.add(new THREE.Mesh(this.track(new THREE.TubeGeometry(curve, 48, radius, 10, false)), material));
+    return this.add(
+      new THREE.Mesh(this.track(new THREE.TubeGeometry(curve, 48, radius, 10, false)), material),
+    );
   }
 
   /** Volume « fantôme » : remplissage translucide + arêtes aux couleurs du thème. */
   ghost(w: number, h: number, d: number, x: number, y: number, z: number) {
     const geometry = this.track(new THREE.BoxGeometry(w, h, d));
-    const fill = this.track(new THREE.MeshBasicMaterial({ color: this.accent, transparent: true, opacity: 0.1, depthWrite: false }));
-    const edge = this.track(new THREE.LineBasicMaterial({ color: this.accent, transparent: true, opacity: 0.75 }));
+    const fill = this.track(
+      new THREE.MeshBasicMaterial({
+        color: this.accent,
+        transparent: true,
+        opacity: 0.1,
+        depthWrite: false,
+      }),
+    );
+    const edge = this.track(
+      new THREE.LineBasicMaterial({ color: this.accent, transparent: true, opacity: 0.75 }),
+    );
     this.view.ghostFills.push(fill);
     this.view.ghostEdges.push(edge);
     this.view.accentMats.push(fill, edge);
@@ -262,7 +331,11 @@ export class Builder {
   }
 
   /** Étiquette imprimée sur une face (texture dessinée sur un canvas). */
-  label(lines: { text: string; size: number; color?: string; weight?: number; spacing?: number }[], w: number, h: number) {
+  label(
+    lines: { text: string; size: number; color?: string; weight?: number; spacing?: number }[],
+    w: number,
+    h: number,
+  ) {
     const scale = 64;
     const texture = this.track(
       canvasTexture(Math.round(w * scale), Math.round(h * scale), (ctx) => {
@@ -272,12 +345,14 @@ export class Builder {
         for (const line of lines) {
           const px = line.size * scale;
           ctx.font = `${line.weight ?? 800} ${px}px "Segoe UI", system-ui, sans-serif`;
-          (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing = `${line.spacing ?? 0}px`;
+          (ctx as CanvasRenderingContext2D & { letterSpacing?: string }).letterSpacing =
+            `${line.spacing ?? 0}px`;
           ctx.fillStyle = line.color ?? '#e8ecf5';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'top';
           let text = line.text;
-          while (ctx.measureText(text).width > width * 0.94 && text.length > 4) text = text.slice(0, -2);
+          while (ctx.measureText(text).width > width * 0.94 && text.length > 4)
+            text = text.slice(0, -2);
           if (text !== line.text) text = text.trimEnd() + '…';
           ctx.fillText(text, width / 2, y);
           y += px * 1.25;
@@ -316,7 +391,14 @@ export class Builder {
       hole.absarc(0, 0, radius + 0.15, 0, Math.PI * 2, true);
       shape.holes.push(hole);
       const frameGeo = this.track(
-        new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelSize: 0.08, bevelThickness: 0.08, bevelSegments: 2, curveSegments: 40 }),
+        new THREE.ExtrudeGeometry(shape, {
+          depth,
+          bevelEnabled: true,
+          bevelSize: 0.08,
+          bevelThickness: 0.08,
+          bevelSegments: 2,
+          curveSegments: 40,
+        }),
       );
       frameGeo.translate(0, 0, -depth / 2);
       fan.add(new THREE.Mesh(frameGeo, this.mat(0x14161c, { roughness: 0.65, metalness: 0.1 })));
@@ -328,7 +410,16 @@ export class Builder {
         [-1, 1],
         [1, 1],
       ]) {
-        this.box(size * 0.14, size * 0.14, depth + 0.1, rubber, sx * (half - size * 0.07), sy * (half - size * 0.07), 0, fan);
+        this.box(
+          size * 0.14,
+          size * 0.14,
+          depth + 0.1,
+          rubber,
+          sx * (half - size * 0.07),
+          sy * (half - size * 0.07),
+          0,
+          fan,
+        );
       }
     }
 
@@ -342,14 +433,26 @@ export class Builder {
 
     // Moyeu + pales incurvées
     const hub = this.add(
-      new THREE.Mesh(this.track(new THREE.CylinderGeometry(radius * 0.32, radius * 0.32, depth * 0.85, 32)), this.mat(0x1a1d24, { roughness: 0.4 })),
+      new THREE.Mesh(
+        this.track(new THREE.CylinderGeometry(radius * 0.32, radius * 0.32, depth * 0.85, 32)),
+        this.mat(0x1a1d24, { roughness: 0.4 }),
+      ),
       0,
       0,
       0,
       fan,
     );
     hub.rotation.x = Math.PI / 2;
-    const cap = this.add(new THREE.Mesh(this.track(new THREE.CircleGeometry(radius * 0.3, 32)), lit ? this.rgb.ring : this.mat(0x2a2e38)), 0, 0, depth * 0.43, fan);
+    const cap = this.add(
+      new THREE.Mesh(
+        this.track(new THREE.CircleGeometry(radius * 0.3, 32)),
+        lit ? this.rgb.ring : this.mat(0x2a2e38),
+      ),
+      0,
+      0,
+      depth * 0.43,
+      fan,
+    );
     cap.userData['noShadow'] = true;
 
     const blades = new THREE.Group();
@@ -360,7 +463,13 @@ export class Builder {
     bladeShape.quadraticCurveTo((r0 + r1) / 2, -radius * 0.42, r1, -radius * 0.12);
     bladeShape.quadraticCurveTo(r1 * 1.02, radius * 0.18, r1 * 0.92, radius * 0.3);
     bladeShape.quadraticCurveTo((r0 + r1) / 2, radius * 0.05, r0, r0 * 0.55);
-    const bladeGeo = this.track(new THREE.ExtrudeGeometry(bladeShape, { depth: 0.06, bevelEnabled: false, curveSegments: 12 }));
+    const bladeGeo = this.track(
+      new THREE.ExtrudeGeometry(bladeShape, {
+        depth: 0.06,
+        bevelEnabled: false,
+        curveSegments: 12,
+      }),
+    );
     const bladeMat = lit ? this.rgb.blade : this.mat(0x2e323c, { roughness: 0.35 });
     const count = 9;
     for (let i = 0; i < count; i++) {
@@ -396,8 +505,20 @@ export class PcModel {
 
   // Éclairage RGB partagé (texture arc-en-ciel animée)
   private readonly rgb: RgbMaterials = {
-    ring: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: this.tex.rainbow, emissiveIntensity: 3.4, roughness: 0.3 }),
-    strip: new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffffff, emissiveMap: this.tex.rainbow, emissiveIntensity: 3, roughness: 0.3 }),
+    ring: new THREE.MeshStandardMaterial({
+      color: 0x000000,
+      emissive: 0xffffff,
+      emissiveMap: this.tex.rainbow,
+      emissiveIntensity: 3.4,
+      roughness: 0.3,
+    }),
+    strip: new THREE.MeshStandardMaterial({
+      color: 0x000000,
+      emissive: 0xffffff,
+      emissiveMap: this.tex.rainbow,
+      emissiveIntensity: 3,
+      roughness: 0.3,
+    }),
     blade: new THREE.MeshStandardMaterial({
       color: 0xf2f4ff,
       emissive: 0xffffff,
@@ -455,7 +576,7 @@ export class PcModel {
     };
   }
 
-  // --------------------------------------------------------------- API
+  // API
 
   setSelection(selection: Selection, animate: boolean) {
     this.spinners.length = 0;
@@ -493,7 +614,8 @@ export class PcModel {
 
   setAccent(color: string) {
     this.accent.set(color);
-    for (const view of this.views.values()) for (const m of view.accentMats) m.color.copy(this.accent);
+    for (const view of this.views.values())
+      for (const m of view.accentMats) m.color.copy(this.accent);
     this.applyHover();
   }
 
@@ -517,7 +639,8 @@ export class PcModel {
     for (let o = object; o; o = o.parent) {
       if (o.userData['noHit']) return null;
       if (mode === 'desk' && o === this.pcRoot) return 'pc';
-      if (o.userData['slot'] && !(mode === 'desk' && this.isInPc(o))) return o.userData['slot'] as Slot;
+      if (o.userData['slot'] && !(mode === 'desk' && this.isInPc(o)))
+        return o.userData['slot'] as Slot;
     }
     return null;
   }
@@ -542,7 +665,8 @@ export class PcModel {
       // Installation : la pièce glisse depuis l'ouverture du boîtier
       if (view.install < 1) view.install = reducedMotion ? 1 : Math.min(1, view.install + dt * 1.6);
       const ease = 1 - Math.pow(1 - view.install, 3);
-      const targetLift = view.slot === this.hovered && view.slot !== 'case' ? (view.axis === 'y' ? 1.2 : 0.9) : 0;
+      const targetLift =
+        view.slot === this.hovered && view.slot !== 'case' ? (view.axis === 'y' ? 1.2 : 0.9) : 0;
       view.lift += (targetLift - view.lift) * Math.min(1, dt * 10);
       // Pièces du PC : glissent depuis la vitre ; poste de travail : se posent depuis le dessus
       if (view.axis === 'z') view.group.position.z = (1 - ease) * 14 + view.lift;
@@ -573,7 +697,7 @@ export class PcModel {
     this.tex.dispose();
   }
 
-  // --------------------------------------------------------------- Construction
+  // Construction
 
   private applyHover() {
     const wholePc = this.hovered === 'pc';
@@ -649,7 +773,7 @@ export class PcModel {
     return view;
   }
 
-  // --------------------------------------------------------------- Boîtier
+  // Boîtier
 
   private buildCase(b: Builder, part: ConfiguratorPart | null, l: Layout) {
     if (!part) {
@@ -661,8 +785,15 @@ export class PcModel {
       b.box(0.6, 46.4, 21.8, shell, 22.3, 23, 0);
       b.box(0.4, 46.4, 21.8, shell, -22.2, 23, 0);
       const geometry = b.track(new THREE.BoxGeometry(44.4, 46.4, 21.8));
-      const edge = b.track(new THREE.LineBasicMaterial({ color: this.accent, transparent: true, opacity: 0.6 }));
-      const outline = b.add(new THREE.LineSegments(b.track(new THREE.EdgesGeometry(geometry)), edge), 0, 23, 0);
+      const edge = b.track(
+        new THREE.LineBasicMaterial({ color: this.accent, transparent: true, opacity: 0.6 }),
+      );
+      const outline = b.add(
+        new THREE.LineSegments(b.track(new THREE.EdgesGeometry(geometry)), edge),
+        0,
+        23,
+        0,
+      );
       outline.raycast = () => undefined;
       b.view.ghostEdges.push(edge);
       b.view.accentMats.push(edge);
@@ -693,7 +824,13 @@ export class PcModel {
     const meshMap = b.track(this.tex.hexMesh.clone());
     meshMap.repeat.set(5, 5);
     meshMap.needsUpdate = true;
-    const perforated = b.mat(white ? 0xe4e7ec : 0x1a1d24, { alphaMap: meshMap, alphaTest: 0.5, side: THREE.DoubleSide, metalness: 0.6, roughness: 0.5 });
+    const perforated = b.mat(white ? 0xe4e7ec : 0x1a1d24, {
+      alphaMap: meshMap,
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+      metalness: 0.6,
+      roughness: 0.5,
+    });
     b.box(0.3, 45.6, 21, perforated, 22.35, 23, 0).userData['noCast'] = true;
     b.box(0.6, 46.6, 1, trim, 22.4, 23, 10.6);
     b.box(0.6, 46.6, 1, trim, 22.4, 23, -10.6);
@@ -756,8 +893,27 @@ export class PcModel {
     win.lineTo(-20, 9.2);
     win.closePath();
     side.holes.push(win);
-    b.add(new THREE.Mesh(b.track(new THREE.ExtrudeGeometry(side, { depth: 0.4, bevelEnabled: false })), interior), 0, 0, 9.9);
-    const logo = b.label([{ text: part.brand.toUpperCase(), size: 1.3, color: white ? '#5a6070' : '#c8cfdc', spacing: 6 }], 14, 2.4);
+    b.add(
+      new THREE.Mesh(
+        b.track(new THREE.ExtrudeGeometry(side, { depth: 0.4, bevelEnabled: false })),
+        interior,
+      ),
+      0,
+      0,
+      9.9,
+    );
+    const logo = b.label(
+      [
+        {
+          text: part.brand.toUpperCase(),
+          size: 1.3,
+          color: white ? '#5a6070' : '#c8cfdc',
+          spacing: 6,
+        },
+      ],
+      14,
+      2.4,
+    );
     b.add(logo, 9, 5.4, 10.32);
 
     // Passe-câbles en caoutchouc dans le plateau
@@ -768,11 +924,13 @@ export class PcModel {
 
     // Caches des slots d'extension à l'arrière
     const slotCover = b.brushed(white ? 0xffffff : 0x8a919c);
-    for (let i = 0; i < 7; i++) b.box(0.15, 1.6, 9.4, slotCover, -21.95, l.gpu.top - 0.8 - i * 2.05, -3.8);
+    for (let i = 0; i < 7; i++)
+      b.box(0.15, 1.6, 9.4, slotCover, -21.95, l.gpu.top - 0.8 - i * 2.05, -3.8);
 
     // Ventilateurs RGB : 3 en façade, 2 au sommet, 1 à l'arrière
     for (const y of [16, 28, 40]) b.add(b.fan(11.6, true), 20.5, y, 0).rotation.y = Math.PI / 2;
-    if (!l.aioMm) for (const x of [-6.5, 6.5]) b.add(b.fan(11.6, true), x, 44.6, 0).rotation.x = Math.PI / 2;
+    if (!l.aioMm)
+      for (const x of [-6.5, 6.5]) b.add(b.fan(11.6, true), x, 44.6, 0).rotation.x = Math.PI / 2;
     b.add(b.fan(11, true), -20.5, 36, 0).rotation.y = Math.PI / 2;
 
     // Bandeaux LED : montant avant et bord supérieur
@@ -780,7 +938,7 @@ export class PcModel {
     b.strip(40, 0.35, 0.35, 0, 45.4, 9.6);
   }
 
-  // --------------------------------------------------------------- Carte mère
+  // Carte mère
 
   private buildMotherboard(b: Builder, part: ConfiguratorPart | null, l: Layout) {
     const { x0, y0, w, h, right } = l.board;
@@ -840,7 +998,15 @@ export class PcModel {
         ctx.fillText(part.motherboard?.socket ?? '', width * 0.3, height * 0.12);
       }),
     );
-    b.box(w, h, 0.22, b.mat(0xffffff, { map: pcb, roughness: 0.7, metalness: 0.15 }), cx, cy, TRAY_Z - 0.11);
+    b.box(
+      w,
+      h,
+      0.22,
+      b.mat(0xffffff, { map: pcb, roughness: 0.7, metalness: 0.15 }),
+      cx,
+      cy,
+      TRAY_Z - 0.11,
+    );
 
     const heatsink = b.brushed(0x6c727e);
     const dark = b.mat(0x1b1e25, { metalness: 0.75, roughness: 0.35 });
@@ -848,7 +1014,15 @@ export class PcModel {
     const steel = b.brushed(0xd5d9e0);
 
     // Socket du processeur (visible tant qu'aucun processeur n'est choisi)
-    b.box(5.2, 5.2, 0.35, b.mat(0x2b2f37, { metalness: 0.8, roughness: 0.3 }), l.cpu.x, l.cpu.y, TRAY_Z + 0.18);
+    b.box(
+      5.2,
+      5.2,
+      0.35,
+      b.mat(0x2b2f37, { metalness: 0.8, roughness: 0.3 }),
+      l.cpu.x,
+      l.cpu.y,
+      TRAY_Z + 0.18,
+    );
 
     // Radiateurs VRM à ailettes autour du socket
     const vrm = (x: number, y: number, vw: number, vh: number) => {
@@ -872,7 +1046,8 @@ export class PcModel {
 
     // Condensateurs le long des VRM
     const cap = b.mat(0x2a2d33, { metalness: 0.9, roughness: 0.25 });
-    for (let i = 0; i < 6; i++) b.cylinder(0.35, 0.9, cap, l.cpu.x - 3.6, l.cpu.y - 3 + i * 1.25, TRAY_Z + 0.45, 'z', 14);
+    for (let i = 0; i < 6; i++)
+      b.cylinder(0.35, 0.9, cap, l.cpu.x - 3.6, l.cpu.y - 3 + i * 1.25, TRAY_Z + 0.45, 'z', 14);
 
     // Emplacements DIMM avec loquets
     const latch = b.mat(0x3c414c);
@@ -897,16 +1072,25 @@ export class PcModel {
     // Connecteurs : ATX 24 broches, EPS 8 broches, SATA, pile CMOS
     b.box(1.6, 5.6, 1.4, plastic, right - 1, l.cpu.y - 4, TRAY_Z + 0.7);
     b.box(2.4, 1.2, 1.2, plastic, x0 + 3.2, BOARD_TOP - 1, TRAY_Z + 0.6);
-    for (let i = 0; i < 4; i++) b.box(0.8, 1, 0.7, plastic, right - 0.5, y0 + 9 + i * 1.3, TRAY_Z + 0.35);
+    for (let i = 0; i < 4; i++)
+      b.box(0.8, 1, 0.7, plastic, right - 0.5, y0 + 9 + i * 1.3, TRAY_Z + 0.35);
     b.cylinder(1, 0.3, steel, right - 8, y0 + 3, TRAY_Z + 0.15, 'z', 24);
   }
 
-  // --------------------------------------------------------------- Processeur + ventirad
+  // Processeur + ventirad
 
   private buildCpu(b: Builder, part: ConfiguratorPart | null, l: Layout) {
     const { x, y } = l.cpu;
     // Zone de survol un peu plus large que le ventirad : le processeur reste accessible dessous
-    const hit = b.box(13, 14.5, 1.6, b.track(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })), x, y, TRAY_Z + 0.9);
+    const hit = b.box(
+      13,
+      14.5,
+      1.6,
+      b.track(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })),
+      x,
+      y,
+      TRAY_Z + 0.9,
+    );
     hit.userData['noShadow'] = true;
     if (!part) {
       b.ghost(5, 5, 1.2, x, y, TRAY_Z + 0.6);
@@ -916,8 +1100,17 @@ export class PcModel {
     b.box(4.4, 4.4, 0.5, b.brushed(0xd9dde4), x, y, TRAY_Z + 0.45);
     const engraving = b.label(
       [
-        { text: /intel/i.test(part.brand) ? 'INTEL' : 'AMD', size: 0.42, color: '#3a4152', spacing: 2 },
-        { text: part.name.replace(/^(AMD|Intel)\s+/i, '').replace(/\s+Tray$/, ''), size: 0.36, color: '#3a4152' },
+        {
+          text: /intel/i.test(part.brand) ? 'INTEL' : 'AMD',
+          size: 0.42,
+          color: '#3a4152',
+          spacing: 2,
+        },
+        {
+          text: part.name.replace(/^(AMD|Intel)\s+/i, '').replace(/\s+Tray$/, ''),
+          size: 0.36,
+          color: '#3a4152',
+        },
       ],
       4,
       2.2,
@@ -925,7 +1118,7 @@ export class PcModel {
     b.add(engraving, x, y, TRAY_Z + 0.71);
   }
 
-  // --------------------------------------------------------------- Refroidissement
+  // Refroidissement
 
   private buildCooler(b: Builder, part: ConfiguratorPart | null, l: Layout) {
     const { x, y } = l.cpu;
@@ -949,15 +1142,45 @@ export class PcModel {
     const finZ0 = TRAY_Z + 4.4;
     const finZ1 = TRAY_Z + 15.6;
     for (let i = 0; i < 4; i++) {
-      b.cylinder(0.32, finZ1 - TRAY_Z - 1.2, copper, x - 0.9 + (i % 2) * 1.8, y - 2.7 + i * 1.8, (TRAY_Z + 1.8 + finZ1) / 2, 'z', 14);
+      b.cylinder(
+        0.32,
+        finZ1 - TRAY_Z - 1.2,
+        copper,
+        x - 0.9 + (i % 2) * 1.8,
+        y - 2.7 + i * 1.8,
+        (TRAY_Z + 1.8 + finZ1) / 2,
+        'z',
+        14,
+      );
     }
     const white = isWhite(part);
     const fin = b.mat(white ? 0xe9ecf1 : 0xc9ced6, { metalness: 0.92, roughness: 0.3 });
     const fins = 34;
-    for (let i = 0; i < fins; i++) b.box(5, 12, 0.08, fin, x, y, finZ0 + (i / (fins - 1)) * (finZ1 - finZ0 - 0.6));
-    b.rounded(5.2, 12.2, 0.6, 0.2, b.physical(white ? 0xf1f2f5 : 0x15171d, { metalness: 0.6, roughness: 0.35 }), x, y, finZ1);
+    for (let i = 0; i < fins; i++)
+      b.box(5, 12, 0.08, fin, x, y, finZ0 + (i / (fins - 1)) * (finZ1 - finZ0 - 0.6));
+    b.rounded(
+      5.2,
+      12.2,
+      0.6,
+      0.2,
+      b.physical(white ? 0xf1f2f5 : 0x15171d, { metalness: 0.6, roughness: 0.35 }),
+      x,
+      y,
+      finZ1,
+    );
     b.strip(11.4, 0.22, 0.22, x + 2.62, y, finZ1).rotation.z = Math.PI / 2;
-    const cover = b.label([{ text: part.brand.toUpperCase(), size: 0.9, color: white ? '#3a4152' : '#e8ecf5', spacing: 4 }], 10, 2);
+    const cover = b.label(
+      [
+        {
+          text: part.brand.toUpperCase(),
+          size: 0.9,
+          color: white ? '#3a4152' : '#e8ecf5',
+          spacing: 4,
+        },
+      ],
+      10,
+      2,
+    );
     cover.rotation.z = Math.PI / 2;
     b.add(cover, x - 0.2, y, finZ1 + 0.31);
     b.add(b.fan(12, true), x + 3.85, y, (finZ0 + finZ1) / 2 - 0.4).rotation.y = Math.PI / 2;
@@ -971,7 +1194,16 @@ export class PcModel {
 
     // Pompe : bloc arrondi, couvercle à anneau RGB, logo
     b.rounded(6.4, 6.4, 2.6, 0.9, shell, x, y, TRAY_Z + 1.6);
-    b.cylinder(2.7, 0.5, b.mat(0x0b0c10, { roughness: 0.3, metalness: 0.4 }), x, y, TRAY_Z + 3.05, 'z', 40);
+    b.cylinder(
+      2.7,
+      0.5,
+      b.mat(0x0b0c10, { roughness: 0.3, metalness: 0.4 }),
+      x,
+      y,
+      TRAY_Z + 3.05,
+      'z',
+      40,
+    );
     const ring = b.add(b.glowMesh(new THREE.TorusGeometry(2.75, 0.2, 10, 48)), x, y, TRAY_Z + 3.3);
     ring.rotation.z = Math.PI / 4;
     const logo = b.label([{ text: part.brand.toUpperCase(), size: 0.55, spacing: 2 }], 4.6, 1);
@@ -981,9 +1213,19 @@ export class PcModel {
     const length = (l.aioMm ?? 240) / 10 + 3;
     const fans = Math.round(((l.aioMm ?? 240) - 0) / 120);
     const radY = 44.3;
-    b.rounded(length, 2.7, 12.4, 0.3, b.mat(white ? 0xe6e8ed : 0x1a1c22, { metalness: 0.7, roughness: 0.4 }), 0, radY, 0);
+    b.rounded(
+      length,
+      2.7,
+      12.4,
+      0.3,
+      b.mat(white ? 0xe6e8ed : 0x1a1c22, { metalness: 0.7, roughness: 0.4 }),
+      0,
+      radY,
+      0,
+    );
     const finTex = b.mat(white ? 0xcfd3da : 0x2a2d35, { metalness: 0.8, roughness: 0.5 });
-    for (let i = 0; i < Math.floor(length / 0.6); i++) b.box(0.08, 2.4, 11.6, finTex, -length / 2 + 0.6 + i * 0.6, radY - 0.05, 0);
+    for (let i = 0; i < Math.floor(length / 0.6); i++)
+      b.box(0.08, 2.4, 11.6, finTex, -length / 2 + 0.6 + i * 0.6, radY - 0.05, 0);
     const fanSize = 11.6;
     for (let i = 0; i < fans; i++) {
       const fx = -((fans - 1) * fanSize) / 2 + i * fanSize;
@@ -1007,7 +1249,7 @@ export class PcModel {
     }
   }
 
-  // --------------------------------------------------------------- Mémoire
+  // Mémoire
 
   private buildRam(b: Builder, part: ConfiguratorPart | null, l: Layout) {
     const modules = part?.ram?.modules ?? 2;
@@ -1040,16 +1282,35 @@ export class PcModel {
       const geo = b.track(new THREE.ExtrudeGeometry(profile, { depth: 13.3, bevelEnabled: false }));
       geo.translate(0, 0, -13.3 / 2);
       geo.rotateX(Math.PI / 2); // hauteur du profil → vers la vitre (z), longueur → verticale (y)
-      b.add(new THREE.Mesh(geo, b.physical(white ? 0xe6e8ed : 0x1e2128, { metalness: 0.8, roughness: 0.3 })), x, l.ram.y, TRAY_Z + 0.9);
+      b.add(
+        new THREE.Mesh(
+          geo,
+          b.physical(white ? 0xe6e8ed : 0x1e2128, { metalness: 0.8, roughness: 0.3 }),
+        ),
+        x,
+        l.ram.y,
+        TRAY_Z + 0.9,
+      );
       b.box(0.5, 13.1, 0.5, b.mat(0x1d5b3a, { roughness: 0.6 }), x, l.ram.y, TRAY_Z + 0.75);
       b.strip(13.1, 0.3, 0.55, x, l.ram.y, TRAY_Z + 4.6).rotation.z = Math.PI / 2;
-      const brand = b.label([{ text: part.brand.toUpperCase(), size: 0.42, spacing: 2, color: white ? '#5a6070' : '#c8cfdc' }], 6, 0.5);
+      const brand = b.label(
+        [
+          {
+            text: part.brand.toUpperCase(),
+            size: 0.42,
+            spacing: 2,
+            color: white ? '#5a6070' : '#c8cfdc',
+          },
+        ],
+        6,
+        0.5,
+      );
       brand.rotation.set(0, Math.PI / 2, Math.PI / 2);
       b.add(brand, x + 0.33, l.ram.y - 2, TRAY_Z + 2.6);
     }
   }
 
-  // --------------------------------------------------------------- Carte graphique
+  // Carte graphique
 
   private buildGpu(b: Builder, part: ConfiguratorPart | null, l: Layout) {
     const { length, top } = l.gpu;
@@ -1065,28 +1326,64 @@ export class PcModel {
     const white = isWhite(part);
 
     // Carénage vernis, radiateur visible, plaque arrière gravée
-    b.rounded(length, thick - 1.2, depth, 0.45, b.physical(white ? 0xe8eaef : 0x1b1e25, { metalness: 0.5, roughness: 0.32 }), x, y - 0.4, z);
-    b.box(length - 1.2, 0.6, depth - 0.8, b.mat(0xb8bec8, { metalness: 0.9, roughness: 0.35 }), x, y + thick / 2 - 0.95, z);
+    b.rounded(
+      length,
+      thick - 1.2,
+      depth,
+      0.45,
+      b.physical(white ? 0xe8eaef : 0x1b1e25, { metalness: 0.5, roughness: 0.32 }),
+      x,
+      y - 0.4,
+      z,
+    );
+    b.box(
+      length - 1.2,
+      0.6,
+      depth - 0.8,
+      b.mat(0xb8bec8, { metalness: 0.9, roughness: 0.35 }),
+      x,
+      y + thick / 2 - 0.95,
+      z,
+    );
     const backplate = b.track(
       canvasTexture(512, 192, (ctx) => {
         ctx.fillStyle = white ? '#e3e6ec' : '#2a2e37';
         ctx.fillRect(0, 0, 512, 192);
         ctx.fillStyle = white ? '#c9cdd5' : '#1a1d24';
-        for (let i = 0; i < 14; i++) ctx.fillRect(330 + (i % 7) * 22, 40 + Math.floor(i / 7) * 70, 10, 50);
+        for (let i = 0; i < 14; i++)
+          ctx.fillRect(330 + (i % 7) * 22, 40 + Math.floor(i / 7) * 70, 10, 50);
         ctx.fillStyle = white ? '#8a909c' : '#9aa3b5';
         ctx.font = '800 34px "Segoe UI", system-ui, sans-serif';
         ctx.fillText(part.brand.toUpperCase(), 40, 110);
       }),
     );
-    b.rounded(length, 0.4, depth, 0.15, b.mat(0xffffff, { map: backplate, metalness: 0.8, roughness: 0.35 }), x, y + thick / 2 - 0.25, z);
+    b.rounded(
+      length,
+      0.4,
+      depth,
+      0.15,
+      b.mat(0xffffff, { map: backplate, metalness: 0.8, roughness: 0.35 }),
+      x,
+      y + thick / 2 - 0.25,
+      z,
+    );
 
     // Équerre avec sorties vidéo
     b.box(0.25, thick + 2, depth + 0.4, b.brushed(0xc0c5ce), GPU_BRACKET_X - 0.15, y, z);
     const port = b.mat(0x0c0d11);
-    for (let i = 0; i < 4; i++) b.box(0.3, 0.9, 1.8, port, GPU_BRACKET_X - 0.3, y - 1, z - 4 + i * 2.4);
+    for (let i = 0; i < 4; i++)
+      b.box(0.3, 0.9, 1.8, port, GPU_BRACKET_X - 0.3, y - 1, z - 4 + i * 2.4);
 
     // Connecteur d'alimentation sur la tranche supérieure
-    b.box(2.4, 0.9, 1.4, b.mat(0x0c0d11), GPU_BRACKET_X + length * 0.72, top + 0.1, z + depth / 2 - 1.4);
+    b.box(
+      2.4,
+      0.9,
+      1.4,
+      b.mat(0x0c0d11),
+      GPU_BRACKET_X + length * 0.72,
+      top + 0.1,
+      z + depth / 2 - 1.4,
+    );
 
     // Bandeau RGB + nom de la puce sur la tranche visible
     b.strip(length - 3, 0.28, 0.25, x + 0.6, y + thick / 2 - 1.4, z + depth / 2 + 0.06);
@@ -1111,12 +1408,17 @@ export class PcModel {
     const fans = length > 26 ? 3 : 2;
     const fanSize = Math.min(9.6, (length - 1) / fans - 0.4);
     for (let i = 0; i < fans; i++) {
-      const fan = b.add(b.fan(fanSize, true, false), GPU_BRACKET_X + 0.6 + ((length - 1) / fans) * (i + 0.5), y - thick / 2 + 0.6, z);
+      const fan = b.add(
+        b.fan(fanSize, true, false),
+        GPU_BRACKET_X + 0.6 + ((length - 1) / fans) * (i + 0.5),
+        y - thick / 2 + 0.6,
+        z,
+      );
       fan.rotation.x = Math.PI / 2;
     }
   }
 
-  // --------------------------------------------------------------- Stockage
+  // Stockage
 
   private buildStorage(b: Builder, part: ConfiguratorPart | null, l: Layout) {
     const sata = !!part && part.highlights.some((h) => h.includes('2.5'));
@@ -1138,7 +1440,15 @@ export class PcModel {
     }
     const { x, y } = l.m2;
     // Cible de survol élargie : la barrette M.2 est très fine
-    const hit = b.box(9, 3.4, 2.4, b.track(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })), x, y, TRAY_Z + 1.2);
+    const hit = b.box(
+      9,
+      3.4,
+      2.4,
+      b.track(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })),
+      x,
+      y,
+      TRAY_Z + 1.2,
+    );
     hit.userData['noShadow'] = true;
     if (!part) {
       b.ghost(8, 2.2, 0.8, x, y, TRAY_Z + 0.4);
@@ -1147,11 +1457,12 @@ export class PcModel {
     b.box(8, 2.2, 0.2, b.mat(0x1a5c3a, { roughness: 0.6 }), x, y, TRAY_Z + 0.12);
     b.rounded(7.2, 2.3, 0.7, 0.12, b.brushed(0x4a505c), x + 0.3, y, TRAY_Z + 0.6);
     const groove = b.mat(0x2a2e36);
-    for (let i = 0; i < 8; i++) b.box(0.12, 2.3, 0.25, groove, x - 2.8 + i * 0.85, y, TRAY_Z + 1.05);
+    for (let i = 0; i < 8; i++)
+      b.box(0.12, 2.3, 0.25, groove, x - 2.8 + i * 0.85, y, TRAY_Z + 1.05);
     b.strip(7, 0.18, 0.2, x + 0.3, y + 1.15, TRAY_Z + 0.9);
   }
 
-  // --------------------------------------------------------------- Alimentation + câbles
+  // Alimentation + câbles
 
   private buildPsu(b: Builder, part: ConfiguratorPart | null, sel: Selection, l: Layout) {
     const [x, z] = [-13, -2.3];
@@ -1162,7 +1473,16 @@ export class PcModel {
     const sfx = part.psu?.formFactor === 'SFX';
     const [w, h, d] = sfx ? [12.5, 6.4, 10] : [16, 8.6, 14];
     const y = 0.8 + h / 2;
-    b.rounded(w, h, d, 0.4, b.physical(0x16181e, { metalness: 0.65, roughness: 0.42, clearcoat: 0.2 }), x, y, z);
+    b.rounded(
+      w,
+      h,
+      d,
+      0.4,
+      b.physical(0x16181e, { metalness: 0.65, roughness: 0.42, clearcoat: 0.2 }),
+      x,
+      y,
+      z,
+    );
 
     // Plaque signalétique visible par la fenêtre du cache (couleur de la certification 80+)
     const efficiency = part.psu?.efficiency ?? '';
@@ -1196,10 +1516,24 @@ export class PcModel {
     if (sel.motherboard) {
       // ATX 24 broches
       const cy = l.cpu.y - 4;
-      b.tube([v(gx, cy - 3, -10.6), v(gx, cy - 2, -8.4), v(gx - 1.2, cy - 0.5, -7.6), v(l.board.right - 0.2, cy, -7.9)], 0.75, cable);
+      b.tube(
+        [
+          v(gx, cy - 3, -10.6),
+          v(gx, cy - 2, -8.4),
+          v(gx - 1.2, cy - 0.5, -7.6),
+          v(l.board.right - 0.2, cy, -7.9),
+        ],
+        0.75,
+        cable,
+      );
       // EPS 8 broches du processeur
       b.tube(
-        [v(l.board.x0 + 4, 45.6, -10.6), v(l.board.x0 + 4, 45.4, -8.6), v(l.board.x0 + 3.4, 44.2, -8.1), v(l.board.x0 + 3.2, BOARD_TOP - 0.6, -8.5)],
+        [
+          v(l.board.x0 + 4, 45.6, -10.6),
+          v(l.board.x0 + 4, 45.4, -8.6),
+          v(l.board.x0 + 3.4, 44.2, -8.1),
+          v(l.board.x0 + 3.2, BOARD_TOP - 0.6, -8.5),
+        ],
         0.45,
         cable,
       );

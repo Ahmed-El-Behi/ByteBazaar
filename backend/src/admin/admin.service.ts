@@ -106,7 +106,7 @@ export class AdminService {
     private readonly mailService: MailService,
   ) {}
 
-  // --- PRODUITS ET STOCK ---
+  // Produits et stock
 
   async getProductById(id: number) {
     const product = await this.prisma.product.findUnique({
@@ -242,7 +242,7 @@ export class AdminService {
     });
   }
 
-  // --- COMMANDES ---
+  // Commandes
 
   async getAllOrders(rawStatus?: string) {
     const status = oneOf(rawStatus, ORDER_STATUSES, tr('Statut', 'Status'));

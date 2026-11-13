@@ -8,9 +8,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// ============================================================
 // Enumerations
-// ============================================================
 
 enum Role {
   CUSTOMER
@@ -64,9 +62,7 @@ enum FormFactor {
   E_ATX
 }
 
-// ============================================================
 // Utilisateurs, panier, commandes, configurations
-// ============================================================
 
 model User {
   id                Int       @id @default(autoincrement())
@@ -197,9 +193,7 @@ model ConfigurationItem {
   @@index([productId])
 }
 
-// ============================================================
 // Catalogue et stock
-// ============================================================
 
 model Category {
   id        Int    @id @default(autoincrement())
@@ -317,10 +311,8 @@ model StockMovement {
   @@index([performedById])
 }
 
-// ============================================================
 // Composants du configurateur (heritage de Product)
 // Chaque table partage l'identifiant du produit (relation 1-1).
-// ============================================================
 
 model Cpu {
   productId             Int      @id
@@ -385,10 +377,8 @@ model PcCase {
   sfxOnly              Boolean      @default(false) // n'accepte que les alimentations SFX
 }
 
-// ============================================================
 // Périphériques (écrans, souris, claviers, casques, enceintes, webcams)
 // Mêmes principes que les composants : une table par type, liée au produit.
-// ============================================================
 
 model Monitor {
   productId        Int      @id

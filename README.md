@@ -1,27 +1,36 @@
 # ByteBazaar
 
-Boutique en ligne de composants PC (Tunisie, prix en TND).
+Boutique en ligne de composants PC et de périphériques pour la Tunisie (prix en TND), en français et en anglais.
 
-| Dossier     | Technologie                                   | Port |
-| ----------- | --------------------------------------------- | ---- |
-| `backend/`  | NestJS 12 · Prisma 7 · PostgreSQL · Nodemailer | 3000 |
-| `frontend/` | Angular 22 (composants standalone, signals)   | 4200 |
+| Dossier     | Technologie                                                     | Port |
+| ----------- | --------------------------------------------------------------- | ---- |
+| `backend/`  | NestJS 12 · Prisma 7 · PostgreSQL · Nodemailer                  | 3000 |
+| `frontend/` | Angular 22 (composants standalone, signals) · Three.js · Lucide | 4200 |
+
+## Fonctionnalités
+
+- Catalogue de près de 3 900 produits : filtres (catégorie, marque, prix, stock), recherche, tri par pertinence.
+- Configurateur PC 3D : seules les pièces compatibles sont proposées (socket, type de mémoire, format, puissance).
+- Panier invité ou connecté, commande (paiement à la livraison, virement, carte, PayPal), suivi des commandes.
+- Fiche produit avec suggestions de pièces compatibles après l'ajout au panier.
+- Espace client (profil, adresses, commandes, configurations enregistrées) et administration (commandes, stock).
+- Site bilingue FR / EN, thème clair / sombre, conditions générales de vente et politique de confidentialité.
 
 ## Installation
 
 Prérequis : Node.js 22+, PostgreSQL 16+.
 
 ```bash
-# 1. Backend
+# 1. API
 cd backend
-cp .env.example .env          # puis renseigner DATABASE_URL, JWT_SECRET, SMTP_*
+cp .env.example .env          # renseigner DATABASE_URL, JWT_SECRET, SMTP_*, FRONTEND_URL
 npm install
 npx prisma migrate deploy --config prisma7.config.ts
-npm run seed                  # importe le catalogue (≈ 10 s, relançable)
-npm run seed:stock            # stock de test reproductible (optionnel)
+npm run seed                  # importe le catalogue (relançable)
+npm run seed:stock            # stock de test reproductible (facultatif)
 npm run start:dev
 
-# 2. Frontend (autre terminal)
+# 2. Site (autre terminal)
 cd frontend
 npm install
 npm start                     # http://localhost:4200
@@ -33,41 +42,35 @@ Pour donner le rôle administrateur à un compte :
 UPDATE "User" SET role = 'ADMIN' WHERE email = 'vous@exemple.tn';
 ```
 
-## Catalogue
+## Mise en production
 
-- Sources de vérité :
-  - composants : `backend/data/catalogue_local_images_cleaned.json` (2 997 produits, photos dans `frontend/public/products/`) ;
-  - périphériques : `backend/data/accessories_catalogue.json` (894 écrans, souris, claviers, casques, enceintes et
-    webcams, photos dans `frontend/public/products/`). Noms et caractéristiques :
-    [docyx/pc-part-dataset](https://github.com/docyx/pc-part-dataset) (PCPartPicker, licence MIT, copie et licence dans
-    `backend/data/raw/pc-part-dataset/`). Photos : la source n'en ayant pas, chaque produit est apparié strictement
-    (marque, référence exacte, couleur) à sa fiche dans [Amazon Reviews 2023](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023)
-    (McAuley Lab — jeu de données sans licence déclarée, à réserver à un usage pédagogique), puis la photo est
-    téléchargée localement. Seuls les produits pour lesquels une photo a été trouvée sont mis en vente.
-    Pipeline : voir `backend/README.md`.
-- Les noms suivent le format des sites professionnels (marque + puce/modèle + capacité…). Ils sont
-  générés par `backend/scripts/normalize_catalogue.py` à partir des caractéristiques ; le nom
-  d'origine est conservé dans `source.originalName`.
-- `npm run seed` synchronise la base avec ce fichier : création / mise à jour par SKU (le stock n'est
-  jamais écrasé), suppression des produits qui n'y figurent plus (ou désactivation s'ils
-  apparaissent dans une commande), suppression des catégories et marques vides.
+- API : `npm run build` puis `npm run start:prod` (variables de `backend/.env.example`, `FRONTEND_URL` = domaine du site).
+- Site : renseigner l'URL publique de l'API dans `frontend/src/environments/environment.ts`, puis `npm run build`
+  et servir `frontend/dist/frontend/browser` (toutes les routes inconnues renvoient vers `index.html`).
+- Compléter l'identification légale du vendeur dans `frontend/src/app/core/legal-content.ts`.
 
-Tri par défaut du catalogue : **Pertinence** (`backend/src/catalog/relevance.ts`) — mélange des
-catégories selon la popularité de chaque produit dans sa catégorie, une part d'aléatoire qui change
-chaque jour, et la disponibilité ; avec une recherche, la correspondance du texte prime.
-
-## Tests
+## Vérifications
 
 ```bash
-cd backend
-npm test           # tests unitaires
-npm run test:e2e   # tests d'intégration (nécessitent la base de développement)
-npm run lint
+cd backend && npm run lint && npm test && npm run test:e2e   # test:e2e : base de développement requise
+cd frontend && npm run typecheck && npm run i18n:check && npm run format:check && npm test && npm run build
 ```
+
+## Catalogue
+
+- Composants : `backend/data/catalogue_local_images_cleaned.json` (noms normalisés par `scripts/normalize_catalogue.py`).
+- Périphériques : `backend/data/accessories_catalogue.json`, construit à partir de
+  [docyx/pc-part-dataset](https://github.com/docyx/pc-part-dataset) (PCPartPicker, licence MIT, copie dans
+  `backend/data/raw/pc-part-dataset/`). Les photos proviennent de
+  [Amazon Reviews 2023](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023) (McAuley Lab, sans licence
+  déclarée : usage pédagogique) ; seuls les produits avec une photo sont mis en vente.
+- Photos des produits : `frontend/public/products/<catégorie>/<SKU>.jpg`.
+- `npm run seed` synchronise la base (création / mise à jour par SKU, stock jamais écrasé, produits retirés supprimés
+  ou désactivés). Les pipelines de données sont décrits dans `backend/README.md`.
 
 ## Sécurité
 
-- Les routes `/admin/*` exigent un compte `ADMIN` ; le rôle est relu en base à chaque requête.
-- Les liens de réinitialisation du mot de passe expirent après 15 minutes et ne servent qu'une fois ;
-  une réinitialisation déconnecte les sessions existantes.
-- Connexion, inscription et réinitialisation sont limitées en nombre de tentatives par adresse IP.
+- Mots de passe hachés (scrypt, sel unique) ; sessions de 7 jours révoquées après un changement de mot de passe.
+- Routes `/admin/*` réservées aux comptes `ADMIN`, rôle relu en base à chaque requête.
+- Liens de réinitialisation valables 15 minutes, à usage unique.
+- Connexion, inscription et réinitialisation limitées en nombre de tentatives par adresse IP.

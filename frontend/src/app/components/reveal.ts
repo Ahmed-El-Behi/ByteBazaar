@@ -1,4 +1,13 @@
-import { Directive, DestroyRef, ElementRef, afterNextRender, effect, inject, input, untracked } from '@angular/core';
+import {
+  Directive,
+  DestroyRef,
+  ElementRef,
+  afterNextRender,
+  effect,
+  inject,
+  input,
+  untracked,
+} from '@angular/core';
 import { I18nService } from '../core/i18n';
 
 /**

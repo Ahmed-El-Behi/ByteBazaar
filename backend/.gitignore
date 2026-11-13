@@ -67,3 +67,12 @@ backup.sql
 
 # Fichier intermédiaire régénéré par scripts/build_accessories.py --candidates
 /data/raw/accessory_candidates.json
+
+# Documentation pour assistants IA générée par `prisma skills sync` (postinstall)
+/.agents
+/.claude
+/.windsurf
+/skills-lock.json
+
+# Python
+__pycache__/

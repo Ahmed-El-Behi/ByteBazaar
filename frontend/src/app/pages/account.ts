@@ -14,7 +14,6 @@ import { TPipe } from '../core/i18n';
       <h1 class="page-title">{{ 'Mon compte' | t }}</h1>
 
       <div class="account-grid">
-        <!-- Sidebar Navigation -->
         <aside class="sidebar-card">
           <nav class="nav-list">
             <a routerLink="profil" routerLinkActive="active" class="nav-item">
@@ -39,7 +38,6 @@ import { TPipe } from '../core/i18n';
           </nav>
         </aside>
 
-        <!-- Zone Principale -->
         <main class="main-content">
           <router-outlet></router-outlet>
         </main>
@@ -68,7 +66,9 @@ import { TPipe } from '../core/i18n';
     }
 
     @media (max-width: 768px) {
-      .account-grid { grid-template-columns: 1fr; }
+      .account-grid {
+        grid-template-columns: 1fr;
+      }
     }
 
     .sidebar-card {
@@ -124,7 +124,7 @@ import { TPipe } from '../core/i18n';
     .nav-item.logout:hover {
       background: color-mix(in srgb, var(--red) 10%, transparent);
     }
-  `
+  `,
 })
 export class AccountPage {
   readonly auth = inject(AuthService);

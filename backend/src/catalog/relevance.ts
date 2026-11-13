@@ -1,4 +1,3 @@
-// =====================================================================
 // Tri « Pertinence » du catalogue.
 //
 // Sans recherche, l'ordre mélange les catégories au lieu d'afficher les
@@ -13,7 +12,6 @@
 //
 // Avec une recherche, la qualité de correspondance du texte domine
 // (mot exact > début de mot > contenu ; phrase complète en bonus).
-// =====================================================================
 
 export interface RelevanceCandidate {
   id: number;

@@ -58,7 +58,7 @@ export class AdminApiService {
 
   updateOrderStatus(
     id: number,
-    dto: { status?: string; paymentStatus?: string }
+    dto: { status?: string; paymentStatus?: string },
   ): Observable<AdminOrder> {
     return this.http.patch<AdminOrder>(`${API_URL}/admin/orders/${id}/status`, dto);
   }
@@ -73,10 +73,11 @@ export class AdminApiService {
 
   // Accepte à la fois la signature Objet DTO ou la signature multi-arguments pour rétrocompatibilité
   updateStock(
-    productIdOrDto: number | { productId: number; quantityChange: number; reason?: string; note?: string },
+    productIdOrDto:
+      number | { productId: number; quantityChange: number; reason?: string; note?: string },
     quantityChange?: number,
     reason?: string,
-    note?: string
+    note?: string,
   ) {
     let body: { productId: number; quantityChange: number; reason?: string; note?: string };
 

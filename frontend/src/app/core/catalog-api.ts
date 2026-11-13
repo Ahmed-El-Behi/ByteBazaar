@@ -10,6 +10,12 @@ export class CatalogApi {
     return this.http.get<CategoryNode[]>(`${API_URL}/categories`);
   }
 
+  categoryCovers() {
+    return this.http.get<Record<string, { url: string; altText: string | null }>>(
+      `${API_URL}/categories/covers`,
+    );
+  }
+
   brands() {
     return this.http.get<Brand[]>(`${API_URL}/brands`);
   }

@@ -27,29 +27,28 @@ import { ProductNamePipe, TPipe, translate } from '../core/i18n';
         <div class="card form-card">
           <h3>{{ "Ajuster le stock d'un produit" | t }}</h3>
           <form (ngSubmit)="onUpdateStock()" style="display: grid; gap: 1rem;">
-            
             <div class="field">
               <label>{{ 'Recherche Produit (ID ou SKU)' | t }}</label>
-              <input 
-                type="text" 
-                [ngModel]="searchQuery()" 
+              <input
+                type="text"
+                [ngModel]="searchQuery()"
                 (ngModelChange)="onSearchQueryChange($event)"
-                name="searchQuery" 
-                [placeholder]="'Entrez un ID (ex : 1) ou un SKU (ex : PCP-540664)' | t" 
-                required 
+                name="searchQuery"
+                [placeholder]="'Entrez un ID (ex : 1) ou un SKU (ex : PCP-540664)' | t"
+                required
               />
             </div>
 
             <div class="form-row" style="display: flex; gap: 1rem;">
               <div class="field" style="flex: 1;">
                 <label>{{ 'Quantité' | t }}</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   min="1"
-                  [(ngModel)]="rawQuantity" 
-                  name="rawQuantity" 
-                  [placeholder]="'ex : 10' | t" 
-                  required 
+                  [(ngModel)]="rawQuantity"
+                  name="rawQuantity"
+                  [placeholder]="'ex : 10' | t"
+                  required
                 />
               </div>
 
@@ -76,15 +75,19 @@ import { ProductNamePipe, TPipe, translate } from '../core/i18n';
 
             <div class="field">
               <label>{{ 'Note / Remarque (optionnel)' | t }}</label>
-              <input 
-                type="text" 
-                [(ngModel)]="note" 
-                name="note" 
-                [placeholder]="'ex : Reçu du fournisseur X' | t" 
+              <input
+                type="text"
+                [(ngModel)]="note"
+                name="note"
+                [placeholder]="'ex : Reçu du fournisseur X' | t"
               />
             </div>
 
-            <button type="submit" class="btn primary block" [disabled]="submitting() || !selectedProduct() || !rawQuantity">
+            <button
+              type="submit"
+              class="btn primary block"
+              [disabled]="submitting() || !selectedProduct() || !rawQuantity"
+            >
               {{ (submitting() ? 'Enregistrement...' : 'Mettre à jour le stock') | t }}
             </button>
           </form>
@@ -92,7 +95,7 @@ import { ProductNamePipe, TPipe, translate } from '../core/i18n';
 
         <div class="card preview-card">
           <h3>{{ 'Aperçu du produit' | t }}</h3>
-          
+
           @if (loadingProduct()) {
             <div class="preview-placeholder">
               <p>{{ 'Recherche du produit en cours...' | t }}</p>
@@ -109,11 +112,19 @@ import { ProductNamePipe, TPipe, translate } from '../core/i18n';
               <div class="preview-details">
                 <span class="badge-brand">{{ prod.brand?.name || ('Composant' | t) }}</span>
                 <h4>{{ prod.name | productName }}</h4>
-                <p class="muted">{{ 'ID :' | t }} <strong>#{{ prod.id }}</strong> · {{ 'SKU :' | t }} <strong>{{ prod.sku }}</strong></p>
-                <p class="price">{{ 'Prix :' | t }} <strong>{{ prod.price | tnd }}</strong></p>
+                <p class="muted">
+                  {{ 'ID :' | t }} <strong>#{{ prod.id }}</strong> · {{ 'SKU :' | t }}
+                  <strong>{{ prod.sku }}</strong>
+                </p>
+                <p class="price">
+                  {{ 'Prix :' | t }} <strong>{{ prod.price | tnd }}</strong>
+                </p>
                 <p class="stock-status">
-                  {{ 'Stock actuel :' | t }} 
-                  <span [class.text-green]="prod.stockQuantity > 0" [class.text-red]="prod.stockQuantity <= 0">
+                  {{ 'Stock actuel :' | t }}
+                  <span
+                    [class.text-green]="prod.stockQuantity > 0"
+                    [class.text-red]="prod.stockQuantity <= 0"
+                  >
                     <strong>{{ '{n} unités' | t: { n: prod.stockQuantity } }}</strong>
                   </span>
                 </p>
@@ -121,7 +132,9 @@ import { ProductNamePipe, TPipe, translate } from '../core/i18n';
             </div>
           } @else {
             <div class="preview-placeholder">
-              <p class="muted">{{ "Entrez un ID ou SKU valide pour afficher l'aperçu du produit." | t }}</p>
+              <p class="muted">
+                {{ "Entrez un ID ou SKU valide pour afficher l'aperçu du produit." | t }}
+              </p>
             </div>
           }
         </div>
@@ -146,25 +159,42 @@ import { ProductNamePipe, TPipe, translate } from '../core/i18n';
             <tbody>
               @for (m of movements(); track m.id) {
                 <tr>
-                  <td>{{ m.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
+                  <td>{{ m.createdAt | date: 'dd/MM/yyyy HH:mm' }}</td>
                   <td>
-                    <strong>{{ m.product?.name ? (m.product!.name | productName) : ('Produit #{id}' | t: { id: m.productId }) }}</strong><br>
+                    <strong>{{
+                      m.product?.name
+                        ? (m.product!.name | productName)
+                        : ('Produit #{id}' | t: { id: m.productId })
+                    }}</strong
+                    ><br />
                     <small class="muted">
-                      {{ 'ID :' | t }} #{{ m.productId }} · {{ 'SKU :' | t }} {{ m.product?.sku || '—' }} · {{ 'Stock :' | t }} 
-                      <strong [class.text-green]="(m.historicalStock ?? 0) > 0" [class.text-red]="(m.historicalStock ?? 0) <= 0">
-                        @if (m.historicalStock !== null && m.historicalStock !== undefined) { {{ '{n} unités' | t: { n: m.historicalStock } }} } @else { — }
+                      {{ 'ID :' | t }} #{{ m.productId }} · {{ 'SKU :' | t }}
+                      {{ m.product?.sku || '—' }} · {{ 'Stock :' | t }}
+                      <strong
+                        [class.text-green]="(m.historicalStock ?? 0) > 0"
+                        [class.text-red]="(m.historicalStock ?? 0) <= 0"
+                      >
+                        @if (m.historicalStock !== null && m.historicalStock !== undefined) {
+                          {{ '{n} unités' | t: { n: m.historicalStock } }}
+                        } @else {
+                          —
+                        }
                       </strong>
                     </small>
                   </td>
                   <td>
-                    <span [class.text-green]="m.quantityChange > 0" [class.text-red]="m.quantityChange < 0" style="font-weight: 700;">
+                    <span
+                      [class.text-green]="m.quantityChange > 0"
+                      [class.text-red]="m.quantityChange < 0"
+                      style="font-weight: 700;"
+                    >
                       {{ m.quantityChange > 0 ? '+' + m.quantityChange : m.quantityChange }}
                     </span>
                   </td>
                   <td>
-                    <span 
-                      class="custom-badge" 
-                      [class.badge-green]="m.quantityChange > 0" 
+                    <span
+                      class="custom-badge"
+                      [class.badge-green]="m.quantityChange > 0"
                       [class.badge-red]="m.quantityChange < 0"
                     >
                       {{ m.reason }}
@@ -180,99 +210,130 @@ import { ProductNamePipe, TPipe, translate } from '../core/i18n';
       }
     </div>
   `,
-  styles: [`
-    .stock-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.5rem;
-    }
-    @media (max-width: 768px) {
-      .stock-grid { grid-template-columns: 1fr; }
-    }
-    .form-card, .preview-card { padding: 1.5rem; }
-    .preview-placeholder {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 220px;
-      border: 2px dashed var(--border);
-      border-radius: var(--r-md);
-      text-align: center;
-      padding: 1rem;
-    }
-    .product-preview-content {
-      display: flex;
-      gap: 1.5rem;
-      align-items: center;
-    }
-    .preview-image-box {
-      width: 140px;
-      height: 140px;
-      border-radius: var(--r-md);
-      background: #ffffff !important; /* Fond blanc fixe quel que soit le thème */
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      flex-shrink: 0;
-      padding: 0.5rem;
-      border: 1px solid var(--border);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    }
-    .preview-image-box img {
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain;
-      mix-blend-mode: normal !important; /* Affichage standard net sans assombrissement */
-    }
-    .preview-details { display: flex; flex-direction: column; gap: 0.4rem; }
-    .preview-details h4 { margin: 0; font-size: var(--fs-lg); }
-    .table-container { overflow-x: auto; }
-    .admin-table { width: 100%; border-collapse: collapse; text-align: left; }
-    .admin-table th, .admin-table td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
-    .admin-table th { background: var(--surface-2); font-family: var(--font-display); }
+  styles: [
+    `
+      .stock-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+      }
+      @media (max-width: 768px) {
+        .stock-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .form-card,
+      .preview-card {
+        padding: 1.5rem;
+      }
+      .preview-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 220px;
+        border: 2px dashed var(--border);
+        border-radius: var(--r-md);
+        text-align: center;
+        padding: 1rem;
+      }
+      .product-preview-content {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+      }
+      .preview-image-box {
+        width: 140px;
+        height: 140px;
+        border-radius: var(--r-md);
+        background: #ffffff !important; /* Fond blanc fixe quel que soit le thème */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        flex-shrink: 0;
+        padding: 0.5rem;
+        border: 1px solid var(--border);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      }
+      .preview-image-box img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        mix-blend-mode: normal !important; /* Affichage standard net sans assombrissement */
+      }
+      .preview-details {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+      }
+      .preview-details h4 {
+        margin: 0;
+        font-size: var(--fs-lg);
+      }
+      .table-container {
+        overflow-x: auto;
+      }
+      .admin-table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+      .admin-table th,
+      .admin-table td {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .admin-table th {
+        background: var(--surface-2);
+        font-family: var(--font-display);
+      }
 
-    .text-green { color: var(--green) !important; }
-    .text-red { color: var(--red) !important; }
+      .text-green {
+        color: var(--green) !important;
+      }
+      .text-red {
+        color: var(--red) !important;
+      }
 
-    .custom-badge {
-      display: inline-block;
-      padding: 0.2rem 0.6rem;
-      font-size: var(--fs-xs);
-      font-weight: 600;
-      border-radius: var(--r-lg);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    .badge-green {
-      background-color: color-mix(in srgb, var(--green) 12%, transparent);
-      color: var(--green);
-      border: 1px solid color-mix(in srgb, var(--green) 30%, transparent);
-    }
-    .badge-red {
-      background-color: color-mix(in srgb, var(--red) 12%, transparent);
-      color: var(--red);
-      border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
-    }
-    .badge-brand {
-      display: inline-block;
-      background: var(--surface-2);
-      color: var(--text);
-      padding: 0.15rem 0.5rem;
-      border-radius: 6px;
-      font-size: var(--fs-sm);
-      font-weight: 600;
-      width: fit-content;
-    }
+      .custom-badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        font-size: var(--fs-xs);
+        font-weight: 600;
+        border-radius: var(--r-lg);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .badge-green {
+        background-color: color-mix(in srgb, var(--green) 12%, transparent);
+        color: var(--green);
+        border: 1px solid color-mix(in srgb, var(--green) 30%, transparent);
+      }
+      .badge-red {
+        background-color: color-mix(in srgb, var(--red) 12%, transparent);
+        color: var(--red);
+        border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+      }
+      .badge-brand {
+        display: inline-block;
+        background: var(--surface-2);
+        color: var(--text);
+        padding: 0.15rem 0.5rem;
+        border-radius: 6px;
+        font-size: var(--fs-sm);
+        font-weight: 600;
+        width: fit-content;
+      }
 
-    .alert.green-success {
-      background-color: color-mix(in srgb, var(--green) 10%, transparent);
-      border: 1px solid color-mix(in srgb, var(--green) 40%, transparent);
-      color: var(--green);
-      padding: 0.75rem 1rem;
-      border-radius: var(--r-sm);
-    }
-  `]
+      .alert.green-success {
+        background-color: color-mix(in srgb, var(--green) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--green) 40%, transparent);
+        color: var(--green);
+        padding: 0.75rem 1rem;
+        border-radius: var(--r-sm);
+      }
+    `,
+  ],
 })
 export class AdminStockPage implements OnInit {
   private readonly adminApi = inject(AdminApiService);
@@ -329,35 +390,37 @@ export class AdminStockPage implements OnInit {
         error: () => {
           this.selectedProduct.set(null);
           this.loadingProduct.set(false);
-        }
+        },
       });
     } else {
-      this.http.get<Paginated<ProductListItem>>(`${API_URL}/products`, {
-        params: { q: query, limit: '20' }
-      }).subscribe({
-        next: (res) => {
-          const match = res.data.find(p => p.sku.toLowerCase() === query.toLowerCase());
-          if (match) {
-            this.http.get<ProductDetail>(`${API_URL}/products/${match.slug}`).subscribe({
-              next: (prod) => {
-                this.selectedProduct.set(prod);
-                this.loadingProduct.set(false);
-              },
-              error: () => {
-                this.selectedProduct.set(null);
-                this.loadingProduct.set(false);
-              }
-            });
-          } else {
+      this.http
+        .get<Paginated<ProductListItem>>(`${API_URL}/products`, {
+          params: { q: query, limit: '20' },
+        })
+        .subscribe({
+          next: (res) => {
+            const match = res.data.find((p) => p.sku.toLowerCase() === query.toLowerCase());
+            if (match) {
+              this.http.get<ProductDetail>(`${API_URL}/products/${match.slug}`).subscribe({
+                next: (prod) => {
+                  this.selectedProduct.set(prod);
+                  this.loadingProduct.set(false);
+                },
+                error: () => {
+                  this.selectedProduct.set(null);
+                  this.loadingProduct.set(false);
+                },
+              });
+            } else {
+              this.selectedProduct.set(null);
+              this.loadingProduct.set(false);
+            }
+          },
+          error: () => {
             this.selectedProduct.set(null);
             this.loadingProduct.set(false);
-          }
-        },
-        error: () => {
-          this.selectedProduct.set(null);
-          this.loadingProduct.set(false);
-        }
-      });
+          },
+        });
     }
   }
 
@@ -372,7 +435,7 @@ export class AdminStockPage implements OnInit {
         const msg = apiErrors(err);
         this.errorMessage.set(Array.isArray(msg) ? msg.join(', ') : msg);
         this.loadingMovements.set(false);
-      }
+      },
     });
   }
 
@@ -394,7 +457,12 @@ export class AdminStockPage implements OnInit {
     this.adminApi.updateStock(prod.id, finalQuantityChange, this.reason, this.note).subscribe({
       next: () => {
         this.submitting.set(false);
-        this.successMessage.set(translate('Stock mis à jour avec succès pour le produit #{id} ({name}) !', { id: prod.id, name: prod.name }));
+        this.successMessage.set(
+          translate('Stock mis à jour avec succès pour le produit #{id} ({name}) !', {
+            id: prod.id,
+            name: prod.name,
+          }),
+        );
         this.searchQuery.set('');
         this.selectedProduct.set(null);
         this.rawQuantity = null;
@@ -405,7 +473,7 @@ export class AdminStockPage implements OnInit {
         this.submitting.set(false);
         const msg = apiErrors(err);
         this.errorMessage.set(Array.isArray(msg) ? msg.join(', ') : msg);
-      }
+      },
     });
   }
 }

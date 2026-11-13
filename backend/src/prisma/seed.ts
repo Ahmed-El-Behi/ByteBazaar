@@ -109,7 +109,6 @@ async function syncHardware(
   }
 }
 
-// =====================================================================
 // Import du catalogue. Sources de vérité :
 //  - data/catalogue_local_images_cleaned.json : composants (noms normalisés
 //    par scripts/normalize_catalogue.py) ;
@@ -122,7 +121,6 @@ async function syncHardware(
 //  - Les catégories et marques devenues vides sont supprimées.
 //
 // Le script est relançable à volonté.
-// =====================================================================
 
 type CatalogueImage = {
   url: string;

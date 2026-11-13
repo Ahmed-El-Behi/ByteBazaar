@@ -5,8 +5,12 @@ Pour chaque catégorie mise en avant, on garde les produits :
   1. dont la photo locale est de bonne qualité (voir photo_score) ;
   2. parmi eux, les plus appréciés des clients (nombre d'avis de la source, = `popularity` en base).
 
-Sortie : data/showcase.json  →  { "<categorySlug>": ["SKU", ...], ... }
-L'API (GET /products/showcase) en tire 3 au hasard, dans 3 catégories différentes, parmi ceux en stock.
+Sorties :
+  - data/showcase.json         { "<categorySlug>": ["SKU", ...] }  — vitrine (catégories mises en avant)
+    L'API (GET /products/showcase) en tire 3 au hasard, dans 3 catégories différentes, parmi ceux en stock.
+  - data/category_covers.json  { "<categorySlug>": ["SKU", ...] }  — photo des tuiles de catégories de
+    l'accueil (toutes les catégories) : les plus belles photos parmi les 40 produits les plus appréciés ;
+    l'API (GET /categories/covers) garde le premier encore en vente.
 
 Usage (depuis backend/) :  python -I scripts/build_showcase.py
 """
@@ -23,6 +27,28 @@ ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = ROOT.parent / "frontend" / "public"
 CATALOGUES = [ROOT / "data" / "catalogue_local_images_cleaned.json", ROOT / "data" / "accessories_catalogue.json"]
 OUTPUT = ROOT / "data" / "showcase.json"
+COVERS = ROOT / "data" / "category_covers.json"
+COVER_POOL = 40  # produits les plus appréciés examinés par catégorie
+COVER_KEEP = 5  # candidats gardés (si le premier n'est plus en vente)
+
+# Photo choisie à la main pour chaque tuile de catégorie : le produit le plus « flashy »
+# (RGB, blanc, modèles haut de gamme). Les candidats automatiques suivent en secours.
+COVER_PICKS = {
+    "alimentations": "PCP-440052",  # Cooler Master XG850 Plus (écran RGB)
+    "boitiers": "PCP-258894",  # Corsair iCUE 465X RGB (blanc, ventilateurs RGB)
+    "cartes-graphiques": "PCP-564076",  # MSI GeForce RTX 5090 GAMING TRIO OC (3 ventilateurs)
+    "cartes-meres": "PCP-550486",  # Gigabyte X870E AORUS XTREME AI TOP
+    "casques": "ACC-HDS-7376190A",  # Razer Opus X (vert Razer)
+    "claviers": "ACC-KBD-4847A2C4",  # SteelSeries Apex Pro (RGB)
+    "ecrans": "ACC-MON-BDBE775D",  # Sceptre C248W incurvé
+    "enceintes": "ACC-SPK-1F99E90C",  # Razer Nommo Chroma (RGB)
+    "memoire-ram": "PCP-508101",  # Kingston FURY Beast RGB
+    "processeurs": "PCP-459576",  # AMD Ryzen 9 7950X3D
+    "refroidissement": "PCP-305852",  # Asus ROG STRIX LC 360 RGB White Edition (watercooling blanc RGB)
+    "souris": "ACC-MOU-9525A7DB",  # Logitech G502 Proteus Spectrum (RGB)
+    "stockage": "PCP-495615",  # Crucial T500 avec dissipateur
+    "webcams": "ACC-CAM-CF9F6A2E",  # Razer Kiyo (anneau lumineux)
+}
 
 # Catégories de la vitrine (pas de webcams, d'enceintes, d'alimentations ni de stockage)
 CATEGORIES = [
@@ -39,7 +65,6 @@ CATEGORIES = [
 ]
 PER_CATEGORY = 15
 MIN_SCORE = 0.6
-
 
 def photo_score(path: Path, monitor: bool = False) -> float:
     """
@@ -105,33 +130,40 @@ def photo_score(path: Path, monitor: bool = False) -> float:
         richness = min(1.0, colorful / 0.55)
     return round(0.25 * resolution + 0.3 * white_corners + 0.25 * max(0.0, framing) + 0.2 * richness, 4)
 
-
 def main() -> int:
-    candidates: dict[str, list[tuple[int, float, str]]] = {c: [] for c in CATEGORIES}
+    candidates: dict[str, list[tuple[int, float, str]]] = {}
     for catalogue in CATALOGUES:
         products = json.loads(catalogue.read_text(encoding="utf-8"))["products"]
         for p in products:
             category = p.get("categorySlug")
-            if category not in candidates or not p.get("isActive", True) or not p.get("images"):
+            if not category or not p.get("isActive", True) or not p.get("images"):
                 continue
             image = next((i for i in p["images"] if i.get("isPrimary")), p["images"][0])
             score = photo_score(PUBLIC / image["url"].lstrip("/"), monitor=category == "ecrans")
             if score < MIN_SCORE:
                 continue
             popularity = int((p.get("source") or {}).get("ratingCount") or 0)
-            candidates[category].append((popularity, score, p["sku"]))
+            candidates.setdefault(category, []).append((popularity, score, p["sku"]))
 
     showcase: dict[str, list[str]] = {}
+    covers: dict[str, list[str]] = {}
     for category, rows in candidates.items():
+        # Tuile de catégorie : la plus belle photo parmi les plus appréciés
+        popular = sorted(rows, key=lambda r: r[0], reverse=True)[:COVER_POOL]
+        auto = [sku for _, _, sku in sorted(popular, key=lambda r: r[1], reverse=True)[:COVER_KEEP]]
+        pick = COVER_PICKS.get(category)
+        covers[category] = ([pick] if pick else []) + [sku for sku in auto if sku != pick]
+        if category not in CATEGORIES:
+            continue
         # Les plus appréciés d'abord ; à égalité, la plus belle photo
         rows.sort(key=lambda r: (r[0], r[1]), reverse=True)
         showcase[category] = [sku for _, _, sku in rows[:PER_CATEGORY]]
         print(f"{category:20} {len(rows):4} photos retenues -> {len(showcase[category])} en vitrine")
 
     OUTPUT.write_text(json.dumps(showcase, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"-> {OUTPUT.relative_to(ROOT)}")
+    COVERS.write_text(json.dumps(covers, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"-> {OUTPUT.relative_to(ROOT)}, {COVERS.relative_to(ROOT)} ({len(covers)} catégories)")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

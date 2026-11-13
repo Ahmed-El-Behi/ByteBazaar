@@ -1,4 +1,3 @@
-// =====================================================================
 // Caractéristiques structurées des composants (tables Cpu, Motherboard,
 // Ram, Gpu, PowerSupply, PcCase) déduites des specs texte du catalogue.
 //
@@ -6,7 +5,6 @@
 // type de RAM des cartes mères et la consommation des GPU sont déduits de
 // faits constructeurs (tables ci-dessous). Chaque fonction renvoie `null`
 // quand le produit ne peut pas être utilisé dans le configurateur.
-// =====================================================================
 
 import type { FormFactor, RamType } from '../generated/prisma/client';
 
@@ -25,7 +23,7 @@ const firstNumber = (value: string) => {
 };
 const sourceSlug = (p: HardwareSource) => (p.source?.url ?? '').toLowerCase();
 
-// ------------------------------------------------------------------ CPU
+// CPU
 
 // Microarchitecture → socket (gammes de bureau AMD Ryzen / Intel Core)
 const SOCKET_BY_MICROARCHITECTURE: Record<string, string> = {
@@ -69,7 +67,7 @@ export function cpuFromSpecs(p: HardwareSource) {
   };
 }
 
-// ------------------------------------------------------------------ Carte mère
+// Carte mère
 
 const FORM_FACTORS: Record<string, FormFactor> = {
   ATX: 'ATX',
@@ -128,7 +126,7 @@ export function motherboardFromSpecs(p: HardwareSource) {
   return { socket, chipset, formFactor, ramType, ramSlots, maxRamGB };
 }
 
-// ------------------------------------------------------------------ RAM
+// RAM
 
 export function ramFromSpecs(p: HardwareSource) {
   if (sourceSlug(p).includes('sodimm')) return null; // barrettes pour portable
@@ -144,7 +142,7 @@ export function ramFromSpecs(p: HardwareSource) {
   };
 }
 
-// ------------------------------------------------------------------ GPU
+// GPU
 
 // Consommation (Total Board Power, W) des puces de référence NVIDIA / AMD
 const GPU_BOARD_POWER: Record<string, number> = {
@@ -234,7 +232,7 @@ export function gpuFromSpecs(p: HardwareSource) {
   };
 }
 
-// ------------------------------------------------------------------ Alimentation
+// Alimentation
 
 export function powerSupplyFromSpecs(p: HardwareSource) {
   const wattage = firstNumber(spec(p, 'Wattage'));
@@ -248,7 +246,7 @@ export function powerSupplyFromSpecs(p: HardwareSource) {
   };
 }
 
-// ------------------------------------------------------------------ Boîtier
+// Boîtier
 
 const CASE_FORM_FACTORS: Record<string, FormFactor[]> = {
   'ATX Full Tower': ['E_ATX', 'ATX', 'MICRO_ATX', 'MINI_ITX'],
@@ -309,7 +307,7 @@ export function pcCaseFromSpecs(p: HardwareSource) {
   };
 }
 
-// ------------------------------------------------------------------ Périphériques
+// Périphériques
 // (catalogue data/accessories_catalogue.json, specs au format PCPartPicker)
 
 const isWireless = (connection: string) =>

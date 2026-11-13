@@ -2,7 +2,6 @@ import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 
-// =====================================================================
 // Stock de TEST : quantités aléatoires mais REPRODUCTIBLES (calculées à
 // partir du SKU : un même produit reçoit toujours le même stock).
 //
@@ -15,7 +14,6 @@ import { PrismaClient } from '../generated/prisma/client';
 // Le script est relançable : il ne touche que les produits à 0 qui n'ont
 // encore AUCUN mouvement de stock. Un produit déjà approvisionné ou déjà
 // vendu n'est jamais modifié. Chaque stock créé écrit un mouvement RESTOCK.
-// =====================================================================
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({

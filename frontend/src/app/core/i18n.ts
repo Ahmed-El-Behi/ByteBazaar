@@ -1,17 +1,6 @@
-// =====================================================================
-// Traduction du site (français par défaut, anglais au choix).
-//
-// Les textes restent écrits en français dans les templates ; la clé de
-// traduction EST le texte français :
-//     {{ 'Voir le catalogue' | t }}
-//     {{ 'Bonjour {name}' | t: { name: user.firstName } }}
-//     this.i18n.t('Panier vide')            (dans le code)
-// En anglais, la phrase est cherchée dans EN (core/i18n-en.ts) ; une phrase
-// absente du dictionnaire s'affiche en français (et est signalée en dev).
-//
-// Le choix est mémorisé dans le navigateur, appliqué à <html lang> et envoyé
-// à l'API (en-tête Accept-Language) pour que ses messages suivent la langue.
-// =====================================================================
+// Traduction FR (par défaut) / EN. La clé est le texte français :
+//   {{ 'Voir le catalogue' | t }}   {{ '{n} produits' | t: { n: total } }}   translate('Panier vide')
+// Les traductions anglaises sont dans i18n-en.ts ; un texte absent s'affiche en français.
 
 import { Injectable, Pipe, PipeTransform, effect, inject, isDevMode, signal } from '@angular/core';
 import { Title } from '@angular/platform-browser';
@@ -48,7 +37,7 @@ export function translate(fr: string, params?: TParams, lang: Lang = current): s
       console.warn(`[i18n] traduction anglaise manquante : « ${fr} »`);
     }
   }
-  if (params) text = text.replace(/\{(\w+)\}/g, (m, k: string) => (params[k] ?? '').toString());
+  if (params) text = text.replace(/\{(\w+)\}/g, (_, k: string) => (params[k] ?? '').toString());
   return text;
 }
 
@@ -78,13 +67,11 @@ export class I18nService {
     return translate(fr, params, this.lang());
   }
 
-  /** Nom localisé d'une catégorie (nameFr / nameEn fournis par l'API). */
   name(item: { nameFr: string; nameEn?: string | null } | null | undefined): string {
     if (!item) return '';
     return this.lang() === 'en' && item.nameEn ? item.nameEn : item.nameFr;
   }
 
-  /** Locale des nombres et des dates */
   locale(): string {
     return this.lang() === 'en' ? 'en-GB' : 'fr-FR';
   }
@@ -99,7 +86,6 @@ export class TPipe implements PipeTransform {
   }
 }
 
-/** {{ categorie | localName }} — nom d'une catégorie dans la langue courante. */
 @Pipe({ name: 'localName', pure: false })
 export class LocalNamePipe implements PipeTransform {
   private readonly i18n = inject(I18nService);
@@ -138,7 +124,6 @@ export function localProductName(name: string, lang: Lang = current): string {
   });
 }
 
-/** {{ produit.name | productName }} — couleur du nom traduite en anglais. */
 @Pipe({ name: 'productName', pure: false })
 export class ProductNamePipe implements PipeTransform {
   private readonly i18n = inject(I18nService);
@@ -156,7 +141,6 @@ export class TranslatedTitleStrategy extends TitleStrategy {
 
   constructor() {
     super();
-    // Changement de langue : le titre de la page affichée suit
     effect(() => {
       this.i18n.lang();
       if (this.last) this.updateTitle(this.last);

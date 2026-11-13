@@ -12,12 +12,14 @@ import { TPipe } from '../core/i18n';
       <div class="header">
         <h1>{{ 'Contactez-nous' | t }}</h1>
         <p class="muted">
-          {{ 'Une question sur un composant, une commande ou une configuration ? Notre équipe répond sous 24 h.' | t }}
+          {{
+            'Une question sur un composant, une commande ou une configuration ? Notre équipe répond sous 24 h.'
+              | t
+          }}
         </p>
       </div>
 
       <div class="contact-grid">
-        <!-- Formulaire de Contact -->
         <div class="card form-card">
           @if (submitted()) {
             <div class="success-message">
@@ -57,20 +59,24 @@ import { TPipe } from '../core/i18n';
                 </div>
               </div>
 
-              <!-- Menu Déroulant Personnalisé Pro -->
               <div class="form-group">
                 <label>{{ 'Sujet' | t }}</label>
                 <div class="custom-select" (click)="dropdownOpen.set(!dropdownOpen())">
                   <div class="select-trigger">
                     <span>{{ form.subject | t }}</span>
-                    <app-icon class="chevron" [class.open]="dropdownOpen()" name="chevronDown" [size]="18" />
+                    <app-icon
+                      class="chevron"
+                      [class.open]="dropdownOpen()"
+                      name="chevronDown"
+                      [size]="18"
+                    />
                   </div>
 
                   @if (dropdownOpen()) {
                     <div class="select-dropdown">
                       @for (option of subjectOptions; track option) {
-                        <div 
-                          class="option-item" 
+                        <div
+                          class="option-item"
                           [class.selected]="form.subject === option"
                           (click)="selectSubject(option, $event)"
                         >
@@ -102,7 +108,6 @@ import { TPipe } from '../core/i18n';
           }
         </div>
 
-        <!-- Bloc Coordonnées -->
         <div class="card info-card">
           <h2>{{ 'Nos coordonnées' | t }}</h2>
 
@@ -113,7 +118,9 @@ import { TPipe } from '../core/i18n';
               </div>
               <div class="info-content">
                 <span class="info-label">{{ 'E-mail' | t }}</span>
-                <a href="mailto:contact@ByteBazaar.tn" class="info-value">contact&#64;ByteBazaar.tn</a>
+                <a href="mailto:contact@ByteBazaar.tn" class="info-value"
+                  >contact&#64;ByteBazaar.tn</a
+                >
               </div>
             </div>
 
@@ -165,9 +172,11 @@ import { TPipe } from '../core/i18n';
       gap: 2rem;
     }
     @media (max-width: 850px) {
-      .contact-grid { grid-template-columns: 1fr; }
+      .contact-grid {
+        grid-template-columns: 1fr;
+      }
     }
-    
+
     .card {
       background: var(--surface-1, var(--surface, rgba(255, 255, 255, 0.03)));
       border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
@@ -181,7 +190,9 @@ import { TPipe } from '../core/i18n';
       gap: 1rem;
     }
     @media (max-width: 550px) {
-      .form-row { grid-template-columns: 1fr; }
+      .form-row {
+        grid-template-columns: 1fr;
+      }
     }
 
     .form-group {
@@ -196,8 +207,9 @@ import { TPipe } from '../core/i18n';
       font-weight: 500;
       color: var(--muted, #8c94a4);
     }
-    
-    input, textarea {
+
+    input,
+    textarea {
       width: 100%;
       background: var(--surface-2, var(--surface, rgba(0, 0, 0, 0.05)));
       border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
@@ -209,11 +221,11 @@ import { TPipe } from '../core/i18n';
       outline: none;
       transition: border-color 0.2s;
     }
-    input:focus, textarea:focus {
+    input:focus,
+    textarea:focus {
       border-color: var(--accent, var(--accent));
     }
 
-    /* CUSTOM SELECT DROPDOWN ADAPTATIF */
     .custom-select {
       position: relative;
       cursor: pointer;
@@ -274,24 +286,6 @@ import { TPipe } from '../core/i18n';
       font-weight: 600;
     }
 
-    /* BOUTON */
-    .btn.primary {
-      background: var(--accent, var(--accent));
-      color: var(--on-accent);
-      font-weight: 600;
-      padding: 0.8rem 1.8rem;
-      border-radius: var(--r-xl);
-      border: none;
-      cursor: pointer;
-      font-size: var(--fs-ui);
-      transition: opacity 0.2s, transform 0.1s;
-    }
-    .btn.primary:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-    }
-
-    /* COORDONNÉES */
     .info-card h2 {
       font-size: var(--fs-xl);
       margin-bottom: 2rem;
@@ -337,7 +331,6 @@ import { TPipe } from '../core/i18n';
       color: var(--accent, var(--accent));
     }
 
-    /* MESSAGE SUCCÈS */
     .success-message {
       text-align: center;
       padding-block: 2rem;

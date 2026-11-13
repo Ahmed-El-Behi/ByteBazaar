@@ -11,13 +11,14 @@ import { TPipe, translate } from '../core/i18n';
   template: `
     <div class="card auth-card">
       @if (!forgotMode()) {
-        <!-- FORMULAIRE DE CONNEXION -->
         <h1>{{ 'Connexion' | t }}</h1>
         <p class="muted">{{ 'Retrouve ton compte ByteBazaar.' | t }}</p>
 
         @if (errors().length) {
           <div class="alert">
-            @for (e of errors(); track e) { <p>{{ e }}</p> }
+            @for (e of errors(); track e) {
+              <p>{{ e }}</p>
+            }
           </div>
         }
 
@@ -33,7 +34,7 @@ import { TPipe, translate } from '../core/i18n';
                 {{ 'Mot de passe oublié ?' | t }}
               </button>
             </div>
-            
+
             <div class="password-wrapper">
               <input
                 #password
@@ -61,15 +62,21 @@ import { TPipe, translate } from '../core/i18n';
           </button>
         </form>
 
-        <p class="muted switch">{{ 'Pas encore de compte ?' | t }} <a routerLink="/inscription" class="create-account-link">{{ 'Créer un compte' | t }}</a></p>
+        <p class="muted switch">
+          {{ 'Pas encore de compte ?' | t }}
+          <a routerLink="/inscription" class="create-account-link">{{ 'Créer un compte' | t }}</a>
+        </p>
       } @else {
-        <!-- FORMULAIRE MOT DE PASSE OUBLIÉ -->
         <h1>{{ 'Mot de passe oublié' | t }}</h1>
-        <p class="muted">{{ 'Saisis ton adresse email pour recevoir un lien de réinitialisation.' | t }}</p>
+        <p class="muted">
+          {{ 'Saisis ton adresse email pour recevoir un lien de réinitialisation.' | t }}
+        </p>
 
         @if (errors().length) {
           <div class="alert">
-            @for (e of errors(); track e) { <p>{{ e }}</p> }
+            @for (e of errors(); track e) {
+              <p>{{ e }}</p>
+            }
           </div>
         }
 
@@ -81,7 +88,14 @@ import { TPipe, translate } from '../core/i18n';
           <form (submit)="submitForgot($event, forgotEmail.value)">
             <div class="field">
               <label for="forgotEmail">{{ 'Email' | t }}</label>
-              <input #forgotEmail id="forgotEmail" type="email" required autocomplete="email" [placeholder]="'exemple@email.tn' | t" />
+              <input
+                #forgotEmail
+                id="forgotEmail"
+                type="email"
+                required
+                autocomplete="email"
+                [placeholder]="'exemple@email.tn' | t"
+              />
             </div>
             <button class="btn primary block" type="submit" [disabled]="busy()">
               {{ (busy() ? 'Envoi en cours…' : 'Envoyer le lien de réinitialisation') | t }}
@@ -98,16 +112,20 @@ import { TPipe, translate } from '../core/i18n';
     </div>
   `,
   styles: `
-    .switch { margin-top: 1.2rem; text-align: center; }
+    .switch {
+      margin-top: 1.2rem;
+      text-align: center;
+    }
     .field-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.3rem;
     }
-    .field-header label { margin-bottom: 0; }
-    
-    /* BOUTON MOT DE PASSE OUBLIÉ (SANS SOULIGNEMENT) */
+    .field-header label {
+      margin-bottom: 0;
+    }
+
     .link-btn {
       background: none;
       border: none;
@@ -117,7 +135,9 @@ import { TPipe, translate } from '../core/i18n';
       cursor: pointer;
       padding: 0;
       text-decoration: none; /* Supprime le soulignement */
-      transition: opacity 0.2s ease, filter 0.2s ease;
+      transition:
+        opacity 0.2s ease,
+        filter 0.2s ease;
     }
     .link-btn:hover {
       opacity: 0.9;
@@ -211,7 +231,8 @@ export class LoginPage {
       next: (res: any) => {
         this.busy.set(false);
         this.successMessage.set(
-          res?.message || translate('Un email contenant le lien de réinitialisation vous a été envoyé.')
+          res?.message ||
+            translate('Un email contenant le lien de réinitialisation vous a été envoyé.'),
         );
       },
       error: (e) => {

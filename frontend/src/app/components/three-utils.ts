@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import type { ConfiguratorPart } from '../core/configurator-api';
 
 /** Produit blanc ? (couleur indiquée dans le nom : « White » / « Blanc ») */
-export const isWhite = (part: ConfiguratorPart | null) => !!part && /\b(white|blanc)\b/i.test(part.name);
+export const isWhite = (part: ConfiguratorPart | null) =>
+  !!part && /\b(white|blanc)\b/i.test(part.name);
 
 // Couleur principale annoncée dans le nom (« … (Bleu / Teal) », « White Edition »…)
 const COLOR_WORDS: [RegExp, number][] = [
@@ -29,7 +30,9 @@ export function productColor(part: ConfiguratorPart | null, fallback = 0x1b1d23)
 
 /** Produit avec éclairage RGB ? (indice dans le nom ou le rétroéclairage du clavier) */
 export const isRgb = (part: ConfiguratorPart | null) =>
-  !!part && (/\b(rgb|chroma|lightsync|spectrum|argb)\b/i.test(part.name) || /rgb/i.test(part.keyboard?.backlight ?? ''));
+  !!part &&
+  (/\b(rgb|chroma|lightsync|spectrum|argb)\b/i.test(part.name) ||
+    /rgb/i.test(part.keyboard?.backlight ?? ''));
 
 /** Générateur pseudo-aléatoire déterministe */
 export function seeded(seed: number) {
@@ -40,8 +43,12 @@ export function seeded(seed: number) {
   };
 }
 
-/** Texture dessinée sur un canvas 2D */
-export function canvasTexture(width: number, height: number, draw: (ctx: CanvasRenderingContext2D) => void, srgb = true) {
+export function canvasTexture(
+  width: number,
+  height: number,
+  draw: (ctx: CanvasRenderingContext2D) => void,
+  srgb = true,
+) {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;

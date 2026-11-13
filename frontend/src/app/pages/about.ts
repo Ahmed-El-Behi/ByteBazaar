@@ -11,13 +11,17 @@ import { TPipe } from '../core/i18n';
     <div class="container page">
       <div class="hero-section">
         <span class="badge">{{ 'À propos de ByteBazaar' | t }}</span>
-        <h1>{{ 'Le bazar des' | t }} <span>{{ 'composants PC' | t }}</span> {{ 'en Tunisie' | t }}</h1>
+        <h1>
+          {{ 'Le bazar des' | t }} <span>{{ 'composants PC' | t }}</span> {{ 'en Tunisie' | t }}
+        </h1>
         <p class="subtitle muted">
-          {{ 'ByteBazaar est né avec une mission simple : proposer le meilleur des composants high-tech au prix le plus juste en Tunisie, avec une transparence totale sur les prix et la compatibilité.' | t }}
+          {{
+            'ByteBazaar est né avec une mission simple : proposer le meilleur des composants high-tech au prix le plus juste en Tunisie, avec une transparence totale sur les prix et la compatibilité.'
+              | t
+          }}
         </p>
       </div>
 
-      <!-- CARTE D'INFORMATIONS AVEC HOVER & SHADOW DYNAMIQUE (BLEU EN LIGHT / GOLD EN DARK) -->
       <div class="features-grid">
         <div class="card feature-card">
           <div class="feature-icon">
@@ -25,7 +29,10 @@ import { TPipe } from '../core/i18n';
           </div>
           <h3>{{ 'Multi-marques & Authentique' | t }}</h3>
           <p class="muted">
-            {{ 'Nous collaborons directement avec les plus grands constructeurs (Asus, MSI, Corsair, AMD, Intel, NVIDIA) pour vous garantir des produits originaux sous garantie.' | t }}
+            {{
+              'Nous collaborons directement avec les plus grands constructeurs (Asus, MSI, Corsair, AMD, Intel, NVIDIA) pour vous garantir des produits originaux sous garantie.'
+                | t
+            }}
           </p>
         </div>
 
@@ -35,7 +42,10 @@ import { TPipe } from '../core/i18n';
           </div>
           <h3>{{ 'Configurateur sur mesure' | t }}</h3>
           <p class="muted">
-            {{ 'Notre outil de configuration intelligent vérifie la compatibilité de vos composants en temps réel pour créer la machine de vos rêves sans mauvaise surprise.' | t }}
+            {{
+              'Notre outil de configuration intelligent vérifie la compatibilité de vos composants en temps réel pour créer la machine de vos rêves sans mauvaise surprise.'
+                | t
+            }}
           </p>
         </div>
 
@@ -45,12 +55,14 @@ import { TPipe } from '../core/i18n';
           </div>
           <h3>{{ 'Livraison rapide en Tunisie' | t }}</h3>
           <p class="muted">
-            {{ 'Commandez en toute confiance avec notre système de livraison à domicile partout en Tunisie et le paiement sécurisé à la livraison.' | t }}
+            {{
+              'Commandez en toute confiance avec notre système de livraison à domicile partout en Tunisie et le paiement sécurisé à la livraison.'
+                | t
+            }}
           </p>
         </div>
       </div>
 
-      <!-- STATISTIQUES -->
       <div class="card stats-card">
         <div class="stat-item">
           <span class="stat-number">100%</span>
@@ -66,7 +78,6 @@ import { TPipe } from '../core/i18n';
         </div>
       </div>
 
-      <!-- CTA BOX -->
       <div class="card cta-box">
         <h2>{{ 'Prêt à assembler votre prochain PC ?' | t }}</h2>
         <a routerLink="/produits" class="btn primary">{{ 'Découvrir le catalogue' | t }}</a>
@@ -110,7 +121,6 @@ import { TPipe } from '../core/i18n';
       color: var(--muted, #8c94a4);
     }
 
-    /* GRILLE ET CARTES */
     .features-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -118,7 +128,9 @@ import { TPipe } from '../core/i18n';
       margin-bottom: 3rem;
     }
     @media (max-width: 800px) {
-      .features-grid { grid-template-columns: 1fr; }
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
     }
 
     .card {
@@ -132,27 +144,28 @@ import { TPipe } from '../core/i18n';
       display: flex;
       flex-direction: column;
       gap: 1rem;
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), 
-                  border-color 0.3s ease, 
-                  box-shadow 0.3s ease;
+      transition:
+        transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+        border-color 0.3s ease,
+        box-shadow 0.3s ease;
       cursor: default;
     }
 
-    /* HOVER EN MODE CLAIR (BLEU) */
     .feature-card:hover {
       transform: translateY(-8px);
       border-color: var(--accent);
-      box-shadow: 0 14px 32px -8px color-mix(in srgb, var(--accent) 25%, transparent),
-                  0 4px 12px rgba(0, 0, 0, 0.05);
+      box-shadow:
+        0 14px 32px -8px color-mix(in srgb, var(--accent) 25%, transparent),
+        0 4px 12px rgba(0, 0, 0, 0.05);
     }
 
-    /* HOVER EN MODE SOMBRE (ORANGE / ACCENT) */
-    :host-context([data-theme="dark"]) .feature-card:hover,
+    :host-context([data-theme='dark']) .feature-card:hover,
     :host-context(.dark) .feature-card:hover,
-    html[data-theme="dark"] .feature-card:hover {
+    html[data-theme='dark'] .feature-card:hover {
       border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-      box-shadow: 0 14px 32px -8px color-mix(in srgb, var(--accent) 25%, transparent),
-                  0 4px 12px rgba(0, 0, 0, 0.4);
+      box-shadow:
+        0 14px 32px -8px color-mix(in srgb, var(--accent) 25%, transparent),
+        0 4px 12px rgba(0, 0, 0, 0.4);
     }
 
     .feature-icon {
@@ -164,7 +177,9 @@ import { TPipe } from '../core/i18n';
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: transform 0.3s ease, background 0.3s ease;
+      transition:
+        transform 0.3s ease,
+        background 0.3s ease;
     }
     .feature-card:hover .feature-icon {
       transform: scale(1.08);
@@ -184,7 +199,6 @@ import { TPipe } from '../core/i18n';
       color: var(--muted, #8c94a4);
     }
 
-    /* STATISTIQUES */
     .stats-card {
       display: flex;
       justify-content: space-around;
@@ -197,13 +211,16 @@ import { TPipe } from '../core/i18n';
     .stats-card:hover {
       border-color: color-mix(in srgb, var(--accent) 40%, transparent);
     }
-    :host-context([data-theme="dark"]) .stats-card:hover,
-    html[data-theme="dark"] .stats-card:hover {
+    :host-context([data-theme='dark']) .stats-card:hover,
+    html[data-theme='dark'] .stats-card:hover {
       border-color: color-mix(in srgb, var(--accent) 30%, transparent);
     }
 
     @media (max-width: 600px) {
-      .stats-card { flex-direction: column; gap: 1.5rem; }
+      .stats-card {
+        flex-direction: column;
+        gap: 1.5rem;
+      }
     }
     .stat-number {
       display: block;
@@ -217,7 +234,6 @@ import { TPipe } from '../core/i18n';
       color: var(--muted, #8c94a4);
     }
 
-    /* CTA BOX */
     .cta-box {
       text-align: center;
       border-radius: var(--r-lg);
@@ -227,8 +243,8 @@ import { TPipe } from '../core/i18n';
     .cta-box:hover {
       border-color: color-mix(in srgb, var(--accent) 40%, transparent);
     }
-    :host-context([data-theme="dark"]) .cta-box:hover,
-    html[data-theme="dark"] .cta-box:hover {
+    :host-context([data-theme='dark']) .cta-box:hover,
+    html[data-theme='dark'] .cta-box:hover {
       border-color: color-mix(in srgb, var(--accent) 30%, transparent);
     }
 
@@ -236,21 +252,6 @@ import { TPipe } from '../core/i18n';
       margin-bottom: 1.5rem;
       font-weight: 700;
       color: var(--text, inherit);
-    }
-    .btn.primary {
-      background: var(--accent, var(--accent));
-      color: var(--on-accent);
-      font-weight: 600;
-      padding: 0.85rem 2rem;
-      border-radius: var(--r-xl);
-      border: none;
-      text-decoration: none;
-      display: inline-block;
-      transition: opacity 0.2s, transform 0.2s;
-    }
-    .btn.primary:hover {
-      opacity: 0.9;
-      transform: translateY(-2px);
     }
   `,
 })

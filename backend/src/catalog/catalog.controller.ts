@@ -10,6 +10,12 @@ export class CatalogController {
     return this.catalog.listCategories();
   }
 
+  /** Photo de chaque catégorie (tuiles de l'accueil) */
+  @Get('categories/covers')
+  categoryCovers() {
+    return this.catalog.categoryCovers();
+  }
+
   @Get('brands')
   brands() {
     return this.catalog.listBrands();

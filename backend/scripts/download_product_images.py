@@ -13,12 +13,10 @@ HEADERS = {
     "Accept": "image/*,*/*;q=0.8",
 }
 
-
 def safe_name(value):
     return re.sub(
         r"[^a-zA-Z0-9_-]+", "-", str(value)
     ).strip("-")[:100] or "product"
-
 
 def get_image_variants(url):
     variants = []
@@ -36,7 +34,6 @@ def get_image_variants(url):
 
     variants.append(url)
     return list(dict.fromkeys(variants))
-
 
 def download_image(url, destination, timeout):
     errors = []
@@ -86,7 +83,6 @@ def download_image(url, destination, timeout):
             errors.append(str(error))
 
     return False, "", "; ".join(errors[-3:])
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -219,7 +215,6 @@ def main():
     print(f"Images téléchargées : {success_count}/{len(jobs)}")
     print(f"JSON local : {json_output}")
     print(f"Rapport : {report_path}")
-
 
 if __name__ == "__main__":
     main()

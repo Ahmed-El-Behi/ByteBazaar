@@ -28,11 +28,9 @@ export class AuthService {
   private pendingUser: Observable<AuthUser | null> | null = null;
 
   constructor() {
-    // Au rechargement de la page, on récupère le profil si un token existe
     if (this.tokenSignal()) this.ensureUser().subscribe();
   }
 
-  /** Profil de l'utilisateur connecté, chargé depuis l'API s'il n'est pas encore connu. */
   ensureUser(): Observable<AuthUser | null> {
     if (this.user() || !this.tokenSignal()) return of(this.user());
     this.pendingUser ??= this.http.get<AuthUser>(`${API_URL}/auth/me`).pipe(
@@ -60,12 +58,10 @@ export class AuthService {
       .pipe(tap((res) => this.setSession(res)));
   }
 
-  // Demande d'envoi du mail de réinitialisation de mot de passe
   forgotPassword(email: string) {
     return this.http.post<{ message: string }>(`${API_URL}/auth/forgot-password`, { email });
   }
 
-  // Validation du nouveau mot de passe via le token reçu par mail
   resetPassword(token: string, newPassword: string) {
     return this.http.post<{ message: string }>(`${API_URL}/auth/reset-password`, {
       token,
@@ -73,16 +69,12 @@ export class AuthService {
     });
   }
 
-  // Mise à jour du profil (prénom, nom, téléphone, mot de passe)
   updateProfile(data: UpdateProfileInput) {
-    return this.http
-      .patch<AuthUser>(`${API_URL}/auth/profile`, data)
-      .pipe(
-        tap((updatedUser) => {
-          // Met à jour le signal réactif user pour refléter immédiatement le prénom, nom, téléphone
-          this.user.set(updatedUser);
-        })
-      );
+    return this.http.patch<AuthUser>(`${API_URL}/auth/profile`, data).pipe(
+      tap((updatedUser) => {
+        this.user.set(updatedUser);
+      }),
+    );
   }
 
   logout() {

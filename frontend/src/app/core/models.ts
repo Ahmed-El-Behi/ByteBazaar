@@ -1,4 +1,6 @@
-export const API_URL = 'http://localhost:3000';
+import { environment } from '../../environments/environment';
+
+export const API_URL = environment.apiUrl;
 export const SHIPPING_FEE = 7; // TND, doit rester identique à order.service.ts côté backend
 
 export interface Brand {
@@ -58,7 +60,13 @@ export interface ProductDetail {
   isAvailable: boolean;
   brand: { name: string; slug: string; logoUrl: string | null };
   category: { slug: string; nameFr: string; nameEn: string };
-  images: { id: number; url: string; altText: string | null; position: number; isPrimary: boolean }[];
+  images: {
+    id: number;
+    url: string;
+    altText: string | null;
+    position: number;
+    isPrimary: boolean;
+  }[];
   specs: ProductSpec[];
   technical: ({ kind: string } & Record<string, unknown>) | null;
 }

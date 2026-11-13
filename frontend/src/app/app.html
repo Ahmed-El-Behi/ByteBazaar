@@ -1,4 +1,6 @@
+<app-ambient />
 <app-cursor />
+<app-toaster />
 
 <header class="topbar" [class.scrolled]="scrolled()">
   <div class="container topbar-inner">
@@ -7,14 +9,17 @@
       <span>Byte<b>Bazaar</b></span>
     </a>
 
-    <nav class="nav-links">
-      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">{{ 'Accueil' | t }}</a>
+    <nav class="nav-links" #nav>
+      <!-- Pastille lumineuse unique qui glisse d'une page à l'autre (voir App.moveIndicator) -->
+      <span class="nav-indicator" aria-hidden="true"></span>
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">{{
+        'Accueil' | t
+      }}</a>
       <a routerLink="/produits" routerLinkActive="active">{{ 'Catalogue' | t }}</a>
       <a routerLink="/configurateur" routerLinkActive="active">{{ 'Configurateur' | t }}</a>
       <a routerLink="/a-propos" routerLinkActive="active">{{ 'À propos' | t }}</a>
       <a routerLink="/contact" routerLinkActive="active">{{ 'Contact' | t }}</a>
 
-      <!-- LIENS RESERVES AUX ADMINISTRATEURS -->
       @if (auth.isLoggedIn() && auth.isAdmin()) {
         <a routerLink="/admin/commandes" routerLinkActive="active">{{ 'Admin Commandes' | t }}</a>
         <a routerLink="/admin/stock" routerLinkActive="active">{{ 'Admin Stock' | t }}</a>
@@ -22,7 +27,6 @@
     </nav>
 
     <div class="user-actions">
-      <!-- Recherche -->
       <form class="search" [class.open]="searchOpen()" (submit)="search($event, q.value)">
         <input
           #q
@@ -33,12 +37,18 @@
           (blur)="onSearchBlur(q)"
           (keydown.escape)="closeSearch(q)"
         />
-        <button class="search-btn" type="button" [attr.aria-label]="'Rechercher' | t" [title]="'Rechercher' | t" (mousedown)="$event.preventDefault()" (click)="toggleSearch(q)">
+        <button
+          class="search-btn"
+          type="button"
+          [attr.aria-label]="'Rechercher' | t"
+          [title]="'Rechercher' | t"
+          (mousedown)="$event.preventDefault()"
+          (click)="toggleSearch(q)"
+        >
           <app-icon name="search" [size]="19" />
         </button>
       </form>
 
-      <!-- Langue : français / anglais -->
       <button
         class="lang-switch"
         type="button"
@@ -50,7 +60,6 @@
         <span class="lang-code">{{ i18n.lang() === 'fr' ? 'FR' : 'EN' }}</span>
       </button>
 
-      <!-- Switch Thème -->
       <button
         class="theme-switch"
         type="button"
@@ -69,21 +78,30 @@
         <span class="knob"></span>
       </button>
 
-      <!-- Panier -->
-      <a routerLink="/panier" class="cart-btn" [title]="'Voir mon panier' | t" [attr.aria-label]="'Voir mon panier' | t">
+      <a
+        routerLink="/panier"
+        class="cart-btn"
+        [title]="'Voir mon panier' | t"
+        [attr.aria-label]="'Voir mon panier' | t"
+      >
         <app-icon name="cart" [size]="19" />
         @if (cartState.itemCount() > 0) {
-          <span class="cart-badge" [class.bump]="cartBump()" (animationend)="cartBump.set(false)">{{ cartState.itemCount() }}</span>
+          <span class="cart-badge" [class.bump]="cartBump()" (animationend)="cartBump.set(false)">{{
+            cartState.itemCount()
+          }}</span>
         }
       </a>
 
       @if (auth.isLoggedIn()) {
-        <!-- Compte Client -->
-        <a routerLink="/compte" class="avatar" [title]="('Mon compte' | t) + (auth.user() ? ' (' + auth.user()!.firstName + ')' : '')" [attr.aria-label]="'Mon compte' | t">
+        <a
+          routerLink="/compte"
+          class="avatar"
+          [title]="('Mon compte' | t) + (auth.user() ? ' (' + auth.user()!.firstName + ')' : '')"
+          [attr.aria-label]="'Mon compte' | t"
+        >
           <app-icon name="userCircle" [size]="20" />
         </a>
 
-        <!-- Déconnexion -->
         <button
           class="logout"
           type="button"
@@ -114,7 +132,10 @@
           <span>Byte<b>Bazaar</b></span>
         </a>
         <p class="footer-desc">
-          {{ 'Le bazar des composants PC en Tunisie. Multi-marques, prix clairs en TND, assemblages compatibles.' | t }}
+          {{
+            'Le bazar des composants PC en Tunisie. Multi-marques, prix clairs en TND, assemblages compatibles.'
+              | t
+          }}
         </p>
         <a class="footer-contact" href="mailto:contact@ByteBazaar.tn">
           <app-icon name="mail" [size]="17" />
@@ -161,7 +182,10 @@
         <span class="pay-chip">{{ 'Virement' | t }}</span>
         <span class="pay-chip">{{ 'Carte' | t }}</span>
       </div>
-      <span class="f-soon" [title]="'Bientôt disponible' | t">{{ 'Conditions · Confidentialité' | t }}</span>
+      <span class="footer-legal">
+        <a routerLink="/conditions">{{ 'Conditions' | t }}</a> ·
+        <a routerLink="/confidentialite">{{ 'Confidentialité' | t }}</a>
+      </span>
     </div>
   </div>
 </footer>

@@ -11,7 +11,11 @@ export class TndPipe implements PipeTransform {
   transform(value: number): string {
     const locale = this.i18n.locale();
     let formatter = formatters.get(locale);
-    if (!formatter) formatters.set(locale, (formatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 3 })));
+    if (!formatter)
+      formatters.set(
+        locale,
+        (formatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 3 })),
+      );
     return `${formatter.format(value)} TND`;
   }
 }

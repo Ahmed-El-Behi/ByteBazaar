@@ -11,7 +11,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const token = readToken();
   return next(
     req.clone({
-      setHeaders: { 'Accept-Language': currentLang(), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      setHeaders: {
+        'Accept-Language': currentLang(),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
     }),
   );
 };

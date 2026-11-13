@@ -35,31 +35,25 @@ COLOR_FR = {
     "Gold": "Or",
 }
 
-
 def specs_of(product):
     return {s["name"]: s["valueText"] for s in product.get("specs", [])}
 
-
 def squash(text):
     return re.sub(r"\s+", " ", text).strip()
-
 
 def contains(haystack, needle):
     """Vrai si `needle` apparaît déjà dans `haystack` (insensible à la casse et aux espaces)."""
     norm = lambda s: re.sub(r"[\s\-]", "", s.lower())
     return norm(needle) in norm(haystack)
 
-
 def model_part(name, brand):
     return squash(name[len(brand):]) if name.lower().startswith(brand.lower()) else squash(name)
-
 
 def gb(value):
     """'8 GB' -> '8 GB', '2 x 16GB' -> '2 x 16 GB'."""
     return squash(re.sub(r"(\d)(GB|TB)", r"\1 \2", value))
 
-
-# ---------------------------------------------------------------- règles par catégorie
+# règles par catégorie
 
 def name_gpu(base, brand, s):
     chipset = s.get("Chipset", "")
@@ -76,7 +70,6 @@ def name_gpu(base, brand, s):
     if s.get("Color", "").startswith("White") and "white" not in base.lower():
         parts.append("White")
     return squash(" ".join(p for p in parts if p))
-
 
 def name_storage(base, brand, s):
     capacity = gb(s.get("Capacity", ""))
@@ -101,7 +94,6 @@ def name_storage(base, brand, s):
     parts.append(f"SSD {kind}" if "ssd" not in base.lower() else kind)
     return squash(" ".join(parts))
 
-
 def name_psu(base, brand, s):
     watts = re.sub(r"\s", "", s.get("Wattage", ""))  # "850W"
     eff = s.get("Efficiency Rating") or ""
@@ -115,7 +107,6 @@ def name_psu(base, brand, s):
     if eff and not contains(base, eff):
         parts.append(eff)
     return squash(" ".join(parts))
-
 
 def name_ram(base, brand, s):
     modules = gb(s.get("Modules", ""))  # "2 x 16 GB"
@@ -131,7 +122,6 @@ def name_ram(base, brand, s):
         parts.append(f"CL{cas}")
     return squash(" ".join(parts))
 
-
 def name_cooler(base, brand, s, url):
     if "liquid" not in url:
         return base
@@ -141,14 +131,12 @@ def name_cooler(base, brand, s, url):
         parts.append(radiator)
     return squash(" ".join(parts))
 
-
 RULES = {
     "cartes-graphiques": name_gpu,
     "stockage": name_storage,
     "alimentations": name_psu,
     "memoire-ram": name_ram,
 }
-
 
 def build_name(product):
     base = product["source"].get("originalName") or product["name"]
@@ -160,20 +148,17 @@ def build_name(product):
     rule = RULES.get(cat)
     return rule(base, brand, s) if rule else base
 
-
 def color_suffix(product):
     color = specs_of(product).get("Color")
     if not color:
         return None
     return " / ".join(COLOR_FR.get(c.strip(), c.strip()) for c in color.split("/"))
 
-
 # La référence fabricant termine l'URL source, après le type de produit
 PART_MARKERS = (
     "processor-", "video-card-", "memory-", "motherboard-", "solid-state-drive-",
     "power-supply-", "case-", "cpu-cooler-",
 )
-
 
 def part_number(product):
     slug = product["source"].get("url", "").rstrip("/").split("/")[-1]
@@ -182,13 +167,11 @@ def part_number(product):
             return slug.rsplit(marker, 1)[1].upper()
     return None
 
-
 def group_by_name(products):
     groups = defaultdict(list)
     for p in products:
         groups[p["_newName"].lower()].append(p)
     return [g for g in groups.values() if len(g) > 1]
-
 
 def main():
     data = json.loads(CATALOGUE.read_text(encoding="utf-8"))
@@ -237,7 +220,6 @@ def main():
     names = [p["name"].lower() for p in products]
     dups = len(names) - len(set(names))
     print(f"{changed} noms modifiés sur {len(products)} produits ; doublons restants : {dups}")
-
 
 if __name__ == "__main__":
     main()

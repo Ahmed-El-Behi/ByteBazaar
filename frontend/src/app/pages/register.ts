@@ -15,7 +15,9 @@ import { TPipe } from '../core/i18n';
 
       @if (errors().length) {
         <div class="alert">
-          @for (e of errors(); track e) { <p>{{ e }}</p> }
+          @for (e of errors(); track e) {
+            <p>{{ e }}</p>
+          }
         </div>
       }
 
@@ -26,7 +28,7 @@ import { TPipe } from '../core/i18n';
             lastName: lastName.value,
             email: email.value,
             phone: phone.value,
-            password: password.value
+            password: password.value,
           })
         "
       >
@@ -50,17 +52,34 @@ import { TPipe } from '../core/i18n';
         </div>
         <div class="field">
           <label for="password">{{ 'Mot de passe (8 caractères minimum)' | t }}</label>
-          <input #password id="password" type="password" required minlength="8" autocomplete="new-password" />
+          <input
+            #password
+            id="password"
+            type="password"
+            required
+            minlength="8"
+            autocomplete="new-password"
+          />
         </div>
         <button class="btn primary block" type="submit" [disabled]="busy()">
           {{ (busy() ? 'Création…' : 'Créer mon compte') | t }}
         </button>
       </form>
 
-      <p class="muted switch">{{ 'Déjà inscrit ?' | t }} <a routerLink="/connexion"><u>{{ 'Se connecter' | t }}</u></a></p>
+      <p class="muted switch">
+        {{ 'Déjà inscrit ?' | t }}
+        <a routerLink="/connexion"
+          ><u>{{ 'Se connecter' | t }}</u></a
+        >
+      </p>
     </div>
   `,
-  styles: `.switch { margin-top: 1.2rem; text-align: center; }`,
+  styles: `
+    .switch {
+      margin-top: 1.2rem;
+      text-align: center;
+    }
+  `,
 })
 export class RegisterPage {
   private auth = inject(AuthService);

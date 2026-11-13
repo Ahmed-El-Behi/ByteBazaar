@@ -1,7 +1,5 @@
-// =====================================================================
 // Traduction des caractéristiques produit (libellés PCPartPicker en anglais)
 // pour la fiche produit. Une caractéristique inconnue s'affiche telle quelle.
-// =====================================================================
 
 export const SPEC_LABELS: Record<string, string> = {
   // Processeurs

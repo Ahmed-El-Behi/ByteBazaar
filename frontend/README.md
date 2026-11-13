@@ -1,59 +1,28 @@
-# Frontend
+# ByteBazaar — site (Angular)
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.5.
+Voir le [README principal](../README.md) pour l'installation complète.
 
-## Development server
+| Script               | Rôle                                             |
+| -------------------- | ------------------------------------------------ |
+| `npm start`          | Serveur de développement (http://localhost:4200) |
+| `npm run build`      | Build de production (`dist/frontend/browser`)    |
+| `npm test`           | Tests unitaires (Vitest)                         |
+| `npm run typecheck`  | Vérification TypeScript                          |
+| `npm run i18n:check` | Chaque texte traduit a son équivalent anglais    |
+| `npm run format`     | Mise en forme (Prettier)                         |
 
-To start a local development server, run:
+## Organisation
 
-```bash
-ng serve
-```
+- `src/app/pages/` — une page par route (chargées à la demande, sauf l'accueil et le catalogue).
+- `src/app/components/` — composants partagés (carte produit, icônes, notifications) et vue 3D du configurateur
+  (`pc-scene.ts`, `pc-model.ts`, `desk-model.ts`).
+- `src/app/core/` — services d'API, état du panier, authentification, traduction (`i18n.ts`, `i18n-en.ts`),
+  textes juridiques (`legal-content.ts`).
+- `src/environments/` — URL de l'API (`environment.ts` en production, `environment.development.ts` avec `ng serve`).
+- `src/styles.css` — jetons du système de design (couleurs, typographie, rayons, ombres) et styles communs.
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Traduction
 
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Les textes sont écrits en français dans les templates et traduits à l'affichage :
+`{{ 'Voir le catalogue' | t }}`, `translate('…')` dans le code. Les traductions anglaises sont dans
+`src/app/core/i18n-en.ts` ; `npm run i18n:check` signale tout texte sans traduction.

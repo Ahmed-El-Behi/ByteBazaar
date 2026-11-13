@@ -86,10 +86,8 @@ RESOLUTION_LABELS = {
     (5120, 2160): '5K2K', (5120, 2880): '5K', (3840, 1600): 'WQHD+', (3840, 1080): 'DFHD',
 }
 
-
 def squash(text):
     return re.sub(r'\s+', ' ', text).strip()
-
 
 def split_brand(raw_name):
     name = squash(raw_name)
@@ -104,40 +102,32 @@ def split_brand(raw_name):
     brand = BRAND_CASE.get(brand.upper(), brand)
     return brand, squash(f'{brand} {rest}')
 
-
 def clean_name(name):
     name = re.sub(r'\s*\((?:Black|White|Gray|Grey|Silver|Red|Blue|Pink)[^)]*\)\s*$', '', name, flags=re.I)
     name = re.sub(r'\s+for\s+(?:PC|PS[45]|Xbox|Mac|Nintendo|Switch)\b.*$', '', name, flags=re.I)
     return squash(name)
 
-
 def mentions(name, *words):
     return any(re.search(rf'\b{re.escape(w)}\b', name, flags=re.I) for w in words)
 
-
 def wireless_of(connection):
     return bool(connection) and 'wireless' in connection.lower()
-
 
 def color_fr(color):
     if not color:
         return None
     return ' / '.join(COLOR_FR.get(part.strip(), part.strip()) for part in color.split('/'))
 
-
 def num(value):
     return int(value) if isinstance(value, float) and value.is_integer() else value
-
 
 def spec(name, value_text, value_number=None, unit=None):
     return {'name': name, 'valueText': value_text, 'valueNumber': value_number, 'unit': unit}
 
-
 def yes_no(value):
     return 'Yes' if value else 'No'
 
-
-# ------------------------------------------------------------------ règles par catégorie
+# règles par catégorie
 
 def build_monitor(r, base):
     res = tuple(r.get('resolution') or ())
@@ -161,7 +151,6 @@ def build_monitor(r, base):
     summary = f'{num(size)}", {label}, {num(hz)} Hz' + (f', dalle {panel}' if panel else '')
     return name, specs, summary
 
-
 def build_mouse(r, base):
     wireless = wireless_of(r.get('connection_type'))
     dpi = r.get('max_dpi')
@@ -181,7 +170,6 @@ def build_mouse(r, base):
         specs.append(spec('Hand Orientation', r['hand_orientation']))
     summary = ('sans fil' if wireless else 'filaire') + (f', {num(dpi)} DPI' if dpi else '')
     return name, specs, summary
-
 
 def build_keyboard(r, base):
     wireless = wireless_of(r.get('connection_type'))
@@ -212,7 +200,6 @@ def build_keyboard(r, base):
     ] if x)
     return name, specs, summary
 
-
 def build_headphones(r, base):
     name = base
     if r.get('wireless') and not mentions(base, 'wireless', 'lightspeed', 'hyperspeed', 'bluetooth'):
@@ -234,7 +221,6 @@ def build_headphones(r, base):
     ] if x)
     return name, specs, summary
 
-
 def build_speakers(r, base):
     config = r.get('configuration')
     watts = r.get('wattage')
@@ -252,7 +238,6 @@ def build_speakers(r, base):
         specs.append(spec('Frequency Response', f'{num(fr[0])} Hz - {num(fr[1])} kHz'))
     summary = f'système {channels}' + (f', {num(watts)} W' if watts else '')
     return name, specs, summary
-
 
 def build_webcam(r, base):
     resolutions = r.get('resolutions') or []
@@ -273,7 +258,6 @@ def build_webcam(r, base):
     summary = f'{label}' + (f", mise au point {r['focus_type'].lower()}" if r.get('focus_type') else '')
     return name, specs, summary
 
-
 BUILDERS = {
     'monitor': build_monitor,
     'mouse': build_mouse,
@@ -283,10 +267,8 @@ BUILDERS = {
     'webcam': build_webcam,
 }
 
-
 def has_photo(slug, sku, matches):
     return sku in matches or not image_url(slug, sku, {}).endswith('.svg')
-
 
 def image_url(slug, sku, matches):
     """Photo locale si déjà téléchargée, sinon URL distante à télécharger, sinon visuel généré."""
@@ -297,13 +279,11 @@ def image_url(slug, sku, matches):
         return matches[sku]['imageUrl']
     return f'/products/{slug}/{sku}.svg'
 
-
 def slugify(text):
     text = text.lower()
     for a, b in (('é', 'e'), ('è', 'e'), ('ê', 'e'), ('à', 'a'), ('ô', 'o'), ('ü', 'u'), ('ö', 'o'), ('"', '')):
         text = text.replace(a, b)
     return re.sub(r'[^a-z0-9]+', '-', text).strip('-')
-
 
 def main():
     candidates_mode = '--candidates' in sys.argv
@@ -425,7 +405,6 @@ def main():
         print(f"  {slug:<10} {r['retenus']:>4} retenus / {r['source']} dans la source")
     dup = Counter(p['name'].lower() for p in products)
     print('  noms en double :', sum(1 for v in dup.values() if v > 1))
-
 
 if __name__ == '__main__':
     main()

@@ -1,13 +1,20 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { API_URL } from './models';
+import { API_URL, type ProductListItem } from './models';
 
-/** Pièces du PC (indispensables + ventirad) */
 export type PcSlot = 'cpu' | 'cooler' | 'motherboard' | 'ram' | 'gpu' | 'storage' | 'psu' | 'case';
-/** Poste de travail (facultatif) */
 export type DeskSlot = 'monitor' | 'keyboard' | 'mouse' | 'headset';
 export type Slot = PcSlot | DeskSlot;
-export const PC_SLOTS: PcSlot[] = ['cpu', 'cooler', 'motherboard', 'ram', 'gpu', 'storage', 'psu', 'case'];
+export const PC_SLOTS: PcSlot[] = [
+  'cpu',
+  'cooler',
+  'motherboard',
+  'ram',
+  'gpu',
+  'storage',
+  'psu',
+  'case',
+];
 export const DESK_SLOTS: DeskSlot[] = ['monitor', 'keyboard', 'mouse', 'headset'];
 
 export interface ConfiguratorPart {
@@ -22,14 +29,33 @@ export interface ConfiguratorPart {
   highlights: string[];
   // Caractéristiques techniques (selon l'emplacement) — utilisées aussi par la vue 3D
   cpu?: { socket: string; cores: number; tdpWatts: number; hasIntegratedGraphics: boolean };
-  motherboard?: { socket: string; chipset: string; ramType: string; ramSlots: number; maxRamGB: number; formFactor: FormFactor };
+  motherboard?: {
+    socket: string;
+    chipset: string;
+    ramType: string;
+    ramSlots: number;
+    maxRamGB: number;
+    formFactor: FormFactor;
+  };
   ram?: { type: string; modules: number; capacityGB: number; speedMHz: number };
   gpu?: { chipset: string; vramGB: number; tdpWatts: number; lengthMm: number };
   psu?: { wattage: number; formFactor: string; efficiency: string };
   pcCase?: { supportedFormFactors: FormFactor[]; sfxOnly: boolean };
   cooler?: { liquid: boolean; radiatorMm: number | null };
-  monitor?: { screenSizeIn: number; resolutionWidth: number; resolutionHeight: number; refreshRateHz: number; panelType: string | null };
-  keyboard?: { wireless: boolean; tenkeyless: boolean; style: string | null; switches: string | null; backlight: string | null };
+  monitor?: {
+    screenSizeIn: number;
+    resolutionWidth: number;
+    resolutionHeight: number;
+    refreshRateHz: number;
+    panelType: string | null;
+  };
+  keyboard?: {
+    wireless: boolean;
+    tenkeyless: boolean;
+    style: string | null;
+    switches: string | null;
+    backlight: string | null;
+  };
   mouse?: { wireless: boolean; maxDpi: number | null };
   headset?: { wireless: boolean; microphone: boolean; type: string | null };
 }
@@ -80,11 +106,22 @@ export class ConfiguratorApi {
   parts(slot: Slot, selectedIds: number[]) {
     const params: Record<string, string> = { slot };
     if (selectedIds.length) params['ids'] = selectedIds.join(',');
-    return this.http.get<{ slot: Slot; items: ConfiguratorPart[]; hidden: number }>(`${API_URL}/configurator/parts`, { params });
+    return this.http.get<{ slot: Slot; items: ConfiguratorPart[]; hidden: number }>(
+      `${API_URL}/configurator/parts`,
+      { params },
+    );
+  }
+
+  suggestions(productId: number) {
+    return this.http.get<ProductListItem[]>(`${API_URL}/configurator/suggestions`, {
+      params: { productId },
+    });
   }
 
   check(ids: number[]) {
-    return this.http.get<BuildCheck>(`${API_URL}/configurator/check`, { params: { ids: ids.join(',') } });
+    return this.http.get<BuildCheck>(`${API_URL}/configurator/check`, {
+      params: { ids: ids.join(',') },
+    });
   }
 
   list() {
@@ -100,7 +137,10 @@ export class ConfiguratorApi {
   }
 
   update(id: number, name: string, productIds: number[]) {
-    return this.http.patch<SavedConfiguration>(`${API_URL}/configurations/${id}`, { name, productIds });
+    return this.http.patch<SavedConfiguration>(`${API_URL}/configurations/${id}`, {
+      name,
+      productIds,
+    });
   }
 
   delete(id: number) {

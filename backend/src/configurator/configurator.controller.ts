@@ -26,6 +26,12 @@ export class ConfiguratorController {
     return this.configurator.parts(slot, ids);
   }
 
+  // GET /configurator/suggestions?productId=12 — pièces compatibles à proposer sur une fiche produit
+  @Get('suggestions')
+  suggestions(@Query('productId') productId?: string) {
+    return this.configurator.suggestions(productId);
+  }
+
   // GET /configurator/check?ids=12,40,77
   @Get('check')
   check(@Query('ids') ids?: string) {

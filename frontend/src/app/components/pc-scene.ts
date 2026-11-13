@@ -27,7 +27,16 @@ import { PcModel, type HoverTarget, type SceneMode, type Selection } from './pc-
 /** Cadrage de chaque vue : point visé, position de départ et limites de la caméra */
 const VIEWS: Record<
   SceneMode,
-  { target: THREE.Vector3; radius: number; polar: number; azimuth: number; distance: [number, number]; azimuthRange: [number, number]; polarRange: [number, number]; sway: [number, number] }
+  {
+    target: THREE.Vector3;
+    radius: number;
+    polar: number;
+    azimuth: number;
+    distance: [number, number];
+    azimuthRange: [number, number];
+    polarRange: [number, number];
+    sway: [number, number];
+  }
 > = {
   desk: {
     target: DESK_TARGET,
@@ -76,7 +85,10 @@ const ZOOM_SECONDS = 1.1;
       <canvas
         #canvas
         role="img"
-        [attr.aria-label]="'Vue 3D du poste : cliquez sur le PC pour en choisir les pièces, ou sur un périphérique pour le choisir. La liste des emplacements sous la vue offre les mêmes actions au clavier.' | t"
+        [attr.aria-label]="
+          'Vue 3D du poste : cliquez sur le PC pour en choisir les pièces, ou sur un périphérique pour le choisir. La liste des emplacements sous la vue offre les mêmes actions au clavier.'
+            | t
+        "
         (pointermove)="onPointerMove($event)"
         (pointerleave)="onPointerLeave()"
         (pointerdown)="onPointerDown($event)"
@@ -84,13 +96,21 @@ const ZOOM_SECONDS = 1.1;
       ></canvas>
 
       @if (webglFailed()) {
-        <div class="fallback">{{ "La vue 3D n'est pas disponible sur cet appareil : utilisez la liste des emplacements ci-dessous." | t }}</div>
+        <div class="fallback">
+          {{
+            "La vue 3D n'est pas disponible sur cet appareil : utilisez la liste des emplacements ci-dessous."
+              | t
+          }}
+        </div>
       }
 
       <div class="tip" #tip [hidden]="!tipTarget()">
         @if (tipTarget() === 'pc') {
           <span class="tip-slot">{{ 'Votre PC' | t }}</span>
-          <strong class="tip-name">{{ '{count} / {total} pièces choisies' | t: { count: pcSummary().count, total: pcSlotCount } }}</strong>
+          <strong class="tip-name">{{
+            '{count} / {total} pièces choisies'
+              | t: { count: pcSummary().count, total: pcSlotCount }
+          }}</strong>
           @if (pcSummary().total > 0) {
             <span class="tip-meta">{{ pcSummary().total }} TND</span>
           }
@@ -109,7 +129,12 @@ const ZOOM_SECONDS = 1.1;
       </div>
 
       @if (mode() === 'pc') {
-        <button type="button" class="back" (click)="setMode('desk')" [title]="'Revenir au poste complet (Échap)' | t">
+        <button
+          type="button"
+          class="back"
+          (click)="setMode('desk')"
+          [title]="'Revenir au poste complet (Échap)' | t"
+        >
           <app-icon name="arrowLeft" [size]="16" [stroke]="2" /> {{ "Vue d'ensemble" | t }}
         </button>
       }
@@ -117,9 +142,15 @@ const ZOOM_SECONDS = 1.1;
       <div class="hud">
         <span class="hint">
           @if (mode() === 'desk') {
-            {{ 'Cliquez sur le PC pour choisir ses pièces · survolez un périphérique pour le choisir · glissez pour tourner' | t }}
+            {{
+              'Cliquez sur le PC pour choisir ses pièces · survolez un périphérique pour le choisir · glissez pour tourner'
+                | t
+            }}
           } @else {
-            {{ 'Survolez une pièce · cliquez pour la choisir · glissez pour tourner · Échap pour revenir' | t }}
+            {{
+              'Survolez une pièce · cliquez pour la choisir · glissez pour tourner · Échap pour revenir'
+                | t
+            }}
           }
         </span>
         <button
@@ -128,60 +159,183 @@ const ZOOM_SECONDS = 1.1;
           [class.on]="lowGraphics()"
           (click)="toggleLowGraphics()"
           [attr.aria-pressed]="lowGraphics()"
-          [title]="(lowGraphics() ? 'Réactiver les effets (RGB, ventilateurs, ombres)' : 'Mode performance : couper le RGB, les animations et les effets') | t"
+          [title]="
+            (lowGraphics()
+              ? 'Réactiver les effets (RGB, ventilateurs, ombres)'
+              : 'Mode performance : couper le RGB, les animations et les effets'
+            ) | t
+          "
         >
           <app-icon [name]="lowGraphics() ? 'sparkles' : 'gauge'" [size]="15" />
           {{ (lowGraphics() ? 'Effets' : 'Performance') | t }}
         </button>
-        <button type="button" class="reset-view" (click)="resetView()" [title]="'Recentrer la vue' | t" [attr.aria-label]="'Recentrer la vue' | t">
+        <button
+          type="button"
+          class="reset-view"
+          (click)="resetView()"
+          [title]="'Recentrer la vue' | t"
+          [attr.aria-label]="'Recentrer la vue' | t"
+        >
           <app-icon name="reset" [size]="16" />
         </button>
       </div>
     </div>
   `,
   styles: `
-    :host { display: block; }
+    :host {
+      display: block;
+    }
     .scene {
-      position: relative; height: 600px; border-radius: var(--r-xl); overflow: hidden;
+      position: relative;
+      height: 600px;
+      border-radius: var(--r-xl);
+      overflow: hidden;
       border: 1px solid var(--border, #1e293b);
       background: var(--surface-2, #131927);
     }
-    canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
-    canvas.pointing { cursor: pointer; }
-    .fallback { position: absolute; inset: 0; display: grid; place-items: center; padding: 2rem; text-align: center; color: var(--muted, #94a3b8); }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      outline: none;
+    }
+    canvas.pointing {
+      cursor: pointer;
+    }
+    .fallback {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+      text-align: center;
+      color: var(--muted, #94a3b8);
+    }
     .tip {
-      position: absolute; left: 0; top: 0; pointer-events: none; max-width: 270px;
-      display: flex; flex-direction: column; gap: 0.2rem; padding: 0.7rem 0.9rem;
-      border-radius: var(--r-md); border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+      position: absolute;
+      left: 0;
+      top: 0;
+      pointer-events: none;
+      max-width: 270px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      padding: 0.7rem 0.9rem;
+      border-radius: var(--r-md);
+      border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
       background: color-mix(in srgb, var(--surface, #0d1117) 92%, transparent);
-      backdrop-filter: blur(8px); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
-      transform: translate(-50%, calc(-100% - 14px)); will-change: left, top;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      transform: translate(-50%, calc(-100% - 14px));
+      will-change: left, top;
     }
-    .tip-slot { font-size: var(--fs-2xs); font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
-    .tip-name { font-size: var(--fs-md); line-height: 1.3; color: var(--text, #fff); }
-    .tip-meta { font-size: var(--fs-xs); color: var(--muted, #94a3b8); }
-    .tip-hint { font-size: var(--fs-xs); font-weight: 600; color: var(--accent); margin-top: 0.15rem; }
+    .tip-slot {
+      font-size: var(--fs-2xs);
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .tip-name {
+      font-size: var(--fs-md);
+      line-height: 1.3;
+      color: var(--text, #fff);
+    }
+    .tip-meta {
+      font-size: var(--fs-xs);
+      color: var(--muted, #94a3b8);
+    }
+    .tip-hint {
+      font-size: var(--fs-xs);
+      font-weight: 600;
+      color: var(--accent);
+      margin-top: 0.15rem;
+    }
     .back {
-      position: absolute; top: 1rem; left: 1rem; display: inline-flex; align-items: center; gap: 0.4rem;
-      padding: 0.5rem 0.9rem; border-radius: 999px; border: 1px solid var(--border, #1e293b);
-      background: color-mix(in srgb, var(--surface, #0d1117) 88%, transparent); backdrop-filter: blur(8px);
-      color: var(--text, #fff); font-size: var(--fs-sm); font-weight: 700; box-shadow: var(--shadow-sm);
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.5rem 0.9rem;
+      border-radius: 999px;
+      border: 1px solid var(--border, #1e293b);
+      background: color-mix(in srgb, var(--surface, #0d1117) 88%, transparent);
+      backdrop-filter: blur(8px);
+      color: var(--text, #fff);
+      font-size: var(--fs-sm);
+      font-weight: 700;
+      box-shadow: var(--shadow-sm);
     }
-    .back:hover { border-color: var(--accent); color: var(--accent); }
-    .hud { position: absolute; left: 1rem; right: 1rem; bottom: 0.9rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; pointer-events: none; }
-    .hint { font-size: var(--fs-xs); color: var(--muted, #94a3b8); background: color-mix(in srgb, var(--surface, #0d1117) 75%, transparent); padding: 0.35rem 0.75rem; border-radius: 999px; }
+    .back:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .hud {
+      position: absolute;
+      left: 1rem;
+      right: 1rem;
+      bottom: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      pointer-events: none;
+    }
+    .hint {
+      font-size: var(--fs-xs);
+      color: var(--muted, #94a3b8);
+      background: color-mix(in srgb, var(--surface, #0d1117) 75%, transparent);
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+    }
     .reset-view {
-      pointer-events: auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
-      border: 1px solid var(--border, #1e293b); background: var(--surface, #0d1117); color: var(--text, #fff);
+      pointer-events: auto;
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      border: 1px solid var(--border, #1e293b);
+      background: var(--surface, #0d1117);
+      color: var(--text, #fff);
     }
-    .reset-view:hover { border-color: var(--accent); color: var(--accent); }
+    .reset-view:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
     .quality {
-      pointer-events: auto; margin-left: auto; flex-shrink: 0; white-space: nowrap; display: inline-flex; align-items: center; gap: 0.35rem;
-      height: 34px; padding: 0 0.8rem; border-radius: 999px; border: 1px solid var(--border, #1e293b);
-      background: var(--surface, #0d1117); color: var(--text, #fff); font-size: var(--fs-xs); font-weight: 700;
+      pointer-events: auto;
+      margin-left: auto;
+      flex-shrink: 0;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      height: 34px;
+      padding: 0 0.8rem;
+      border-radius: 999px;
+      border: 1px solid var(--border, #1e293b);
+      background: var(--surface, #0d1117);
+      color: var(--text, #fff);
+      font-size: var(--fs-xs);
+      font-weight: 700;
     }
-    .quality:hover, .quality.on { border-color: var(--accent); color: var(--accent); }
-    @media (max-width: 700px) { .scene { height: 440px; } .hint { display: none; } }
+    .quality:hover,
+    .quality.on {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    @media (max-width: 700px) {
+      .scene {
+        height: 440px;
+      }
+      .hint {
+        display: none;
+      }
+    }
   `,
 })
 export class PcScene {
@@ -239,7 +393,13 @@ export class PcScene {
   private swayDirection = 1;
   private reducedMotion = false;
   /** Zoom en cours entre les deux vues */
-  private flight: { fromPos: THREE.Vector3; toPos: THREE.Vector3; fromTarget: THREE.Vector3; toTarget: THREE.Vector3; t: number } | null = null;
+  private flight: {
+    fromPos: THREE.Vector3;
+    toPos: THREE.Vector3;
+    fromTarget: THREE.Vector3;
+    toTarget: THREE.Vector3;
+    t: number;
+  } | null = null;
 
   constructor() {
     const destroyRef = inject(DestroyRef);
@@ -282,7 +442,7 @@ export class PcScene {
     this.flyTo(this.mode());
   }
 
-  // --------------------------------------------------------------- Pointeur
+  // Pointeur
 
   onPointerMove(event: PointerEvent) {
     if (event.pointerType === 'touch' || this.flight) return;
@@ -301,7 +461,8 @@ export class PcScene {
     const start = this.downAt;
     this.downAt = null;
     // Un glisser fait tourner la vue : seul un vrai clic agit
-    if (!start || this.flight || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6) return;
+    if (!start || this.flight || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6)
+      return;
     const target = this.targetAt(event);
     if (target === 'pc') this.setMode('pc');
     else if (target) this.pick.emit(target);
@@ -318,7 +479,10 @@ export class PcScene {
   private targetAt(event: PointerEvent): HoverTarget | null {
     if (!this.camera || !this.model) return null;
     const rect = this.canvas().nativeElement.getBoundingClientRect();
-    this.pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    this.pointer.set(
+      ((event.clientX - rect.left) / rect.width) * 2 - 1,
+      -((event.clientY - rect.top) / rect.height) * 2 + 1,
+    );
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const mode = this.mode();
     for (const hit of this.raycaster.intersectObjects(this.model.hitTargets(mode), true)) {
@@ -328,12 +492,14 @@ export class PcScene {
     return null;
   }
 
-  // --------------------------------------------------------------- Caméra
+  // Caméra
 
   private flyTo(mode: SceneMode) {
     if (!this.camera || !this.controls) return;
     const view = VIEWS[mode];
-    const toPos = new THREE.Vector3().setFromSpherical(new THREE.Spherical(view.radius, view.polar, view.azimuth)).add(view.target);
+    const toPos = new THREE.Vector3()
+      .setFromSpherical(new THREE.Spherical(view.radius, view.polar, view.azimuth))
+      .add(view.target);
     this.flight = {
       fromPos: this.camera.position.clone(),
       toPos,
@@ -379,7 +545,7 @@ export class PcScene {
     }
   }
 
-  // --------------------------------------------------------------- Scène
+  // Scène
 
   private init(): () => void {
     const canvas = this.canvas().nativeElement;
@@ -387,7 +553,12 @@ export class PcScene {
 
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+      renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        alpha: true,
+        powerPreference: 'high-performance',
+      });
     } catch {
       this.webglFailed.set(true);
       return () => undefined;
@@ -445,7 +616,14 @@ export class PcScene {
     key.shadow.radius = 4;
     key.shadow.bias = -0.0004;
     key.shadow.normalBias = 0.05;
-    Object.assign(key.shadow.camera, { left: -160, right: 160, top: 120, bottom: -120, near: 20, far: 480 });
+    Object.assign(key.shadow.camera, {
+      left: -160,
+      right: 160,
+      top: 120,
+      bottom: -120,
+      near: 20,
+      far: 480,
+    });
     key.target.position.set(-70, 10, 0);
     scene.add(key, key.target);
     const fill = new THREE.DirectionalLight(0x9db4ff, 1.1);
@@ -490,8 +668,16 @@ export class PcScene {
     // Position initiale : directement en vue d'ensemble
     const start = VIEWS.desk;
     controls.target.copy(start.target);
-    camera.position.setFromSpherical(new THREE.Spherical(start.radius, start.polar, start.azimuth)).add(start.target);
-    this.flight = { fromPos: camera.position.clone(), toPos: camera.position.clone(), fromTarget: start.target.clone(), toTarget: start.target.clone(), t: 1 };
+    camera.position
+      .setFromSpherical(new THREE.Spherical(start.radius, start.polar, start.azimuth))
+      .add(start.target);
+    this.flight = {
+      fromPos: camera.position.clone(),
+      toPos: camera.position.clone(),
+      fromTarget: start.target.clone(),
+      toTarget: start.target.clone(),
+      t: 1,
+    };
     this.stepFlight(0);
     this.lastInteraction = 0;
 
@@ -515,7 +701,10 @@ export class PcScene {
       model.setAccent(this.readAccent());
       paintBackground();
     });
-    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
 
     // Échap : retour à la vue d'ensemble
     const onKey = (e: KeyboardEvent) => {
@@ -538,9 +727,16 @@ export class PcScene {
 
       if (this.flight) this.stepFlight(dt);
       // Balancement lent de la caméra quand personne n'interagit
-      else if (!low && !this.reducedMotion && !this.tipTarget() && now - this.lastInteraction > IDLE_MS) {
+      else if (
+        !low &&
+        !this.reducedMotion &&
+        !this.tipTarget() &&
+        now - this.lastInteraction > IDLE_MS
+      ) {
         const [min, max] = VIEWS[this.mode()].sway;
-        const spherical = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
+        const spherical = new THREE.Spherical().setFromVector3(
+          camera.position.clone().sub(controls.target),
+        );
         if (spherical.theta > max) this.swayDirection = -1;
         if (spherical.theta < min) this.swayDirection = 1;
         spherical.theta += this.swayDirection * dt * 0.06;
@@ -557,7 +753,10 @@ export class PcScene {
       if (target) {
         model.anchorOf(target, anchor).project(camera);
         const tip = this.tip().nativeElement;
-        const x = Math.min(Math.max((anchor.x * 0.5 + 0.5) * host.clientWidth, 140), host.clientWidth - 140);
+        const x = Math.min(
+          Math.max((anchor.x * 0.5 + 0.5) * host.clientWidth, 140),
+          host.clientWidth - 140,
+        );
         const y = Math.max((-anchor.y * 0.5 + 0.5) * host.clientHeight, 110);
         tip.style.left = `${x}px`;
         tip.style.top = `${y}px`;
@@ -585,6 +784,8 @@ export class PcScene {
   }
 
   private readAccent(): string {
-    return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#f59e0b';
+    return (
+      getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#f59e0b'
+    );
   }
 }

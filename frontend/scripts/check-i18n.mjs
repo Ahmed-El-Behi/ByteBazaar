@@ -14,18 +14,47 @@ const files = [];
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) walk(path);
-    else if (/\.(ts|html)$/.test(name) && !name.endsWith('.spec.ts') && path !== DICT && name !== 'i18n.ts') files.push(path);
+    else if (
+      /\.(ts|html)$/.test(name) &&
+      !name.endsWith('.spec.ts') &&
+      path !== DICT &&
+      name !== 'i18n.ts'
+    )
+      files.push(path);
   }
 })(APP);
 
 const unquote = (lit) => {
   const q = lit[0];
-  return lit.slice(1, -1).replace(new RegExp('\\\\' + q, 'g'), q).replace(/\\\\/g, '\\');
+  // Dans un template inline, une apostrophe échappée s'écrit \\' dans le source TypeScript
+  return lit
+    .slice(1, -1)
+    .replace(/\\\\/g, '\\')
+    .replace(new RegExp('\\\\' + q, 'g'), q);
 };
 const LITERAL = /'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"/g;
 
 // Clés dont la valeur n'est pas un texte affiché (identifiants, routes, icônes…)
-const TECHNICAL_KEYS = new Set(['value', 'id', 'icon', 'slug', 'path', 'redirectTo', 'pathMatch', 'group', 'kind', 'key', 'tone', 'status', 'url', 'href', 'sort', 'cls', 'class']);
+const TECHNICAL_KEYS = new Set([
+  'value',
+  'id',
+  'icon',
+  'slug',
+  'path',
+  'redirectTo',
+  'pathMatch',
+  'group',
+  'kind',
+  'key',
+  'tone',
+  'status',
+  'url',
+  'href',
+  'sort',
+  'doc',
+  'cls',
+  'class',
+]);
 const used = new Map(); // texte → fichier
 const add = (text, file) => {
   if (text.trim() && !used.has(text)) used.set(text, file);
@@ -59,7 +88,9 @@ for (const file of files) {
     }
   }
   // 2. t('…'), translate('…'), i18n.t('…')
-  for (const m of src.matchAll(/\b(?:t|translate)\(\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`[^`$]*`)/g)) {
+  for (const m of src.matchAll(
+    /\b(?:t|translate)\(\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`[^`$]*`)/g,
+  )) {
     add(unquote(m[1]), file);
   }
   // 3 bis. Lignes annotées « // traduit à l'affichage » (texte gardé en français puis passé au pipe)
@@ -68,20 +99,26 @@ for (const file of files) {
   }
   // 3. Blocs marqués « // i18n … // /i18n » : toutes les valeurs « clé: 'texte' », sauf les clés techniques
   for (const block of src.matchAll(/\/\/ i18n\b[^\n]*\n([\s\S]*?)\n\s*\/\/ \/i18n/g)) {
-    for (const m of block[1].matchAll(/([\w$]+|'[^'\n]*')\s*:\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")/g)) {
+    for (const m of block[1].matchAll(
+      /([\w$]+|'[^'\n]*')\s*:\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")/g,
+    )) {
       if (TECHNICAL_KEYS.has(m[1])) continue;
       add(unquote(m[2]), file);
     }
     // switch … return 'texte'
-    for (const m of block[1].matchAll(/\breturn\s+('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")/g)) add(unquote(m[1]), file);
+    for (const m of block[1].matchAll(/\breturn\s+('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*")/g))
+      add(unquote(m[1]), file);
     // Listes de textes : une ligne = un littéral
-    for (const m of block[1].matchAll(/^\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"),?\s*$/gm)) add(unquote(m[1]), file);
+    for (const m of block[1].matchAll(/^\s*('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"),?\s*$/gm))
+      add(unquote(m[1]), file);
   }
 }
 
 const dictSrc = readFileSync(DICT, 'utf8');
 const dict = new Map();
-for (const m of dictSrc.matchAll(/^\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[\wÀ-ÿ]+)\s*:\s*\n?\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*,/gm)) {
+for (const m of dictSrc.matchAll(
+  /^\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[\p{L}\p{N}_$]+)\s*:\s*\n?\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")\s*,/gmu,
+)) {
   const key = /^['"]/.test(m[1]) ? unquote(m[1]) : m[1];
   dict.set(key, unquote(m[2]));
 }
@@ -94,13 +131,19 @@ for (const [text, file] of used) {
     console.log(`MANQUANT  ${file.slice(APP.length)}  «${text}»`);
     continue;
   }
-  const p = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((x) => x[1]).sort().join(',');
+  const p = (s) =>
+    [...s.matchAll(/\{(\w+)\}/g)]
+      .map((x) => x[1])
+      .sort()
+      .join(',');
   if (p(text) !== p(dict.get(text))) {
     params++;
     console.log(`PARAMÈTRES  «${text}»  →  «${dict.get(text)}»`);
   }
 }
 const unused = [...dict.keys()].filter((k) => !used.has(k));
-console.log(`\n${used.size} textes utilisés · ${dict.size} traductions · ${missing} manquant(s) · ${params} paramètre(s) différent(s) · ${unused.length} inutilisée(s)`);
+console.log(
+  `\n${used.size} textes utilisés · ${dict.size} traductions · ${missing} manquant(s) · ${params} paramètre(s) différent(s) · ${unused.length} inutilisée(s)`,
+);
 if (process.argv.includes('--unused')) unused.forEach((k) => console.log(`INUTILISÉE  «${k}»`));
 process.exit(missing || params ? 1 : 0);

@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -25,6 +27,22 @@ export class OrderController {
   @Post('addresses')
   createAddress(@Req() req: AuthedRequest, @Body() body: unknown) {
     return this.orderService.createAddress(req.user!.id, body);
+  }
+
+  @Patch('addresses/:id/default')
+  setDefaultAddress(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.orderService.setDefaultAddress(req.user!.id, id);
+  }
+
+  @Delete('addresses/:id')
+  deleteAddress(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.orderService.deleteAddress(req.user!.id, id);
   }
 
   // Corps : { addressId } ou { newAddress }, + paymentMethod

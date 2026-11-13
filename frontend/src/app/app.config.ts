@@ -1,5 +1,11 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { TitleStrategy, provideRouter, withComponentInputBinding, withInMemoryScrolling, withViewTransitions } from '@angular/router';
+import {
+  TitleStrategy,
+  provideRouter,
+  withComponentInputBinding,
+  withInMemoryScrolling,
+  withViewTransitions,
+} from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
 import { routes } from './app.routes';
@@ -21,7 +27,9 @@ export const appConfig: ApplicationConfig = {
           // (skipTransition() ferait journaliser une erreur par le routeur)
           const root = document.documentElement;
           root.classList.toggle('vt-instant', path(from) === path(to));
-          transition.finished.finally(() => root.classList.remove('vt-instant')).catch(() => undefined);
+          transition.finished
+            .finally(() => root.classList.remove('vt-instant'))
+            .catch(() => undefined);
         },
       }),
     ),

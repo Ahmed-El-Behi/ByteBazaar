@@ -20,6 +20,80 @@ import { tr } from '../common/i18n';
 
 const MAX_CONFIGURATIONS_PER_USER = 50;
 
+/**
+ * Suggestions de la fiche produit (vente additionnelle) : emplacements complémentaires
+ * de chaque pièce, dans l'ordre d'affichage. Seuls les produits compatibles sont proposés.
+ */
+const SUGGESTED_SLOTS: Record<Slot, Slot[]> = {
+  // Du plus naturel au plus « découverte » : les premiers sont plus souvent tirés
+  cpu: ['motherboard', 'cooler', 'ram', 'gpu', 'storage', 'case'],
+  motherboard: ['cpu', 'ram', 'gpu', 'case', 'storage', 'cooler'],
+  ram: ['motherboard', 'cpu', 'gpu', 'storage', 'cooler'],
+  gpu: ['psu', 'case', 'monitor', 'cpu', 'motherboard', 'storage'],
+  storage: ['motherboard', 'ram', 'gpu', 'case', 'cpu'],
+  psu: ['gpu', 'case', 'cooler', 'motherboard', 'cpu'],
+  case: ['psu', 'cooler', 'motherboard', 'gpu', 'storage'],
+  cooler: ['cpu', 'case', 'ram', 'motherboard', 'gpu'],
+  monitor: ['keyboard', 'mouse', 'headset', 'gpu'],
+  keyboard: ['mouse', 'headset', 'monitor'],
+  mouse: ['keyboard', 'headset', 'monitor'],
+  headset: ['mouse', 'keyboard', 'monitor'],
+};
+/** Produits hors configurateur (enceintes, webcams…) : on propose des périphériques */
+const DEFAULT_SUGGESTED_SLOTS: Slot[] = [
+  'headset',
+  'mouse',
+  'keyboard',
+  'monitor',
+];
+/** Types de pièces proposés à chaque affichage (tirés au sort), et produits par type */
+const SUGGESTED_SLOT_COUNT = 3;
+const SUGGESTIONS_PER_SLOT = 2;
+/** Les produits sont tirés au hasard parmi les plus appréciés et compatibles */
+const SUGGESTION_POOL = 40;
+
+/** Tire `count` éléments distincts ; le i-ème a un poids 1 / (i + 1) (les premiers sortent plus souvent). */
+function drawWeighted<T>(items: readonly T[], count: number): T[] {
+  const pool = items.map((item, i) => ({ item, weight: 1 / (i + 1) }));
+  const picked: T[] = [];
+  while (picked.length < count && pool.length) {
+    let r = Math.random() * pool.reduce((sum, p) => sum + p.weight, 0);
+    const index = Math.max(
+      0,
+      pool.findIndex((p) => (r -= p.weight) < 0),
+    );
+    picked.push(pool.splice(index, 1)[0].item);
+  }
+  return picked;
+}
+
+/** Mélange de Fisher-Yates (copie) */
+function shuffled<T>(items: readonly T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+/** Champs d'une carte produit (mêmes données que la liste du catalogue) */
+const CARD_SELECT = {
+  id: true,
+  sku: true,
+  slug: true,
+  name: true,
+  price: true,
+  stockQuantity: true,
+  brand: { select: { name: true, slug: true } },
+  category: { select: { slug: true, nameFr: true, nameEn: true } },
+  images: {
+    select: { url: true, altText: true },
+    orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }],
+    take: 1,
+  },
+} satisfies Prisma.ProductSelect;
+
 const PART_SELECT = {
   id: true,
   name: true,
@@ -320,7 +394,12 @@ export class ConfiguratorService {
     const build: Build = {};
     for (const part of parts as ConfiguratorPart[]) {
       if (build[part.slot])
-        throw badRequest(`Un seul composant par emplacement (${part.slot})`);
+        throw badRequest(
+          tr(
+            `Un seul composant par emplacement (${part.slot})`,
+            `Only one component per slot (${part.slot})`,
+          ),
+        );
       build[part.slot] = part;
     }
     return {
@@ -360,6 +439,68 @@ export class ConfiguratorService {
     return { slot, items, hidden: candidates.length - items.length };
   }
 
+  /**
+   * Pièces à proposer sur la fiche d'un produit : pour chaque emplacement complémentaire,
+   * les produits les plus appréciés, en stock, avec photo et compatibles avec ce produit.
+   */
+  async suggestions(rawProductId: unknown) {
+    const productId = int(rawProductId, tr('Produit', 'Product'), { min: 1 });
+    const row = await this.prisma.product.findFirst({
+      where: { id: productId, isActive: true },
+      select: PART_SELECT,
+    });
+    if (!row)
+      throw new NotFoundException(
+        tr('Produit introuvable', 'Product not found'),
+      );
+
+    const part = toPart(row);
+    const build: Build = part ? { [part.slot]: part } : {};
+    // Trois types de pièces tirés au sort à chaque affichage : les suggestions varient
+    const slots = drawWeighted(
+      part ? SUGGESTED_SLOTS[part.slot] : DEFAULT_SUGGESTED_SLOTS,
+      SUGGESTED_SLOT_COUNT,
+    );
+
+    const picked: number[] = [];
+    for (const slot of slots) {
+      const candidates = await this.prisma.product.findMany({
+        where: {
+          id: { not: productId },
+          isActive: true,
+          stockQuantity: { gt: 0 },
+          images: { some: {} },
+          category: { slug: SLOT_CATEGORY[slot] },
+          ...HARDWARE_FILTER[slot],
+        },
+        orderBy: [{ popularity: 'desc' }, { id: 'asc' }],
+        take: 80,
+        select: PART_SELECT,
+      });
+      const fitting = candidates
+        .map(toPart)
+        .filter((p): p is ConfiguratorPart => !!p && fits(p, build))
+        .slice(0, SUGGESTION_POOL);
+      // Au hasard parmi les plus appréciés et compatibles
+      const chosen = shuffled(fitting).slice(0, SUGGESTIONS_PER_SLOT);
+      picked.push(...chosen.map((p) => p.id));
+    }
+
+    const cards = await this.prisma.product.findMany({
+      where: { id: { in: picked } },
+      select: CARD_SELECT,
+    });
+    return picked
+      .map((id) => cards.find((c) => c.id === id))
+      .filter((c) => !!c)
+      .map(({ images, price, ...rest }) => ({
+        ...rest,
+        price: Number(price),
+        isAvailable: rest.stockQuantity > 0,
+        image: images[0] ?? null,
+      }));
+  }
+
   /** Vérifie une configuration et renvoie les composants, le bilan de compatibilité et le total. */
   async check(rawIds: unknown) {
     const { build, parts } = await this.loadBuild(parseIds(rawIds));
@@ -369,7 +510,7 @@ export class ConfiguratorService {
     return { parts, totalPrice, ...evaluation };
   }
 
-  // --- CONFIGURATIONS ENREGISTRÉES ---
+  // Configurations enregistrées
 
   async listConfigurations(userId: number) {
     const configurations = await this.prisma.configuration.findMany({

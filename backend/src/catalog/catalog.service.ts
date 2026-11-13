@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -36,6 +36,8 @@ const SHOWCASE_WEIGHTS: Record<string, number> = {
   refroidissement: 1,
 };
 const SHOWCASE_FILE = resolve(process.cwd(), 'data', 'showcase.json');
+/** Photo des tuiles de catégories de l'accueil (scripts/build_showcase.py) */
+const COVERS_FILE = resolve(process.cwd(), 'data', 'category_covers.json');
 
 /** Tire `count` éléments distincts, chacun avec une probabilité proportionnelle à son poids. */
 function weightedSample<T>(
@@ -109,6 +111,7 @@ function describeTechnical(kind: string, row: object) {
 export class CatalogService {
   private readonly logger = new Logger(CatalogService.name);
   private showcaseSkus?: Record<string, string[]>;
+  private coverSkus?: { mtime: number; skus: Record<string, string[]> };
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -144,6 +147,45 @@ export class CatalogService {
       const list = byCategory.get(slug)!;
       return this.toListItem(list[Math.floor(Math.random() * list.length)]);
     });
+  }
+
+  /**
+   * Photo de chaque catégorie pour les tuiles de l'accueil : { slug: { url, altText } }.
+   * Premier candidat encore en vente parmi les plus belles photos des produits les plus appréciés.
+   */
+  async categoryCovers() {
+    // Fichier relu s'il a changé (choix des photos modifié sans redémarrer l'API)
+    const mtime = existsSync(COVERS_FILE) ? statSync(COVERS_FILE).mtimeMs : 0;
+    if (!this.coverSkus || this.coverSkus.mtime !== mtime) {
+      this.coverSkus = {
+        mtime,
+        skus: mtime
+          ? (JSON.parse(readFileSync(COVERS_FILE, 'utf8')) as Record<
+              string,
+              string[]
+            >)
+          : {},
+      };
+    }
+    const skus = this.coverSkus.skus;
+    const rows = await this.prisma.product.findMany({
+      where: { sku: { in: Object.values(skus).flat() }, isActive: true },
+      select: {
+        sku: true,
+        images: {
+          select: { url: true, altText: true },
+          orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }],
+          take: 1,
+        },
+      },
+    });
+    const imageBySku = new Map(rows.map((r) => [r.sku, r.images[0]]));
+    const covers: Record<string, { url: string; altText: string | null }> = {};
+    for (const [slug, list] of Object.entries(skus)) {
+      const image = list.map((sku) => imageBySku.get(sku)).find((img) => !!img);
+      if (image) covers[slug] = image;
+    }
+    return covers;
   }
 
   private loadShowcase(): Record<string, string[]> {

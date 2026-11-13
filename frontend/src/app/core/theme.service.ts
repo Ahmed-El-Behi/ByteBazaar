@@ -19,6 +19,8 @@ export class ThemeService {
     effect(() => {
       const value = this.theme();
       document.documentElement.dataset['theme'] = value;
+      const favicon = document.getElementById('app-favicon') as HTMLLinkElement | null;
+      if (favicon) favicon.href = value === 'dark' ? 'favicon-dark.svg' : 'favicon.svg';
       try {
         localStorage.setItem(KEY, value);
       } catch {

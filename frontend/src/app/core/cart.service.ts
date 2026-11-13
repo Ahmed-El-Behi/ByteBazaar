@@ -1,7 +1,18 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { translate } from './i18n';
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
-import { EMPTY, Observable, catchError, concatMap, finalize, from, of, tap, throwError, toArray } from 'rxjs';
+import {
+  EMPTY,
+  Observable,
+  catchError,
+  concatMap,
+  finalize,
+  from,
+  of,
+  tap,
+  throwError,
+  toArray,
+} from 'rxjs';
 import { AuthService } from './auth-service';
 import { Cart, CartApi } from './cart-api';
 
@@ -31,7 +42,10 @@ function readGuest(): GuestItem[] {
   try {
     const data: unknown = JSON.parse(localStorage.getItem(GUEST_KEY) ?? '[]');
     return Array.isArray(data)
-      ? data.filter((i): i is GuestItem => typeof i?.productId === 'number' && typeof i?.quantity === 'number')
+      ? data.filter(
+          (i): i is GuestItem =>
+            typeof i?.productId === 'number' && typeof i?.quantity === 'number',
+        )
       : [];
   } catch {
     return [];
@@ -126,7 +140,11 @@ export class CartStateService {
     const newQty = (existing?.quantity ?? 0) + quantity;
     if (newQty > product.stockQuantity) {
       return throwError(
-        () => new HttpErrorResponse({ status: 400, error: { message: translate('Quantité maximale atteinte pour ce produit.') } }),
+        () =>
+          new HttpErrorResponse({
+            status: 400,
+            error: { message: translate('Quantité maximale atteinte pour ce produit.') },
+          }),
       );
     }
 
@@ -153,7 +171,9 @@ export class CartStateService {
       return this.api.updateItem(itemId, quantity).pipe(tap((cart) => this.cart.set(cart)));
     }
     const items = readGuest()
-      .map((i) => (i.productId === itemId ? { ...i, quantity: Math.min(quantity, i.stockQuantity) } : i))
+      .map((i) =>
+        i.productId === itemId ? { ...i, quantity: Math.min(quantity, i.stockQuantity) } : i,
+      )
       .filter((i) => i.quantity > 0);
     return this.saveGuest(items);
   }
@@ -163,6 +183,11 @@ export class CartStateService {
       return this.api.removeItem(itemId).pipe(tap((cart) => this.cart.set(cart)));
     }
     return this.saveGuest(readGuest().filter((i) => i.productId !== itemId));
+  }
+
+  clearAll(): Observable<Cart> {
+    if (this.auth.isLoggedIn()) return this.api.clear().pipe(tap((cart) => this.cart.set(cart)));
+    return this.saveGuest([]);
   }
 
   // Après une déconnexion ou une commande : repart sur le panier local (vide)

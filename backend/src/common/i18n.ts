@@ -1,11 +1,9 @@
-// =====================================================================
 // Langue de la réponse (français par défaut, anglais sur demande).
 //
 // Le frontend envoie l'en-tête « Accept-Language: fr | en » à chaque requête ;
 // le middleware langMiddleware le lit et le garde pour toute la durée de la
 // requête (AsyncLocalStorage). Partout dans le code, tr('texte FR', 'English
 // text') renvoie le texte dans la langue de la requête en cours.
-// =====================================================================
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { NextFunction, Request, Response } from 'express';

@@ -11,5 +11,7 @@ export const adminGuard: CanActivateFn = (_route, state) => {
   const toLogin = router.createUrlTree(['/connexion'], { queryParams: { redirect: state.url } });
 
   if (!auth.isLoggedIn()) return toLogin;
-  return auth.ensureUser().pipe(map((user) => (user?.role === 'ADMIN' ? true : router.parseUrl('/'))));
+  return auth
+    .ensureUser()
+    .pipe(map((user) => (user?.role === 'ADMIN' ? true : router.parseUrl('/'))));
 };

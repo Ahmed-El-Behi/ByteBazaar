@@ -76,7 +76,6 @@ NOT_THE_PRODUCT = re.compile(
 GENERIC_WORDS = {'gaming', 'mouse', 'keyboard', 'headset', 'monitor', 'the', 'and', 'with', 'edition',
                  'wireless', 'wired', 'webcam', 'speakers', 'speaker', 'usb'}
 
-
 # Couleurs : celles qui changent l'apparence du produit doivent apparaître dans le titre
 COLOR_WORDS = {
     'white': r'\bwhite\b', 'pink': r'\bpink\b', 'blue': r'\bblue\b', 'red': r'\bred\b', 'green': r'\bgreen\b',
@@ -92,10 +91,8 @@ OTHER_COLORS = (
     r'|(?<!mx )(?<!razer )(?<!kailh )(?<!gateron )(?<!outemu )\b(red|blue|green)\b(?!\s*(switch|optical|linear|tactile|clicky|vo))'
 )
 
-
 def norm(text):
     return re.sub(r'[^a-z0-9]', '', (text or '').lower())
-
 
 def grams(title):
     """Jetons du titre et concaténations de 2-3 jetons voisins (« 27GP850-B » = « 27gp850 » + « b »)."""
@@ -105,7 +102,6 @@ def grams(title):
         for i in range(len(tokens) - n + 1):
             out.add(''.join(tokens[i:i + n]))
     return out
-
 
 def extract(path):
     con = duckdb.connect()
@@ -120,7 +116,6 @@ def extract(path):
         ) TO '{path}' (FORMAT parquet)
     """)
     print('Extraction :', con.sql(f"SELECT count(*) FROM '{path}'").fetchone()[0], 'fiches')
-
 
 def load_candidates(path):
     con = duckdb.connect()
@@ -144,13 +139,11 @@ def load_candidates(path):
                 by_category[slug].append(record)
     return by_category
 
-
 def model_tokens(model, brand):
     """Mots du modèle à retrouver tels quels dans le titre (marque et mots génériques exclus)."""
     rest = model[len(brand):] if model.lower().startswith(brand.lower()) else model
     tokens = [norm(t) for t in re.split(r'[\s/,()]+', rest)]
     return [t for t in tokens if t and t not in GENERIC_WORDS]
-
 
 def best_match(product, candidates):
     brand = norm(product['brandName'])
@@ -190,7 +183,6 @@ def best_match(product, candidates):
             best, best_score = c, score
     return best
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--extract', help="Extrait les fiches Amazon vers ce fichier Parquet puis s'arrête")
@@ -222,7 +214,6 @@ def main():
     print(f'{len(matches)} photos trouvées → {OUT.relative_to(ROOT)}')
     for slug, (found, total) in per_category.items():
         print(f'  {slug:<10} {found:>4} / {total}')
-
 
 if __name__ == '__main__':
     main()

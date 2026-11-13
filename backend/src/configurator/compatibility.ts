@@ -1,4 +1,3 @@
-// =====================================================================
 // Règles de compatibilité du configurateur (fonctions pures).
 //
 // Une seule implémentation sert à la fois à :
@@ -22,7 +21,6 @@
 //
 // Le ventirad et les périphériques (écran, clavier, souris, casque) sont
 // facultatifs : une configuration est « complète » avec les 7 pièces du PC.
-// =====================================================================
 
 import type { FormFactor, RamType } from '../generated/prisma/client';
 import { tr } from '../common/i18n';

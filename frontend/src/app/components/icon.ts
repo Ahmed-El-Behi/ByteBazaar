@@ -1,6 +1,7 @@
 import { Component, ElementRef, Renderer2, effect, inject, input } from '@angular/core';
 import {
   ArrowLeft,
+  ArrowUpDown,
   ArrowRight,
   ArrowUpRight,
   Award,
@@ -17,6 +18,7 @@ import {
   CircuitBoard,
   Cpu,
   Eye,
+  FileText,
   EyeOff,
   Fan,
   Gauge,
@@ -28,6 +30,7 @@ import {
   Speaker,
   Webcam,
   HardDrive,
+  LayoutGrid,
   Languages,
   LogOut,
   Mail,
@@ -37,10 +40,12 @@ import {
   Moon,
   Package,
   PlugZap,
+  Printer,
   RefreshCw,
   RotateCcw,
   Search,
   ShieldCheck,
+  SlidersHorizontal,
   ShoppingBag,
   ShoppingCart,
   Sun,
@@ -76,8 +81,11 @@ export const ICONS = {
   cpu: Cpu,
   eye: Eye,
   eyeOff: EyeOff,
+  fileText: FileText,
+  filters: SlidersHorizontal,
   gpu: Gpu,
   gauge: Gauge,
+  grid: LayoutGrid,
   sparkles: Sparkles,
   headphones: Headphones,
   headset: Headphones,
@@ -97,10 +105,12 @@ export const ICONS = {
   orders: ShoppingBag,
   package: Package,
   power: PlugZap,
+  printer: Printer,
   refresh: RefreshCw,
   reset: RotateCcw,
   search: Search,
   shield: ShieldCheck,
+  sort: ArrowUpDown,
   storage: HardDrive,
   sun: Sun,
   trash: Trash2,
@@ -118,13 +128,19 @@ export type IconName = keyof typeof ICONS;
   template: '',
   host: { 'aria-hidden': 'true', class: 'icon' },
   styles: `
-    :host { display: inline-flex; flex: none; line-height: 0; vertical-align: middle; }
-    :host ::ng-deep svg { display: block; }
+    :host {
+      display: inline-flex;
+      flex: none;
+      line-height: 0;
+      vertical-align: middle;
+    }
+    :host ::ng-deep svg {
+      display: block;
+    }
   `,
 })
 export class Icon {
   readonly name = input.required<IconName>();
-  /** Taille en pixels (carrée) */
   readonly size = input(20);
   /** Épaisseur du trait : 1,75 par défaut sur tout le site */
   readonly stroke = input(1.75);
