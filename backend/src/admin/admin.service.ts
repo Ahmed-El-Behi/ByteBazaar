@@ -3,52 +3,22 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  OrderStatus,
-  PaymentStatus,
-  Prisma,
-  StockReason,
-} from '../generated/prisma/client';
+import { PaymentStatus, Prisma, StockReason } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { asRecord, badRequest, int, oneOf, text } from '../common/input';
 import { tr } from '../common/i18n';
+import { cancelOrderTx } from '../order/order-cancel';
+import { ORDER_STATUSES, assertTransition } from '../order/order-status';
 
-const ORDER_STATUSES = Object.values(OrderStatus);
 const PAYMENT_STATUSES = Object.values(PaymentStatus);
 const STOCK_REASONS = Object.values(StockReason);
 
-// Progression d'une commande : on avance, on ne recule pas. CANCELLED et DELIVERED sont définitifs.
-// (même règle que l'écran admin-orders côté frontend)
-const STATUS_RANK: Record<OrderStatus, number> = {
-  PENDING: 1,
-  CONFIRMED: 2,
-  PREPARING: 3,
-  SHIPPED: 4,
-  DELIVERED: 5,
-  CANCELLED: 99,
-};
-const FINAL_STATUSES: OrderStatus[] = ['DELIVERED', 'CANCELLED'];
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING: 'En attente',
-  CONFIRMED: 'Confirmée',
-  PREPARING: 'En préparation',
-  SHIPPED: 'Expédiée',
-  DELIVERED: 'Livrée',
-  CANCELLED: 'Annulée',
-};
-const STATUS_LABELS_EN: Record<OrderStatus, string> = {
-  PENDING: 'Pending',
-  CONFIRMED: 'Confirmed',
-  PREPARING: 'Being prepared',
-  SHIPPED: 'Shipped',
-  DELIVERED: 'Delivered',
-  CANCELLED: 'Cancelled',
-};
-
 const ORDER_INCLUDE = {
-  items: true,
+  items: {
+    orderBy: { id: 'asc' },
+    include: { product: { select: { sku: true, slug: true } } },
+  },
   user: {
     select: {
       id: true,
@@ -56,6 +26,14 @@ const ORDER_INCLUDE = {
       firstName: true,
       lastName: true,
       phone: true,
+    },
+  },
+  events: {
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: {
+      status: true,
+      createdAt: true,
+      performedBy: { select: { firstName: true, lastName: true } },
     },
   },
 } satisfies Prisma.OrderInclude;
@@ -70,33 +48,15 @@ function formatOrder(order: OrderWithDetails) {
     subtotal: Number(order.subtotal),
     shippingFee: Number(order.shippingFee),
     total: Number(order.total),
-    items: order.items.map((item) => ({
+    items: order.items.map(({ product, ...item }) => ({
       ...item,
       unitPrice: Number(item.unitPrice),
       lineTotal:
         Math.round(Number(item.unitPrice) * item.quantity * 1000) / 1000,
+      productSku: product.sku,
+      productSlug: product.slug,
     })),
   };
-}
-
-function assertTransition(from: OrderStatus, to: OrderStatus) {
-  if (from === to) return;
-  if (FINAL_STATUSES.includes(from)) {
-    throw new BadRequestException(
-      tr(
-        `Une commande ${STATUS_LABELS[from].toLowerCase()} ne peut plus changer de statut`,
-        `A ${STATUS_LABELS_EN[from].toLowerCase()} order can no longer change status`,
-      ),
-    );
-  }
-  if (to !== 'CANCELLED' && STATUS_RANK[to] < STATUS_RANK[from]) {
-    throw new BadRequestException(
-      tr(
-        `Impossible de repasser de « ${STATUS_LABELS[from]} » à « ${STATUS_LABELS[to]} »`,
-        `Cannot go back from "${STATUS_LABELS_EN[from]}" to "${STATUS_LABELS_EN[to]}"`,
-      ),
-    );
-  }
 }
 
 @Injectable()
@@ -294,50 +254,37 @@ export class AdminService {
             tr('Commande non trouvée', 'Order not found'),
           );
 
-        const data: Prisma.OrderUpdateInput = {};
-        const now = new Date();
         const statusChanged = !!status && status !== current.status;
+        if (status && statusChanged) assertTransition(current.status, status);
 
-        if (status && statusChanged) {
-          assertTransition(current.status, status);
-          data.status = status;
-
-          if (status === 'SHIPPED' && !current.shippedAt) data.shippedAt = now;
-          if (status === 'DELIVERED') {
-            if (!current.shippedAt) data.shippedAt = now;
-            data.deliveredAt = now;
-            data.paymentStatus = 'PAID';
-            if (!current.paidAt) data.paidAt = now;
-          }
-
-          // Annulation : remise en stock (une seule fois, CANCELLED étant définitif)
-          if (status === 'CANCELLED') {
-            for (const item of current.items) {
-              await tx.product.update({
-                where: { id: item.productId },
-                data: { stockQuantity: { increment: item.quantity } },
-              });
+        // Annulation : remise en stock et remboursement éventuel (voir cancelOrderTx)
+        if (status === 'CANCELLED' && statusChanged) {
+          await cancelOrderTx(tx, current, adminUserId);
+        } else {
+          const data: Prisma.OrderUpdateInput = {};
+          const now = new Date();
+          if (status && statusChanged) {
+            data.status = status;
+            data.events = { create: { status, performedById: adminUserId } };
+            if (status === 'SHIPPED' && !current.shippedAt)
+              data.shippedAt = now;
+            if (status === 'DELIVERED') {
+              if (!current.shippedAt) data.shippedAt = now;
+              data.deliveredAt = now;
+              // Paiement à la livraison ou virement arrivé : la commande livrée est réglée
+              data.paymentStatus = 'PAID';
+              if (!current.paidAt) data.paidAt = now;
             }
-            await tx.stockMovement.createMany({
-              data: current.items.map((item) => ({
-                productId: item.productId,
-                performedById: adminUserId,
-                quantityChange: item.quantity,
-                reason: 'RETURN' as const,
-                note: `Annulation commande ${current.reference}`,
-              })),
-            });
           }
+          if (paymentStatus && paymentStatus !== current.paymentStatus) {
+            data.paymentStatus = paymentStatus;
+            if (paymentStatus === 'PAID' && !current.paidAt) data.paidAt = now;
+          }
+          await tx.order.update({ where: { id }, data });
         }
 
-        if (paymentStatus) {
-          data.paymentStatus = paymentStatus;
-          if (paymentStatus === 'PAID' && !current.paidAt) data.paidAt = now;
-        }
-
-        const order = await tx.order.update({
+        const order = await tx.order.findUniqueOrThrow({
           where: { id },
-          data,
           include: ORDER_INCLUDE,
         });
         return { order, statusChanged };
@@ -351,6 +298,7 @@ export class AdminService {
         order.user.firstName,
         order.reference,
         order.status,
+        order.id,
       );
     }
 

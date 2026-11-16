@@ -1,4 +1,4 @@
-import { Component, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ProductListItem } from '../core/models';
 import { TndPipe } from '../core/tnd.pipe';
@@ -10,6 +10,7 @@ import { Icon } from './icon';
 
 @Component({
   selector: 'app-product-card',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [RouterLink, TndPipe, Icon, TPipe, LocalNamePipe, ProductNamePipe],
   template: `
     <div class="wrap">
@@ -20,6 +21,7 @@ import { Icon } from './icon';
               [src]="img.url"
               [alt]="img.altText ?? product().name | productName"
               loading="lazy"
+              decoding="async"
             />
           } @else {
             <span>{{ product().brand.name }}</span>
@@ -177,6 +179,47 @@ import { Icon } from './icon';
     @keyframes pop {
       40% {
         transform: translateY(-4px) scale(1.25);
+      }
+    }
+    /* Grille à deux colonnes sur téléphone : carte compacte */
+    @media (max-width: 560px) {
+      .product {
+        padding: 0.4rem;
+      }
+      .ph img {
+        padding: 0.5rem;
+      }
+      .body {
+        padding: 0.6rem 0.3rem 0.3rem;
+      }
+      small {
+        display: block;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        font-size: var(--fs-2xs);
+      }
+      h3 {
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        font-size: var(--fs-sm);
+        min-height: 3.9em;
+        margin-bottom: 0.5rem;
+      }
+      .row {
+        flex-wrap: wrap;
+        gap: 0.3rem;
+      }
+      .price {
+        font-size: var(--fs-md);
+      }
+      .quick-add {
+        top: 0.7rem;
+        right: 0.7rem;
+        width: 30px;
+        height: 30px;
       }
     }
     /* Écrans tactiles (sans survol) : le bouton reste visible */

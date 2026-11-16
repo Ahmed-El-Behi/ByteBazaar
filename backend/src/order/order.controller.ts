@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseIntPipe,
   Patch,
@@ -55,6 +56,15 @@ export class OrderController {
   @Get(['', 'my-orders'])
   getMyOrders(@Req() req: AuthedRequest) {
     return this.orderService.getMyOrders(req.user!.id);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(200)
+  cancelOrder(
+    @Req() req: AuthedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.orderService.cancelOrder(req.user!.id, id);
   }
 
   @Get(':id')

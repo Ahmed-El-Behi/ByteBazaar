@@ -1,6 +1,10 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
+import { Observable, catchError, shareReplay, throwError } from 'rxjs';
+import { I18nService } from './i18n';
 import { API_URL, type ProductListItem } from './models';
+
+type PartsResponse = { slot: Slot; items: ConfiguratorPart[]; hidden: number };
 
 export type PcSlot = 'cpu' | 'cooler' | 'motherboard' | 'ram' | 'gpu' | 'storage' | 'psu' | 'case';
 export type DeskSlot = 'monitor' | 'keyboard' | 'mouse' | 'headset';
@@ -101,15 +105,29 @@ export interface ConfigurationSummary {
 @Injectable({ providedIn: 'root' })
 export class ConfiguratorApi {
   private http = inject(HttpClient);
+  private i18n = inject(I18nService);
+  /** Listes déjà chargées pendant la visite : rouvrir un sélecteur est immédiat */
+  private readonly partsCache = new Map<string, Observable<PartsResponse>>();
 
   /** Composants en stock compatibles avec `selectedIds` pour l'emplacement demandé. */
   parts(slot: Slot, selectedIds: number[]) {
-    const params: Record<string, string> = { slot };
-    if (selectedIds.length) params['ids'] = selectedIds.join(',');
-    return this.http.get<{ slot: Slot; items: ConfiguratorPart[]; hidden: number }>(
-      `${API_URL}/configurator/parts`,
-      { params },
-    );
+    const ids = [...selectedIds].sort((a, b) => a - b);
+    // Les points forts des pièces sont traduits par le serveur : une liste par langue
+    const key = `${slot}|${ids.join(',')}|${this.i18n.lang()}`;
+    let request = this.partsCache.get(key);
+    if (!request) {
+      const params: Record<string, string> = { slot };
+      if (ids.length) params['ids'] = ids.join(',');
+      request = this.http.get<PartsResponse>(`${API_URL}/configurator/parts`, { params }).pipe(
+        catchError((error) => {
+          this.partsCache.delete(key); // échec : la prochaine ouverture réessaie
+          return throwError(() => error);
+        }),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
+      this.partsCache.set(key, request);
+    }
+    return request;
   }
 
   suggestions(productId: number) {

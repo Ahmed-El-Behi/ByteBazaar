@@ -22,6 +22,7 @@ See `README.md` (setup, catalogue, security) and `backend/README.md` (data pipel
 npm run start:dev            # API in watch mode
 npm run seed                 # sync DB with both catalogue JSON files (idempotent, never overwrites stock)
 npm run seed:stock           # reproducible test stock
+npm run seed:demo-orders     # ~200 fake orders over 120 days for the dashboard (demo customers @demo.bytebazaar.test, idempotent, stock untouched)
 npm test                     # unit tests (jest, ESM)   — 28+ tests, must pass
 npm run test:e2e             # needs dev DB
 npm run lint                 # oxlint — must be 0 warnings
@@ -51,7 +52,12 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
 ### Backend (`backend/src`)
 - `auth/` JWT auth, roles (`ADMIN` re-read from DB every request), password reset (15 min, single use, logs out sessions), rate-limit guard in `common/`.
 - `catalog/` product list/detail, filters, sort; default sort **Pertinence** = `relevance.ts` (per-category popularity, daily-seeded randomness, availability; text match wins when searching).
-- `cart/`, `order/` (statuses, PayPal/other payment methods, status-change e-mails via `mail/` + Handlebars templates), `admin/` (stock + orders).
+- `cart/`, `order/`, `admin/`, `mail/`:
+  - `order/order-status.ts` — **pure rules**, unit-tested: forward-only transitions (DELIVERED/CANCELLED final), customer may cancel while PENDING/CONFIRMED, CARD/PAYPAL are paid at checkout (simulated), cancelling a paid order → REFUNDED.
+  - `order/order-cancel.ts` — `cancelOrderTx` (restock + RETURN stock movements + refund + event), shared by `POST /orders/:id/cancel` and the admin.
+  - `OrderEvent` table = dated status history (who did it); every status change writes one. Migration `20261115120000_order_events` backfills existing orders from their dates.
+  - E-mails (French only, Handlebars `strict`): `order-confirmation` at checkout, `order-status` on each change, both link to `/commandes/:id`. Failures are logged, never thrown.
+  - `admin/dashboard.service.ts` — `GET /admin/dashboard?days=7|30|90|365`: KPIs with % change vs previous period, revenue timeline (days, or months for 365; Africa/Tunis calendar), statuses, payment methods, root-category sales, top products, low stock, recent orders. Revenue excludes cancelled orders.
 - `configurator/`
   - `compatibility.ts` — **pure functions**, unit-tested. `CORE_SLOTS = cpu, motherboard, ram, gpu, storage, psu, case`; `OPTIONAL_SLOTS = cooler, monitor, keyboard, mouse, headset`. Checks: CPU↔motherboard socket, RAM DDR type ↔ motherboard, form factor ↔ case, GPU length, PSU wattage, cooling (missing cooler = *warning* only). A build is `complete` when all core slots are filled, no error/pending, and the only warnings are `cooling`. Peripherals never affect compatibility.
   - `configurator.service.ts` — `GET /configurator/parts?slot=&…selection` returns only parts compatible with the current selection (e.g. choosing a motherboard narrows CPUs to its socket, RAM to its DDR); `GET /configurator/check`; saved configurations CRUD under `/configurations`. Cooler info (`liquid`, `radiatorMm`) is derived from the "Radiator Size" spec or "AIO" in the name.
@@ -69,9 +75,28 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
 - `components/icon.ts` — `<app-icon name="…">` renders Lucide icons; use it for every icon (no emoji / hand-drawn SVG).
 - Design tokens in `src/styles.css`: surfaces `--bg < --surface < --surface-2 < --surface-3`, `--text/--text-2/--muted`, `--accent`, `--font-display` + `--font-body`, scale `--fs-2xs … --fs-5xl`, radii `--r-*`, shadows `--shadow*`. Reuse tokens, don't hard-code colours/sizes.
 - Routes are French (`/produits`, `/configurateur`, `/panier`, `/checkout`, `/compte/...`, `/conditions`, `/confidentialite`, `/admin/commandes`, `/admin/stock`). Every page is lazy (`loadComponent`) except Home and ProductList; titles are French and translated by `TranslatedTitleStrategy`.
-- API base URL: `src/environments/environment.ts` (production — set the public API URL before deploying) / `environment.development.ts` (`ng serve`, via fileReplacements); `core/models.ts` exports `API_URL`.
+- API base URL is `/api` (same origin) in both environments: `ng serve` proxies it via `proxy.conf.json`; `npm run serve` (`scripts/serve.mjs`, port 4300, brotli/gzip + cache headers) serves the production build and proxies it; in production a reverse proxy must forward `/api/*` (prefix stripped) to the API. `core/models.ts` exports `API_URL`.
+- Mobile (≤640px): one-row header (logo + icon buttons; theme switch becomes a round button; Connexion/Inscription → user icon), swipeable nav row; 2-column product and category grids ≤560px. Touch devices: static ambient background; configurator starts in performance mode unless the user chose otherwise.
 - Addresses are fully server-side: `GET/POST /orders/addresses`, `PATCH /orders/addresses/:id/default`, `DELETE /orders/addresses/:id` (deleting the default promotes the most recent one). The old localStorage workaround (`bytebazaar_deleted_addresses`, `bytebazaar_default_address_id`) is gone.
 - Legal pages (`pages/legal.ts`, texts in `core/legal-content.ts`): seller identity placeholders must be completed before going live.
+- Orders: `core/orders-api.ts` holds every order type, label map and `statusTone`/`paymentTone` (global `.pill .tone-*` classes in `styles.css`). Pages: `order-detail.ts` (`/commandes/:id`, `?nouvelle=1` after checkout: thank-you banner, `OrderTimeline`, bank details, cancel modal), `invoice.ts` (`/commandes/:id/facture` and `/admin/commandes/:id/facture` with `data.admin`; white A4 sheet, print CSS in `styles.css`), `account-orders.ts`. Store identity, bank details, `VAT_RATE` and `vatBreakdown` in `core/store-info.ts` (demo values).
+- Performance (zoneless Angular: a template event listener re-runs change detection for the whole app):
+  - Continuous pointer effects that only set CSS variables are bound with `addEventListener` (home hero/category halo, `pc-scene` hover, revenue-chart crosshair), never `(pointermove)` in templates.
+  - `CatalogApi.categories()/brands()/categoryCovers()` are cached for the session (`shareReplay`).
+  - `core/preloading.ts` (`IdlePreloading`): lazy pages are preloaded once the browser is idle, except `/admin*` (configurator: desktop only, later).
+  - Home: infinite animations are paused (`.offscreen`) while their section is out of view (IntersectionObserver, 120px margin).
+  - Catalogue brand list: `content-visibility: auto` with `contain-intrinsic-size` = the row's real content height (21.69px) so the scrollbar is unchanged.
+  - `Icon` and `ProductCard` are OnPush. Images in lists: `loading="lazy" decoding="async"`.
+  - Configurator 3D (`pc-scene.ts`, `pc-model.ts`, `three-merge.ts`) — all verified pixel-identical against the previous rendering:
+    - `mergeStaticMeshes`: per part, static opaque meshes with equivalent materials are merged (≈368 → 190 meshes, 233 → 55 shadow casters). Kept separate: spinners, transparent, `userData`-flagged, mirrored meshes, `accentMats`.
+    - Shadow map `autoUpdate = false`; `PcModel.shadowsNeedUpdate()` asks for a refresh only when a part moves/changes (install, hover lift, selection, quality) — or every frame while opaque (non-RGB) fan blades spin.
+    - `setSelection` reuses a part whose `buildKey` (part id + layout, + mb/gpu presence for the PSU) is unchanged; same ids → no rebuild at all.
+    - Render loop stops while the canvas is off-screen (IntersectionObserver). Programs are compiled with `compileAsync` against `composer.readBuffer` (bloom renders to a render target) before the first frame.
+    - `localStorage['bytebazaar_configurator']` also stores `parts` so the full build is drawn at once on return visits (API check still refreshes it).
+    - Picker: parts lists cached per slot+selection+language in `ConfiguratorApi`; cards rendered progressively (`FIRST_CARDS`, `CARDS_PER_FRAME`); images lazy.
+    - Configurator chunk preloaded on intent (pointer/touch/focus on a `/configurateur` link, `app.ts`) and, on desktop only, by `IdlePreloading` after 5 s.
+  - `scripts/serve.mjs` compresses every asset once at start-up (brotli 11 / gzip 9, cache keyed by mtime).
+- Admin: `components/admin-nav.ts` tabs; `admin-dashboard.ts` (`/admin`) with `components/revenue-chart.ts` (SVG, crosshair + tooltip, arrow keys, screen-reader table); single chart hue `--viz-series` (validated with the dataviz skill). `admin-orders.ts`: search, filters with counts (`?filtre=a-traiter|virements`, `?ref=`), next-step buttons, mark paid, cancel, history. Phones: rows become cards.
 
 ### Languages (FR default / EN) — every user-facing text must exist in both
 - Header toggle (`app.html`, `.lang-switch`) → `I18nService` (`core/i18n.ts`), saved in `localStorage['bytebazaar_lang']`, sets `<html lang>`.
@@ -99,6 +124,7 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
 - `e119aa9` Configurator backend with compatibility filtering + interactive 3D open-side PC (RGB, high fidelity).
 - `741a07e` Visual facelift (fonts, Lucide icons, colour depth); peripherals dataset in DB/Prisma/site with local photos; configurator CPU cooler slot + 3D desk setup with click-to-zoom two-level navigation.
 
+- Uncommitted: complete order flow + admin dashboard (see Architecture), on top of the earlier uncommitted work below.
 - Uncommitted work after `27a9892` (commit when asked): catalogue filters, pink accents, favicon, nav/scroll polish, category covers, product-page upsell + cart toasts, unified buttons, blurred background, legal pages, two-way search, server-side address routes, repo-wide clean-up (comments, Prettier, lazy routes, environments, tests, READMEs).
 
 ### Remaining / ideas

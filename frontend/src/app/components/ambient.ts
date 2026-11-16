@@ -108,10 +108,12 @@ import { Component, DestroyRef, ElementRef, afterNextRender, inject } from '@ang
         transform: translate(-3vw, 4vh) scale(0.95);
       }
     }
-    @media (prefers-reduced-motion: reduce) {
+    /* Écrans tactiles : taches fixes, pour garder un défilement fluide sur mobile */
+    @media (prefers-reduced-motion: reduce), (hover: none) {
       .blob {
         animation: none;
         translate: none;
+        will-change: auto;
       }
     }
   `,
@@ -122,6 +124,7 @@ export class Ambient {
     const destroyRef = inject(DestroyRef);
 
     afterNextRender(() => {
+      if (matchMedia('(prefers-reduced-motion: reduce), (hover: none)').matches) return;
       let frame = 0;
       // Progression lissée : les taches rattrapent la position de défilement en douceur
       let current = 0;

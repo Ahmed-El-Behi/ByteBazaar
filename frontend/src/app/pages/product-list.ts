@@ -706,6 +706,10 @@ interface ActiveFilter {
       padding: 0 0.1rem 0.6rem;
     }
     .brand-item {
+      /* Liste défilante de ~170 marques : celles hors de la zone visible ne sont ni stylées ni
+         mises en page (rendu identique ; hauteur réservée = hauteur réelle du contenu d'une ligne, hors marges internes) */
+      content-visibility: auto;
+      contain-intrinsic-size: auto 21.69px;
       display: flex;
       align-items: center;
       gap: 0.6rem;

@@ -24,6 +24,8 @@
   /* Marque et états */
   --accent: #2447f5;
   --accent-hover: #1a3be6;
+  /* Graphiques : teinte unique des séries (validée : bande de clarté, contraste ≥ 3:1) */
+  --viz-series: #2447f5;
   --accent-soft: #e8edff;
   --on-accent: #ffffff;
   --sun: #ffc531;
@@ -104,6 +106,7 @@
 
   --accent: #f59e0b;
   --accent-hover: #fbb12f;
+  --viz-series: #d97706;
   --accent-soft: rgba(245, 158, 11, 0.13);
   --on-accent: #1a1205;
   --sun: #22d3ee;
@@ -443,6 +446,47 @@ html.custom-cursor textarea {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 24%, transparent);
 }
 
+/* Pastille de statut (commandes, paiements) : <span class="pill tone-green"> */
+.pill {
+  --tone: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 0.24rem 0.7rem;
+  border-radius: 999px;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 26%, transparent);
+}
+.pill::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.tone-warn {
+  --tone: var(--warn);
+}
+.tone-info {
+  --tone: var(--info);
+}
+.tone-violet {
+  --tone: var(--violet);
+}
+.tone-green {
+  --tone: var(--green);
+}
+.tone-red {
+  --tone: var(--red);
+}
+.tone-muted {
+  --tone: var(--muted);
+}
+
 /* Cadre d'image : tuile claire dans les deux thèmes */
 .ph {
   aspect-ratio: 4 / 3;
@@ -468,6 +512,12 @@ html.custom-cursor textarea {
   display: grid;
   gap: 1.1rem;
   grid-template-columns: repeat(auto-fill, minmax(235px, 1fr));
+}
+@media (max-width: 560px) {
+  .grid-products {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
 }
 
 /* Formulaires */
@@ -688,5 +738,20 @@ select {
   ::view-transition-old(root),
   ::view-transition-new(root) {
     animation: none !important;
+  }
+}
+
+/* Impression (factures) : seul le contenu de la page est imprimé, sur fond blanc */
+@media print {
+  .topbar,
+  .footer,
+  app-ambient,
+  app-cursor,
+  app-toaster {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
   }
 }

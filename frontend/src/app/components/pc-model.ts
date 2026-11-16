@@ -15,6 +15,7 @@ import {
 } from '../core/configurator-api';
 import { buildDesk, buildHeadset, buildKeyboard, buildMonitor, buildMouse } from './desk-model';
 import { canvasTexture, seeded } from './three-utils';
+import { mergeStaticMeshes } from './three-merge';
 
 export type Selection = Record<Slot, ConfiguratorPart | null>;
 
@@ -168,6 +169,8 @@ export interface SlotView {
   disposables: { dispose(): void }[];
   install: number; // 0 → 1 : animation d'installation
   lift: number; // décalage vers l'avant au survol
+  buildKey: string; // ce dont dépend la construction : identique = pièce réutilisable telle quelle
+  spinners: THREE.Object3D[]; // hélices de la pièce
   axis: 'z' | 'y'; // pièces du PC : glissent vers la vitre ; poste de travail : se posent d'en haut
 }
 
@@ -502,6 +505,10 @@ export class PcModel {
   private rgbOn = false;
   /** Mode performance : LED éteintes, ventilateurs à l'arrêt, lumières colorées coupées */
   private lowGraphics = false;
+  /** Une pièce a bougé ou changé depuis le dernier calcul des ombres (voir shadowsNeedUpdate) */
+  private shadowsDirty = true;
+  /** Des hélices opaques (ventilateurs non RGB) projettent une ombre qui tourne avec elles */
+  private spinningShadows = false;
 
   // Éclairage RGB partagé (texture arc-en-ciel animée)
   private readonly rgb: RgbMaterials = {
@@ -558,6 +565,7 @@ export class PcModel {
     buildDesk(new Builder(deskView, this.accent, this.tex, this.rgb, []));
     this.deskDisposables.push(...deskView.disposables);
     this.applyShadows(this.deskRoot);
+    this.deskDisposables.push(...mergeStaticMeshes(this.deskRoot, new Set()));
   }
 
   private emptyView(slot: Slot, group = new THREE.Group()): SlotView {
@@ -572,6 +580,8 @@ export class PcModel {
       disposables: [],
       install: 1,
       lift: 0,
+      buildKey: '',
+      spinners: [],
       axis: (DESK_SLOTS as Slot[]).includes(slot) ? 'y' : 'z',
     };
   }
@@ -579,31 +589,58 @@ export class PcModel {
   // API
 
   setSelection(selection: Selection, animate: boolean) {
+    // Mêmes pièces (prix mis à jour, changement de langue…) : la 3D reste telle quelle
+    if (
+      this.views.size &&
+      BUILD_ORDER.every(
+        (slot) => (this.views.get(slot)?.partId ?? null) === (selection[slot]?.id ?? null),
+      )
+    )
+      return;
+    this.shadowsDirty = true;
     this.spinners.length = 0;
+    // Une pièce du PC dépend de sa référence et de l'agencement du boîtier (format de la carte
+    // mère, longueur de la carte graphique, radiateur…) ; l'alimentation, en plus, de la présence
+    // de la carte mère et de la carte graphique (câbles). Sans changement : pièce réutilisée.
+    const layoutKey = JSON.stringify(layoutFor(selection));
     for (const slot of BUILD_ORDER) {
       const part = selection[slot];
       const old = this.views.get(slot);
       const changed = (old?.partId ?? null) !== (part?.id ?? null);
-      // Le poste de travail ne dépend que de sa propre pièce : inutile de le reconstruire sinon
-      if (old && old.axis === 'y' && !changed) continue;
-      const parent = (PC_SLOTS as Slot[]).includes(slot) ? this.pcRoot : this.root;
+      const isPc = (PC_SLOTS as Slot[]).includes(slot);
+      const buildKey = !isPc
+        ? `${part?.id ?? '-'}`
+        : `${part?.id ?? '-'}|${layoutKey}` +
+          (slot === 'psu' ? `|${!!selection.motherboard}|${!!selection.gpu}` : '');
+      if (old && old.buildKey === buildKey) {
+        this.spinners.push(...old.spinners);
+        continue;
+      }
+      const parent = isPc ? this.pcRoot : this.root;
       if (old) {
         parent.remove(old.group);
         old.disposables.forEach((d) => d.dispose());
       }
       const view = this.build(slot, selection);
+      view.buildKey = buildKey;
       view.install = animate && changed && !!part ? 0 : 1;
       view.lift = old?.lift ?? 0;
       this.views.set(slot, view);
       parent.add(view.group);
     }
     this.rgbOn = !!selection.case;
+    this.spinningShadows = this.spinners.some((s) => {
+      let casts = false;
+      s.traverse((o) => (casts ||= (o as THREE.Mesh).isMesh && o.castShadow));
+      return casts;
+    });
     this.applyHover();
   }
 
   /** Active / désactive le mode performance (graphismes allégés). */
   setLowGraphics(on: boolean) {
     this.lowGraphics = on;
+    this.shadowsDirty = true;
     // LED éteintes : plastique sombre mat, sans émission (donc sans halo)
     this.rgb.ring.emissiveIntensity = on ? 0 : 3.4;
     this.rgb.strip.emissiveIntensity = on ? 0 : 3;
@@ -622,6 +659,7 @@ export class PcModel {
   setHover(target: HoverTarget | null) {
     if (target === this.hovered) return;
     this.hovered = target;
+    this.shadowsDirty = true;
     this.applyHover();
   }
 
@@ -659,9 +697,22 @@ export class PcModel {
     return box.getCenter(out).setY(box.max.y);
   }
 
+  /**
+   * Les ombres ne dépendent que de la position des pièces (la lumière est fixe) : elles ne
+   * sont recalculées que lorsqu'une pièce bouge ou change, ou en continu si des hélices
+   * opaques tournent. Le balancement de la caméra ne les modifie pas.
+   */
+  shadowsNeedUpdate(): boolean {
+    const dirty = this.shadowsDirty;
+    this.shadowsDirty = false;
+    return dirty;
+  }
+
   update(dt: number, time: number, reducedMotion: boolean) {
     const pulse = 0.5 + 0.5 * Math.sin(time * 2.4);
     for (const view of this.views.values()) {
+      const lift = view.lift;
+      const install = view.install;
       // Installation : la pièce glisse depuis l'ouverture du boîtier
       if (view.install < 1) view.install = reducedMotion ? 1 : Math.min(1, view.install + dt * 1.6);
       const ease = 1 - Math.pow(1 - view.install, 3);
@@ -672,6 +723,7 @@ export class PcModel {
       if (view.axis === 'z') view.group.position.z = (1 - ease) * 14 + view.lift;
       else view.group.position.y = (1 - ease) * 22 + view.lift;
       view.group.scale.setScalar(0.92 + 0.08 * ease);
+      if (view.install !== install || Math.abs(view.lift - lift) > 1e-4) this.shadowsDirty = true;
 
       const hovered = view.slot === this.hovered;
       for (const fill of view.ghostFills) fill.opacity = hovered ? 0.3 : 0.07 + 0.07 * pulse;
@@ -686,7 +738,10 @@ export class PcModel {
       light.color.setHSL((hueBase + phase) % 1, 1, 0.55);
       light.intensity = this.rgbOn ? 1.5 : 0;
     }
-    if (!reducedMotion) for (const s of this.spinners) s.rotation.z += dt * 9;
+    if (!reducedMotion) {
+      for (const s of this.spinners) s.rotation.z += dt * 9;
+      if (this.spinningShadows) this.shadowsDirty = true;
+    }
   }
 
   dispose() {
@@ -726,6 +781,7 @@ export class PcModel {
     view.partId = sel[slot]?.id ?? null;
     const group = view.group;
     const b = new Builder(view, this.accent, this.tex, this.rgb, this.spinners);
+    const firstSpinner = this.spinners.length;
     const layout = layoutFor(sel);
     const part = sel[slot];
 
@@ -768,8 +824,13 @@ export class PcModel {
         break;
     }
 
+    view.spinners = this.spinners.slice(firstSpinner);
     // Ombres : les pièces en projettent et en reçoivent, sauf éléments lumineux / fantômes
     this.applyShadows(group);
+    // Un appel de dessin par matériau au lieu d'un par volume (voir three-merge.ts)
+    view.disposables.push(
+      ...mergeStaticMeshes(group, new Set(this.spinners), new Set(view.accentMats)),
+    );
     return view;
   }
 

@@ -40,6 +40,19 @@ export class App {
   readonly cartBump = signal(false);
 
   constructor() {
+    // Configurateur (code 3D volumineux) : téléchargé dès que le pointeur ou le doigt
+    // s'approche d'un lien vers lui, pour qu'il s'ouvre sans attendre
+    afterNextRender(() => {
+      const warm = (event: Event) => {
+        if (!(event.target as Element | null)?.closest?.('a[href="/configurateur"]')) return;
+        void import('./pages/configurator');
+        for (const type of ['pointerover', 'touchstart', 'focusin'])
+          document.removeEventListener(type, warm);
+      };
+      for (const type of ['pointerover', 'touchstart', 'focusin'])
+        document.addEventListener(type, warm, { passive: true });
+    });
+
     // Pastille de navigation : suit la page active (changement de page, de taille, de langue…)
     const destroyRef = inject(DestroyRef);
     afterNextRender(() => {
@@ -119,6 +132,13 @@ export class App {
     nav.style.setProperty('--ind-l', `${left}px`);
     nav.style.setProperty('--ind-r', `${right}px`);
     nav.style.setProperty('--ind-o', '1');
+    // Menu défilant (mobile) : la page active est ramenée au centre
+    if (nav.scrollWidth > nav.clientWidth) {
+      nav.scrollTo({
+        left: left - (nav.clientWidth - active.offsetWidth) / 2,
+        behavior: this.indicatorLeft === null ? 'auto' : 'smooth',
+      });
+    }
     // Premier placement sans animation, puis glissements animés
     if (this.indicatorLeft === null) requestAnimationFrame(() => nav.classList.add('ind-ready'));
     this.indicatorLeft = left;

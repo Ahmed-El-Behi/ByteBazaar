@@ -1,4 +1,5 @@
-// Build de production (ng build). Renseigner l'URL publique de l'API avant le déploiement.
+// Build de production (ng build). L'API est attendue sous /api sur le même domaine
+// (reverse proxy ; voir scripts/serve.mjs). Mettre une URL complète si elle est hébergée ailleurs.
 export const environment = {
-  apiUrl: 'http://localhost:3000',
+  apiUrl: '/api',
 };

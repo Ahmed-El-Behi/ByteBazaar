@@ -1,4 +1,12 @@
-import { Component, ElementRef, Renderer2, effect, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  effect,
+  ElementRef,
+  inject,
+  input,
+  Renderer2,
+} from '@angular/core';
 import {
   ArrowLeft,
   ArrowUpDown,
@@ -54,6 +62,17 @@ import {
   Truck,
   User,
   Wrench,
+  Banknote,
+  ChartColumn,
+  Clock,
+  CreditCard,
+  CircleX,
+  Landmark,
+  LayoutDashboard,
+  Receipt,
+  TrendingDown,
+  TrendingUp,
+  Users,
   X,
   type IconNode,
 } from 'lucide';
@@ -119,12 +138,24 @@ export const ICONS = {
   userCircle: CircleUserRound,
   warning: TriangleAlert,
   wrench: Wrench,
+  banknote: Banknote,
+  chart: ChartColumn,
+  clock: Clock,
+  creditCard: CreditCard,
+  circleX: CircleX,
+  bank: Landmark,
+  dashboard: LayoutDashboard,
+  receipt: Receipt,
+  trendDown: TrendingDown,
+  trendUp: TrendingUp,
+  users: Users,
 } satisfies Record<string, IconNode>;
 
 export type IconName = keyof typeof ICONS;
 
 @Component({
   selector: 'app-icon',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: '',
   host: { 'aria-hidden': 'true', class: 'icon' },
   styles: `

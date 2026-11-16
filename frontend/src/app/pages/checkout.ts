@@ -11,13 +11,12 @@ import {
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth-service';
 import { Address, CartApi } from '../core/cart-api';
+import { OrdersApi, type PaymentMethod } from '../core/orders-api';
 import { CartStateService } from '../core/cart.service';
 import { SHIPPING_FEE } from '../core/models';
 import { TndPipe } from '../core/tnd.pipe';
 import { apiErrors } from '../core/utils';
 import { ProductNamePipe, TPipe, translate } from '../core/i18n';
-
-type PayMethod = 'CARD' | 'PAYPAL' | 'BANK_TRANSFER' | 'CASH_ON_DELIVERY';
 
 const GOVERNORATES = [
   'Ariana',
@@ -721,6 +720,7 @@ const MESSAGES: Record<string, string> = {
 })
 export class CheckoutPage {
   private api = inject(CartApi);
+  private ordersApi = inject(OrdersApi);
   private router = inject(Router);
   private auth = inject(AuthService);
   readonly cartState = inject(CartStateService);
@@ -728,7 +728,7 @@ export class CheckoutPage {
   readonly shipping = SHIPPING_FEE;
   readonly governorates = GOVERNORATES;
   // i18n
-  readonly methods: { value: PayMethod; label: string; hint: string }[] = [
+  readonly methods: { value: PaymentMethod; label: string; hint: string }[] = [
     { value: 'CARD', label: 'Carte bancaire', hint: 'Visa, Mastercard' },
     { value: 'PAYPAL', label: 'PayPal', hint: 'Paiement en ligne sécurisé' },
     {
@@ -743,7 +743,7 @@ export class CheckoutPage {
   readonly addresses = signal<Address[] | null>(null);
   readonly selectedId = signal<number | null>(null);
   readonly useNew = signal(false);
-  readonly payment = signal<PayMethod>('CASH_ON_DELIVERY');
+  readonly payment = signal<PaymentMethod>('CASH_ON_DELIVERY');
   readonly submitting = signal(false);
   readonly errorMsg = signal<string | null>(null);
 
@@ -856,7 +856,7 @@ export class CheckoutPage {
     }
 
     this.submitting.set(true);
-    this.api
+    this.ordersApi
       .checkout({
         ...(address ?? { newAddress: this.form.getRawValue() }),
         paymentMethod: this.payment(),
@@ -864,7 +864,7 @@ export class CheckoutPage {
       .subscribe({
         next: (order) => {
           this.cartState.clearLocal();
-          this.router.navigate(['/commandes', order.id]);
+          this.router.navigate(['/commandes', order.id], { queryParams: { nouvelle: 1 } });
         },
         error: (e) => {
           this.submitting.set(false);

@@ -1,512 +1,324 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { Icon } from '../components/icon';
-import { CommonModule } from '@angular/common';
-import { AuthService } from '../core/auth-service';
-import { OrdersApiService, type CustomerOrder, type OrderStatus } from '../core/orders-api';
+import { OrderTimeline } from '../components/order-timeline';
+import { ProductNamePipe, TPipe } from '../core/i18n';
+import {
+  OrdersApi,
+  STATUS_LABELS,
+  statusTone,
+  type Order,
+  type OrderStatus,
+} from '../core/orders-api';
 import { TndPipe } from '../core/tnd.pipe';
 import { apiErrors } from '../core/utils';
-import { ProductNamePipe, TPipe } from '../core/i18n';
+
+type Filter = 'all' | 'active' | 'delivered' | 'cancelled';
+
+const ACTIVE: OrderStatus[] = ['PENDING', 'CONFIRMED', 'PREPARING', 'SHIPPED'];
+
+// i18n
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: 'all', label: 'Toutes' },
+  { id: 'active', label: 'En cours' },
+  { id: 'delivered', label: 'Livrées' },
+  { id: 'cancelled', label: 'Annulées' },
+];
+// /i18n
+
+function matches(order: Order, filter: Filter): boolean {
+  if (filter === 'active') return ACTIVE.includes(order.status);
+  if (filter === 'delivered') return order.status === 'DELIVERED';
+  if (filter === 'cancelled') return order.status === 'CANCELLED';
+  return true;
+}
 
 @Component({
-  standalone: true,
   selector: 'app-account-orders',
-  imports: [Icon, CommonModule, TndPipe, TPipe, ProductNamePipe],
+  imports: [Icon, RouterLink, DatePipe, TndPipe, TPipe, ProductNamePipe, OrderTimeline],
   template: `
-    <div class="orders-section">
-      <div class="card orders-card">
-        <div class="orders-card-header">
-          <h3>{{ 'Mes commandes' | t }}</h3>
-          <button
-            class="btn-refresh"
-            (click)="loadOrders()"
-            [title]="'Actualiser les commandes' | t"
-            type="button"
-          >
-            <app-icon name="refresh" [size]="16" />
-          </button>
-        </div>
-
-        @if (errorMessage()) {
-          <div class="alert red" style="margin-block: 0.8rem;">{{ errorMessage() }}</div>
+    <section class="card wrap">
+      <header class="head">
+        <h2>{{ 'Mes commandes' | t }}</h2>
+        @if (orders(); as list) {
+          @if (list.length) {
+            <div class="filters" role="tablist">
+              @for (f of filters; track f.id) {
+                <button
+                  type="button"
+                  role="tab"
+                  [attr.aria-selected]="filter() === f.id"
+                  [class.on]="filter() === f.id"
+                  (click)="filter.set(f.id)"
+                >
+                  {{ f.label | t }} <span class="count">{{ counts()[f.id] }}</span>
+                </button>
+              }
+            </div>
+          }
         }
+      </header>
 
-        @if (loadingOrders()) {
-          <p class="muted" style="padding-block: 0.5rem;">
-            {{ 'Chargement de vos commandes...' | t }}
-          </p>
-        } @else if (orders().length === 0) {
-          <p class="muted" style="padding-block: 0.5rem;">
-            {{ "Vous n'avez pas encore passé de commande." | t }}
-          </p>
-        } @else {
-          <div class="orders-list">
-            @for (order of orders(); track order.id) {
-              <div class="order-item-card" [class.expanded]="expandedOrderId() === order.id">
-                <div class="order-item-header" (click)="toggleOrder(order.id)">
-                  <div class="order-main">
-                    <span class="ref"
-                      >{{ 'Réf:' | t }} <strong>{{ order.reference }}</strong></span
-                    >
-                    <span class="date">{{ order.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
-                  </div>
-                  <div class="order-meta">
-                    <span class="badge-status" [ngClass]="getStatusBadgeClass(order.status)">
-                      {{ getStatusLabel(order.status) | t }}
-                    </span>
-                    <strong class="total-price">{{ order.total | tnd }}</strong>
-                    <button
-                      class="chevron-btn"
-                      [class.open]="expandedOrderId() === order.id"
-                      type="button"
-                    >
-                      <app-icon name="chevronDown" [size]="16" [stroke]="2" />
-                    </button>
-                  </div>
-                </div>
+      @if (error()) {
+        <p class="alert">{{ error() }}</p>
+      }
 
-                <div class="progress-box">
-                  @if (order.status === 'CANCELLED') {
-                    <div class="cancelled-banner">{{ 'Commande annulée' | t }}</div>
-                  } @else {
-                    <div class="stepper" [ngClass]="getStepperThemeClass(order.status)">
-                      <div class="step" [class.completed]="isStepReached(order.status, 'PENDING')">
-                        <div class="circle">1</div>
-                        <span class="step-label">{{ 'Reçue' | t }}</span>
-                      </div>
-                      <div
-                        class="line"
-                        [class.completed]="isStepReached(order.status, 'CONFIRMED')"
-                      ></div>
-
-                      <div
-                        class="step"
-                        [class.completed]="isStepReached(order.status, 'CONFIRMED')"
-                      >
-                        <div class="circle">2</div>
-                        <span class="step-label">{{ 'Confirmée' | t }}</span>
-                      </div>
-                      <div
-                        class="line"
-                        [class.completed]="isStepReached(order.status, 'SHIPPED')"
-                      ></div>
-
-                      <div class="step" [class.completed]="isStepReached(order.status, 'SHIPPED')">
-                        <div class="circle">3</div>
-                        <span class="step-label">{{ 'Expédiée' | t }}</span>
-                      </div>
-                      <div
-                        class="line"
-                        [class.completed]="isStepReached(order.status, 'DELIVERED')"
-                      ></div>
-
-                      <div
-                        class="step"
-                        [class.completed]="isStepReached(order.status, 'DELIVERED')"
-                      >
-                        <div class="circle">4</div>
-                        <span class="step-label">{{ 'Livrée' | t }}</span>
-                      </div>
-                    </div>
-                  }
-                </div>
-
-                @if (expandedOrderId() === order.id) {
-                  <div class="order-details-pane">
-                    <hr class="divider" />
-                    <h4 style="margin: 0 0 0.6rem 0;">{{ 'Articles' | t }}</h4>
-                    <ul class="items-list">
-                      @for (item of order.items; track item.id) {
-                        <li>
-                          <div>
-                            <strong>{{ item.productName | productName }}</strong>
-                            <br /><small class="muted">{{
-                              'SKU : {sku} · Qté : {qty}'
-                                | t: { sku: item.productSku, qty: item.quantity }
-                            }}</small>
-                          </div>
-                          <span class="item-total">{{ item.lineTotal | tnd }}</span>
-                        </li>
-                      }
-                    </ul>
-                    <div class="financials">
-                      <p>
-                        {{ 'Sous-total :' | t }} <span>{{ order.subtotal | tnd }}</span>
-                      </p>
-                      <p>
-                        {{ 'Livraison :' | t }} <span>{{ order.shippingFee | tnd }}</span>
-                      </p>
-                      <p class="final-total">
-                        {{ 'Total TTC :' | t }} <strong>{{ order.total | tnd }}</strong>
-                      </p>
-                    </div>
-                  </div>
-                }
-              </div>
-            }
+      @if (orders(); as list) {
+        @if (!list.length) {
+          <div class="empty">
+            <app-icon name="orders" [size]="34" [stroke]="1.6" />
+            <p>{{ "Vous n'avez pas encore passé de commande." | t }}</p>
+            <a routerLink="/produits" class="btn primary">{{ 'Découvrir le catalogue' | t }}</a>
           </div>
+        } @else if (!visible().length) {
+          <p class="muted none">{{ 'Aucune commande dans cette catégorie.' | t }}</p>
+        } @else {
+          <ul class="list">
+            @for (o of visible(); track o.id) {
+              <li class="order">
+                <a class="order-link" [routerLink]="['/commandes', o.id]">
+                  <div class="top">
+                    <div class="ident">
+                      <strong>{{ o.reference }}</strong>
+                      <small class="muted">{{ o.createdAt | date: 'dd/MM/yyyy' }}</small>
+                    </div>
+                    <span class="pill" [class]="'tone-' + tone(o.status)">{{
+                      labels[o.status] | t
+                    }}</span>
+                  </div>
+
+                  <div class="middle">
+                    <div class="thumbs">
+                      @for (item of o.items.slice(0, 4); track item.id) {
+                        <span class="thumb" [title]="item.productName | productName">
+                          @if (item.image) {
+                            <img [src]="item.image.url" alt="" loading="lazy" decoding="async" />
+                          }
+                        </span>
+                      }
+                      @if (o.items.length > 4) {
+                        <span class="thumb more">+{{ o.items.length - 4 }}</span>
+                      }
+                    </div>
+                    <div class="sum">
+                      <small class="muted">{{ '{n} article(s)' | t: { n: quantity(o) } }}</small>
+                      <strong>{{ o.total | tnd }}</strong>
+                    </div>
+                  </div>
+
+                  @if (o.status !== 'CANCELLED') {
+                    <app-order-timeline [status]="o.status" [events]="o.events" [compact]="true" />
+                  }
+
+                  <span class="more-link">
+                    {{ 'Voir le détail' | t }}
+                    <app-icon name="arrowRight" [size]="14" [stroke]="2.4" />
+                  </span>
+                </a>
+              </li>
+            }
+          </ul>
         }
-      </div>
-    </div>
+      } @else if (!error()) {
+        @for (i of [0, 1]; track i) {
+          <div class="skeleton sk-order"></div>
+        }
+      }
+    </section>
   `,
   styles: `
-    .orders-section {
-      width: 100%;
+    .wrap {
+      padding: 1.4rem 1.5rem;
     }
-    .orders-card {
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--r-md);
-      padding: 1.2rem;
-    }
-    .orders-card-header {
+    .head {
       display: flex;
+      flex-wrap: wrap;
+      align-items: center;
       justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.8rem;
-    }
-    .orders-card-header h3 {
-      margin: 0;
-    }
-
-    .btn-refresh {
-      background: transparent;
-      border: 1px solid var(--border);
-      border-radius: 50%;
-      width: 34px;
-      height: 34px;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--muted);
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .btn-refresh:hover {
-      color: var(--accent);
-      border-color: var(--accent);
-      background: var(--surface);
-      transform: rotate(45deg);
-    }
-
-    .orders-list {
-      display: flex;
-      flex-direction: column;
       gap: 0.8rem;
+      margin-bottom: 1.2rem;
     }
-    .order-item-card {
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: var(--r-md);
-      padding: 1rem;
-      transition: border-color 0.2s ease;
+    .head h2 {
+      margin: 0;
+      font-size: var(--fs-xl);
     }
-    .order-item-card:hover {
-      border-color: var(--accent);
-    }
-
-    .order-item-header {
+    .filters {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
+      flex-wrap: wrap;
+      gap: 0.35rem;
     }
-    .order-main {
-      display: flex;
-      flex-direction: column;
-    }
-    .ref {
-      font-size: var(--fs-ui);
-    }
-    .date {
-      font-size: var(--fs-sm);
-      color: var(--muted);
-    }
-
-    .order-meta {
-      display: flex;
-      align-items: center;
-      gap: 0.7rem;
-    }
-    .total-price {
-      color: var(--text);
-    }
-
-    .chevron-btn {
-      background: transparent;
-      border: none;
-      color: var(--muted);
+    .filters button {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--text-2);
+      font: inherit;
+      font-size: var(--fs-sm);
+      font-weight: 600;
       cursor: pointer;
-      padding: 0.2rem;
-      transition:
-        transform 0.3s ease,
-        color 0.2s ease;
     }
-    .chevron-btn.open {
-      transform: rotate(180deg);
-      color: var(--accent);
+    .filters button:hover {
+      border-color: var(--accent);
+    }
+    .filters button.on {
+      color: var(--on-accent);
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .count {
+      min-width: 1.4em;
+      padding: 0 0.35rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, currentColor 14%, transparent);
+      font-size: var(--fs-xs);
+      text-align: center;
     }
 
-    .progress-box {
-      margin-top: 1rem;
-      padding-top: 0.4rem;
+    .list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.9rem;
     }
-    .stepper {
+    .order-link {
+      display: grid;
+      gap: 1rem;
+      padding: 1.1rem 1.2rem;
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      background: var(--bg);
+      color: var(--text);
+      transition:
+        border-color 0.2s,
+        box-shadow 0.2s,
+        transform 0.2s;
+    }
+    .order-link:hover {
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+      box-shadow: var(--shadow-lift);
+      transform: translateY(-2px);
+    }
+    .top,
+    .middle {
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 1rem;
     }
-    .step {
+    .ident {
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: 0.2rem;
     }
-    .circle {
-      width: 26px;
-      height: 26px;
-      border-radius: 50%;
-      background: var(--surface);
-      border: 2px solid var(--border);
-      color: var(--muted);
+    .thumbs {
+      display: flex;
+      gap: 0.4rem;
+    }
+    .thumb {
       display: grid;
       place-items: center;
-      font-size: var(--fs-xs);
-      font-weight: 700;
-      transition: all 0.3s ease;
+      width: 48px;
+      height: 48px;
+      border-radius: var(--r-md);
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 40%, #fff, var(--ph-bg) 80%);
     }
-    .step-label {
-      font-size: var(--fs-2xs);
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 0.25rem;
+      mix-blend-mode: multiply;
+    }
+    .thumb.more {
+      background: var(--surface-2);
       color: var(--muted);
-      font-weight: 600;
-    }
-    .line {
-      flex: 1;
-      height: 2px;
-      background: var(--border);
-      margin: 0 0.3rem;
-      margin-bottom: 0.9rem;
-      transition: background 0.3s ease;
-    }
-
-    .theme-pending .step.completed .circle {
-      background: var(--warn);
-      border-color: var(--warn);
-      color: #fff;
-    }
-    .theme-pending .step.completed .step-label {
-      color: var(--warn);
-    }
-    .theme-pending .line.completed {
-      background: var(--warn);
-    }
-
-    .theme-confirmed .step.completed .circle {
-      background: var(--info);
-      border-color: var(--info);
-      color: #fff;
-    }
-    .theme-confirmed .step.completed .step-label {
-      color: var(--info);
-    }
-    .theme-confirmed .line.completed {
-      background: var(--info);
-    }
-
-    .theme-shipped .step.completed .circle {
-      background: var(--violet);
-      border-color: var(--violet);
-      color: #fff;
-    }
-    .theme-shipped .step.completed .step-label {
-      color: var(--violet);
-    }
-    .theme-shipped .line.completed {
-      background: var(--violet);
-    }
-
-    .theme-delivered .step.completed .circle {
-      background: var(--green);
-      border-color: var(--green);
-      color: #fff;
-    }
-    .theme-delivered .step.completed .step-label {
-      color: var(--green);
-    }
-    .theme-delivered .line.completed {
-      background: var(--green);
-    }
-
-    .cancelled-banner {
-      background: color-mix(in srgb, var(--red) 12%, transparent);
-      color: var(--red);
-      text-align: center;
-      padding: 0.4rem;
-      border-radius: var(--r-sm);
-      font-size: var(--fs-md);
-      font-weight: 600;
-    }
-
-    .badge-status {
-      padding: 0.2rem 0.5rem;
-      border-radius: 99px;
-      font-size: var(--fs-2xs);
+      font-size: var(--fs-sm);
       font-weight: 700;
-      text-transform: uppercase;
     }
-    .badge-pending {
-      background: color-mix(in srgb, var(--warn) 15%, transparent);
-      color: var(--warn);
-    }
-    .badge-confirmed {
-      background: color-mix(in srgb, var(--info) 15%, transparent);
-      color: var(--info);
-    }
-    .badge-shipped {
-      background: color-mix(in srgb, var(--violet) 15%, transparent);
-      color: var(--violet);
-    }
-    .badge-delivered {
-      background: color-mix(in srgb, var(--green) 15%, transparent);
-      color: var(--green);
-    }
-    .badge-cancelled {
-      background: color-mix(in srgb, var(--red) 15%, transparent);
-      color: var(--red);
-    }
-
-    .divider {
-      border: 0;
-      border-top: 1px solid var(--border);
-      margin: 0.8rem 0;
-    }
-    .items-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
+    .sum {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      align-items: flex-end;
     }
-    .items-list li {
-      display: flex;
-      justify-content: space-between;
+    .sum strong {
+      font-family: var(--font-display);
+      font-size: var(--fs-lg);
+    }
+    .more-link {
+      display: inline-flex;
       align-items: center;
-      font-size: var(--fs-md);
-    }
-    .financials {
-      margin-top: 0.8rem;
-      text-align: right;
-      font-size: var(--fs-md);
-    }
-    .financials p {
-      margin: 0.2rem 0;
-      color: var(--muted);
-    }
-    .financials .final-total {
+      gap: 0.3rem;
+      justify-self: end;
       color: var(--accent);
-      font-size: var(--fs-ui);
-      margin-top: 0.4rem;
+      font-size: var(--fs-sm);
+      font-weight: 700;
+    }
+    .empty {
+      display: grid;
+      justify-items: center;
+      gap: 0.8rem;
+      padding: 2rem 1rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .none {
+      padding: 1rem 0;
+    }
+    .sk-order {
+      height: 150px;
+      border-radius: var(--r-lg);
+      margin-bottom: 0.9rem;
+    }
+
+    @media (max-width: 560px) {
+      .wrap {
+        padding: 1.1rem;
+      }
+      .thumb {
+        width: 40px;
+        height: 40px;
+      }
+      .order-link {
+        padding: 1rem;
+      }
     }
   `,
 })
-export class AccountOrdersPage implements OnInit {
-  readonly auth = inject(AuthService);
-  private readonly ordersApi = inject(OrdersApiService);
+export class AccountOrdersPage {
+  private readonly api = inject(OrdersApi);
 
-  orders = signal<CustomerOrder[]>([]);
-  loadingOrders = signal(true);
-  errorMessage = signal<string | null>(null);
-  expandedOrderId = signal<number | null>(null);
+  readonly filters = FILTERS;
+  readonly labels = STATUS_LABELS;
+  readonly filter = signal<Filter>('all');
+  readonly orders = signal<Order[] | null>(null);
+  readonly error = signal<string | null>(null);
 
-  ngOnInit() {
-    if (this.auth.isLoggedIn()) {
-      this.loadOrders();
-    }
-  }
+  readonly visible = computed(() => (this.orders() ?? []).filter((o) => matches(o, this.filter())));
+  readonly counts = computed(() => {
+    const list = this.orders() ?? [];
+    return Object.fromEntries(
+      FILTERS.map((f) => [f.id, list.filter((o) => matches(o, f.id)).length]),
+    ) as Record<Filter, number>;
+  });
 
-  loadOrders() {
-    this.loadingOrders.set(true);
-    this.ordersApi.getMyOrders().subscribe({
-      next: (data) => {
-        this.orders.set(data);
-        this.loadingOrders.set(false);
-      },
-      error: (err) => {
-        const msg = apiErrors(err);
-        this.errorMessage.set(Array.isArray(msg) ? msg.join(', ') : msg);
-        this.loadingOrders.set(false);
-      },
+  constructor() {
+    this.api.getMyOrders().subscribe({
+      next: (list) => this.orders.set(list),
+      error: (e) => this.error.set(apiErrors(e).join(' ')),
     });
   }
 
-  toggleOrder(orderId: number) {
-    this.expandedOrderId.set(this.expandedOrderId() === orderId ? null : orderId);
+  tone(status: OrderStatus) {
+    return statusTone(status);
   }
 
-  isStepReached(currentStatus: OrderStatus, targetStep: OrderStatus): boolean {
-    const steps: OrderStatus[] = ['PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED'];
-    // « En préparation » s'affiche au même niveau que « Confirmée » sur la frise
-    const currentIndex = steps.indexOf(currentStatus === 'PREPARING' ? 'CONFIRMED' : currentStatus);
-    const targetIndex = steps.indexOf(targetStep);
-    return currentIndex >= targetIndex && currentIndex !== -1;
-  }
-
-  getStepperThemeClass(status: OrderStatus): string {
-    switch (status) {
-      case 'PENDING':
-        return 'theme-pending';
-      case 'CONFIRMED':
-      case 'PREPARING':
-        return 'theme-confirmed';
-      case 'SHIPPED':
-        return 'theme-shipped';
-      case 'DELIVERED':
-        return 'theme-delivered';
-      default:
-        return 'theme-pending';
-    }
-  }
-
-  /** Libellé du statut en français (traduit à l'affichage) */
-  getStatusLabel(status: OrderStatus): string {
-    // i18n
-    switch (status) {
-      case 'PENDING':
-        return 'En attente';
-      case 'CONFIRMED':
-        return 'Confirmée';
-      case 'PREPARING':
-        return 'En préparation';
-      case 'SHIPPED':
-        return 'Expédiée';
-      case 'DELIVERED':
-        return 'Livrée';
-      case 'CANCELLED':
-        return 'Annulée';
-      default:
-        return status;
-    }
-    // /i18n
-  }
-
-  getStatusBadgeClass(status: OrderStatus): string {
-    switch (status) {
-      case 'PENDING':
-        return 'badge-pending';
-      case 'CONFIRMED':
-      case 'PREPARING':
-        return 'badge-confirmed';
-      case 'SHIPPED':
-        return 'badge-shipped';
-      case 'DELIVERED':
-        return 'badge-delivered';
-      case 'CANCELLED':
-        return 'badge-cancelled';
-      default:
-        return '';
-    }
+  quantity(o: Order) {
+    return o.items.reduce((sum, i) => sum + i.quantity, 0);
   }
 }

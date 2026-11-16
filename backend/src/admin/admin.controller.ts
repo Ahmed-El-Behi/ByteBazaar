@@ -13,13 +13,23 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { AuthedRequest } from '../auth/jwt-auth.guard';
 import { Roles, RolesGuard } from '../auth/roles';
 import { AdminService } from './admin.service';
+import { DashboardService } from './dashboard.service';
 
 // Toutes les routes exigent un compte ADMIN (JwtAuthGuard identifie, RolesGuard autorise)
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('ADMIN')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly dashboardService: DashboardService,
+  ) {}
+
+  // ?days=7|30|90|365 (30 par défaut)
+  @Get('dashboard')
+  getDashboard(@Query('days') days?: string) {
+    return this.dashboardService.getDashboard(days);
+  }
 
   // Corps : { productId, quantityChange, reason?, note? }
   @Patch('products/stock')

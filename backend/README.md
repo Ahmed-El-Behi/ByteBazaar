@@ -2,15 +2,16 @@
 
 Voir le [README principal](../README.md) pour l'installation complète.
 
-| Script               | Rôle                                                                       |
-| -------------------- | -------------------------------------------------------------------------- |
-| `npm run start:dev`  | API en mode développement (rechargement automatique)                       |
-| `npm run seed`       | Synchronise le catalogue depuis `data/catalogue_local_images_cleaned.json` |
-| `npm run seed:stock` | Stock de test reproductible pour les produits à 0                          |
-| `npm test`           | Tests unitaires                                                            |
-| `npm run test:e2e`   | Tests d'intégration (base de développement requise)                        |
-| `npm run lint`       | oxlint                                                                     |
-| `npm run build`      | Compilation (`npm run start:prod` pour la lancer)                          |
+| Script                     | Rôle                                                                       |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `npm run start:dev`        | API en mode développement (rechargement automatique)                       |
+| `npm run seed`             | Synchronise le catalogue depuis `data/catalogue_local_images_cleaned.json` |
+| `npm run seed:stock`       | Stock de test reproductible pour les produits à 0                          |
+| `npm run seed:demo-orders` | ≈ 200 commandes fictives sur 120 jours (tableau de bord) ; relançable      |
+| `npm test`                 | Tests unitaires                                                            |
+| `npm run test:e2e`         | Tests d'intégration (base de développement requise)                        |
+| `npm run lint`             | oxlint                                                                     |
+| `npm run build`            | Compilation (`npm run start:prod` pour la lancer)                          |
 
 Scripts de données (`scripts/`) :
 
@@ -31,14 +32,14 @@ Scripts de données (`scripts/`) :
 
 ## Modules
 
-| Module         | Routes                                                                                                   |
-| -------------- | -------------------------------------------------------------------------------------------------------- |
-| `auth`         | `/auth/register`, `/login`, `/forgot-password`, `/reset-password`, `/me`, `/profile`                     |
-| `catalog`      | `/categories`, `/categories/covers`, `/brands`, `/products`, `/products/showcase`, `/products/:slug`     |
-| `configurator` | `/configurator/parts`, `/configurator/check`, `/configurator/suggestions` ; `/configurations` (connecté) |
-| `cart`         | `/cart`, `/cart/items/:id` (connecté)                                                                    |
-| `order`        | `/orders`, `/orders/:id`, `/orders/checkout`, `/orders/addresses[/:id[/default]]` (connecté)             |
-| `admin`        | `/admin/orders`, `/admin/products/stock`, `/admin/stock/movements`… (rôle ADMIN)                         |
-| —              | `/health`                                                                                                |
+| Module         | Routes                                                                                                                   |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `auth`         | `/auth/register`, `/login`, `/forgot-password`, `/reset-password`, `/me`, `/profile`                                     |
+| `catalog`      | `/categories`, `/categories/covers`, `/brands`, `/products`, `/products/showcase`, `/products/:slug`                     |
+| `configurator` | `/configurator/parts`, `/configurator/check`, `/configurator/suggestions` ; `/configurations` (connecté)                 |
+| `cart`         | `/cart`, `/cart/items/:id` (connecté)                                                                                    |
+| `order`        | `/orders`, `/orders/:id`, `/orders/:id/cancel`, `/orders/checkout`, `/orders/addresses[/:id[/default]]` (connecté)       |
+| `admin`        | `/admin/dashboard?days=7\|30\|90\|365`, `/admin/orders`, `/admin/products/stock`, `/admin/stock/movements`… (rôle ADMIN) |
+| —              | `/health`                                                                                                                |
 
 Les messages renvoyés suivent l'en-tête `Accept-Language` (`fr` par défaut, `en`) : voir `src/common/i18n.ts`.

@@ -27,6 +27,8 @@ import { ToastService } from '../core/toast.service';
               }
               <span class="tick"><app-icon name="check" [size]="11" [stroke]="3.2" /></span>
             </span>
+          } @else if (t.kind === 'success') {
+            <span class="thumb ok"><app-icon name="checkCircle" [size]="20" /></span>
           } @else {
             <span class="thumb warn"><app-icon name="warning" [size]="20" /></span>
           }
@@ -113,6 +115,10 @@ import { ToastService } from '../core/toast.service';
     .thumb.warn {
       background: color-mix(in srgb, var(--red) 12%, transparent);
       color: var(--red);
+    }
+    .thumb.ok {
+      background: color-mix(in srgb, var(--green) 12%, transparent);
+      color: var(--green);
     }
     .tick {
       position: absolute;

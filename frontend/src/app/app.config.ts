@@ -4,6 +4,7 @@ import {
   provideRouter,
   withComponentInputBinding,
   withInMemoryScrolling,
+  withPreloading,
   withViewTransitions,
 } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
@@ -11,6 +12,7 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/auth-interceptor';
 import { TranslatedTitleStrategy } from './core/i18n';
+import { IdlePreloading } from './core/preloading';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -18,6 +20,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(
       routes,
       withComponentInputBinding(),
+      withPreloading(IdlePreloading),
       withInMemoryScrolling({ scrollPositionRestoration: 'top' }),
       // Fondu entre les pages ; ignoré pour les changements de paramètres (filtres du catalogue)
       withViewTransitions({

@@ -21,8 +21,7 @@
       <a routerLink="/contact" routerLinkActive="active">{{ 'Contact' | t }}</a>
 
       @if (auth.isLoggedIn() && auth.isAdmin()) {
-        <a routerLink="/admin/commandes" routerLinkActive="active">{{ 'Admin Commandes' | t }}</a>
-        <a routerLink="/admin/stock" routerLinkActive="active">{{ 'Admin Stock' | t }}</a>
+        <a routerLink="/admin" routerLinkActive="active">{{ 'Admin' | t }}</a>
       }
     </nav>
 
@@ -112,6 +111,14 @@
           <app-icon name="logout" [size]="18" />
         </button>
       } @else {
+        <a
+          routerLink="/connexion"
+          class="avatar login-icon"
+          [title]="'Connexion' | t"
+          [attr.aria-label]="'Connexion' | t"
+        >
+          <app-icon name="userCircle" [size]="20" />
+        </a>
         <a routerLink="/connexion" class="btn-sm">{{ 'Connexion' | t }}</a>
         <a routerLink="/inscription" class="btn-sm primary">{{ 'Inscription' | t }}</a>
       }

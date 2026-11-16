@@ -1,4 +1,11 @@
-import { Component, ElementRef, computed, inject } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { catchError, of } from 'rxjs';
@@ -73,7 +80,7 @@ const BUILD_STEPS: { icon: IconName; label: string }[] = [
     ProductNamePipe,
   ],
   template: `
-    <section class="hero" (pointermove)="onHeroPointer($event)" (pointerleave)="resetHeroPointer()">
+    <section class="hero">
       <div class="hero-grid-bg" aria-hidden="true"></div>
       <div class="hero-spot" aria-hidden="true"></div>
 
@@ -183,7 +190,6 @@ const BUILD_STEPS: { icon: IconName; label: string }[] = [
             [revealDelay]="(i % 8) * 45"
             routerLink="/produits"
             [queryParams]="{ category: c.slug }"
-            (pointermove)="onSpot($event)"
           >
             <div class="card-text">
               <span class="cat-icon"><app-icon [name]="categoryIcon(c.slug)" [size]="19" /></span>
@@ -196,7 +202,7 @@ const BUILD_STEPS: { icon: IconName; label: string }[] = [
             <div class="cat-visual" aria-hidden="true">
               <span class="cat-plate">
                 @if (covers()[c.slug]; as img) {
-                  <img [src]="img.url" alt="" loading="lazy" />
+                  <img [src]="img.url" alt="" loading="lazy" decoding="async" />
                 } @else {
                   <app-icon [name]="categoryIcon(c.slug)" [size]="40" [stroke]="1.5" />
                 }
@@ -1186,19 +1192,53 @@ const BUILD_STEPS: { icon: IconName; label: string }[] = [
     @media (max-width: 560px) {
       .hero {
         border-radius: 28px;
+        padding: 2.4rem 1.3rem;
+        margin-top: 1rem;
       }
+      .hero::after {
+        right: -70px;
+        top: -80px;
+        width: 190px;
+        height: 190px;
+      }
+      /* Tuiles compactes sur deux colonnes : photo au-dessus, nom en dessous */
       .categories-grid {
-        grid-template-columns: 1fr;
+        gap: 0.65rem;
       }
-      .category-card.wide {
-        grid-column: auto;
+      .category-card {
+        min-height: 0;
+        padding: 1rem 0.8rem;
+      }
+      .category-card:not(.wide) {
+        flex-direction: column-reverse;
+        align-items: center;
+        text-align: center;
+      }
+      .category-card:not(.wide) .card-text {
+        align-items: center;
+      }
+      .category-card:not(.wide) .cat-icon,
+      .cat-cta {
+        display: none;
+      }
+      .category-card:not(.wide) .cat-title {
+        margin-top: 0.5rem;
+        font-size: var(--fs-md);
+      }
+      .category-card:not(.wide) .cat-visual {
+        width: auto;
+      }
+      .category-card:not(.wide) .cat-plate {
+        width: 84px;
+        height: 84px;
       }
       .category-card.wide .cat-visual {
-        width: 116px;
+        padding-right: 0;
       }
       .category-card.wide .cat-plate {
         width: 112px;
         height: 112px;
+        margin: 0;
       }
       .category-card.wide .cat-title {
         font-size: var(--fs-lg);
@@ -1219,6 +1259,12 @@ const BUILD_STEPS: { icon: IconName; label: string }[] = [
         grid-template-columns: 1fr;
       }
     }
+    .offscreen,
+    .offscreen *,
+    .offscreen *::before,
+    .offscreen *::after {
+      animation-play-state: paused !important;
+    }
     @media (prefers-reduced-motion: reduce) {
       .shine,
       .pulse::after,
@@ -1238,6 +1284,34 @@ const BUILD_STEPS: { icon: IconName; label: string }[] = [
 export class HomePage {
   private api = inject(CatalogApi);
   private host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private destroyRef = inject(DestroyRef);
+
+  constructor() {
+    afterNextRender(() => {
+      this.followPointer();
+      this.pauseOffscreen();
+    });
+  }
+
+  /**
+   * Animations en boucle (reflet du titre, cartes flottantes, bandeau des marques, étapes du
+   * montage) : mises en pause tant que leur section est hors de l'écran, reprises un peu avant
+   * qu'elle n'y revienne. Rien ne change à l'écran ; le navigateur cesse de recalculer à chaque
+   * image des effets que personne ne voit.
+   */
+  private pauseOffscreen() {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const sections = this.host.nativeElement.querySelectorAll<HTMLElement>(':scope > section');
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries)
+          entry.target.classList.toggle('offscreen', !entry.isIntersecting);
+      },
+      { rootMargin: '120px 0px' },
+    );
+    sections.forEach((section) => observer.observe(section));
+    this.destroyRef.onDestroy(() => observer.disconnect());
+  }
 
   readonly steps = BUILD_STEPS;
   // i18n
@@ -1317,30 +1391,44 @@ export class HomePage {
   // Interactions
 
   /** Parallaxe et halo du bandeau selon la position de la souris */
-  onHeroPointer(event: PointerEvent) {
-    if (event.pointerType !== 'mouse') return;
-    const hero = event.currentTarget as HTMLElement;
-    const rect = hero.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width;
-    const y = (event.clientY - rect.top) / rect.height;
-    hero.style.setProperty('--px', (x * 2 - 1).toFixed(3));
-    hero.style.setProperty('--py', (y * 2 - 1).toFixed(3));
-    hero.style.setProperty('--sx', `${(x * 100).toFixed(1)}%`);
-    hero.style.setProperty('--sy', `${(y * 100).toFixed(1)}%`);
-  }
-
-  resetHeroPointer() {
-    const hero = this.host.nativeElement.querySelector<HTMLElement>('.hero');
-    hero?.style.setProperty('--px', '0');
-    hero?.style.setProperty('--py', '0');
-  }
-
-  /** Halo qui suit la souris sur une tuile de catégorie */
-  onSpot(event: PointerEvent) {
-    const card = event.currentTarget as HTMLElement;
-    const rect = card.getBoundingClientRect();
-    card.style.setProperty('--mx', `${event.clientX - rect.left}px`);
-    card.style.setProperty('--my', `${event.clientY - rect.top}px`);
+  /**
+   * Effets qui suivent la souris (bandeau, halo des tuiles) : écouteurs posés directement sur
+   * les éléments. Ils ne modifient que des variables CSS, sans relancer la détection de
+   * changements d'Angular à chaque mouvement (un passage par l'événement du template le ferait).
+   */
+  private followPointer() {
+    const root = this.host.nativeElement;
+    const onMove = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      const card = target?.closest<HTMLElement>('.category-card');
+      if (card) {
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty('--mx', `${event.clientX - rect.left}px`);
+        card.style.setProperty('--my', `${event.clientY - rect.top}px`);
+        return;
+      }
+      const hero = target?.closest<HTMLElement>('.hero');
+      if (!hero || event.pointerType !== 'mouse') return;
+      const rect = hero.getBoundingClientRect();
+      const x = (event.clientX - rect.left) / rect.width;
+      const y = (event.clientY - rect.top) / rect.height;
+      hero.style.setProperty('--px', (x * 2 - 1).toFixed(3));
+      hero.style.setProperty('--py', (y * 2 - 1).toFixed(3));
+      hero.style.setProperty('--sx', `${(x * 100).toFixed(1)}%`);
+      hero.style.setProperty('--sy', `${(y * 100).toFixed(1)}%`);
+    };
+    const onLeave = (event: PointerEvent) => {
+      const hero = event.target as HTMLElement;
+      hero.style.setProperty('--px', '0');
+      hero.style.setProperty('--py', '0');
+    };
+    const hero = root.querySelector<HTMLElement>('.hero');
+    root.addEventListener('pointermove', onMove, { passive: true });
+    hero?.addEventListener('pointerleave', onLeave);
+    this.destroyRef.onDestroy(() => {
+      root.removeEventListener('pointermove', onMove);
+      hero?.removeEventListener('pointerleave', onLeave);
+    });
   }
 
   readonly categoryIcon = categoryIcon;

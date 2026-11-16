@@ -1,15 +1,43 @@
 import { MailerService } from '@nestjs-modules/mailer';
 import { Injectable, Logger } from '@nestjs/common';
+import type { OrderStatus } from '../generated/prisma/enums';
+import { STATUS_LABELS } from '../order/order-status';
 
-// Doit couvrir toutes les valeurs de l'enum OrderStatus (schema.prisma)
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'En attente',
-  CONFIRMED: 'Confirmée',
-  PREPARING: 'En préparation',
-  SHIPPED: 'Expédiée',
-  DELIVERED: 'Livrée',
-  CANCELLED: 'Annulée',
+const PAYMENT_LABELS: Record<string, string> = {
+  CASH_ON_DELIVERY: 'Paiement à la livraison',
+  CARD: 'Carte bancaire',
+  PAYPAL: 'PayPal',
+  BANK_TRANSFER: 'Virement bancaire',
 };
+
+const PAYMENT_NOTES: Record<string, string> = {
+  CASH_ON_DELIVERY:
+    'Vous réglerez en espèces au livreur, à la réception du colis.',
+  CARD: 'Paiement accepté.',
+  PAYPAL: 'Paiement accepté.',
+  BANK_TRANSFER:
+    'Votre commande sera expédiée à réception du virement. Les coordonnées bancaires figurent sur la page de votre commande.',
+};
+
+const money = (n: number) =>
+  `${n.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} TND`;
+
+const frontendUrl = () =>
+  process.env.FRONTEND_URL?.split(',')[0] || 'http://localhost:4200';
+
+interface ConfirmationOrder {
+  id: number;
+  reference: string;
+  createdAt: Date;
+  paymentMethod: string;
+  subtotal: number;
+  shippingFee: number;
+  total: number;
+  shippingName: string;
+  shippingPhone: string;
+  shippingAddress: string;
+  items: { productName: string; quantity: number; lineTotal: number }[];
+}
 
 const STATUS_MESSAGES: Record<string, string> = {
   PENDING:
@@ -33,12 +61,57 @@ export class MailService {
 
   constructor(private readonly mailerService: MailerService) {}
 
+  /** Récapitulatif envoyé à la validation de la commande. Ne lève jamais d'erreur. */
+  async sendOrderConfirmation(
+    user: { email: string; firstName: string },
+    order: ConfirmationOrder,
+  ) {
+    try {
+      await this.mailerService.sendMail({
+        to: user.email,
+        subject: `Confirmation de votre commande ${order.reference}`,
+        template: './order-confirmation',
+        context: {
+          firstName: user.firstName || 'Client',
+          reference: order.reference,
+          date: order.createdAt.toLocaleDateString('fr-FR', {
+            timeZone: 'Africa/Tunis',
+          }),
+          items: order.items.map((i) => ({
+            name: i.productName,
+            quantity: i.quantity,
+            lineTotal: money(i.lineTotal),
+          })),
+          subtotal: money(order.subtotal),
+          shippingFee: money(order.shippingFee),
+          total: money(order.total),
+          shippingName: order.shippingName,
+          shippingPhone: order.shippingPhone,
+          shippingAddress: order.shippingAddress,
+          paymentLabel:
+            PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod,
+          paymentNote: PAYMENT_NOTES[order.paymentMethod] ?? '',
+          orderUrl: `${frontendUrl()}/commandes/${order.id}`,
+        },
+      });
+      this.logger.log(
+        `Confirmation envoyée pour la commande ${order.reference}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Échec d'envoi de la confirmation de la commande ${order.reference}`,
+        error as Error,
+      );
+    }
+  }
+
   /** Notification de changement de statut de commande. Ne lève jamais d'erreur. */
   async sendOrderStatusNotification(
     toEmail: string,
     firstName: string,
     orderReference: string,
-    status: string,
+    status: OrderStatus,
+    orderId: number,
   ) {
     try {
       await this.mailerService.sendMail({
@@ -48,9 +121,10 @@ export class MailService {
         context: {
           firstName: firstName || 'Client',
           orderReference,
-          statusLabel: STATUS_LABELS[status] ?? status,
+          statusLabel: STATUS_LABELS[status].fr,
           statusMessage:
             STATUS_MESSAGES[status] ?? 'Votre commande a été mise à jour.',
+          orderUrl: `${frontendUrl()}/commandes/${orderId}`,
         },
       });
       this.logger.log(
@@ -88,8 +162,7 @@ export class MailService {
     firstName: string,
     token: string,
   ) {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:4200';
-    const resetLink = `${frontendUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    const resetLink = `${frontendUrl()}/reset-password?token=${encodeURIComponent(token)}`;
     const name = escapeHtml(firstName || 'Client');
 
     await this.mailerService.sendMail({

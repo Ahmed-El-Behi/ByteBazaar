@@ -15,6 +15,8 @@ import { PcScene } from '../components/pc-scene';
 import { I18nService, ProductNamePipe, TPipe, translate } from '../core/i18n';
 
 const STORAGE_KEY = 'bytebazaar_configurator';
+const FIRST_CARDS = 18;
+const CARDS_PER_FRAME = 36;
 const EMPTY_SELECTION: Record<Slot, ConfiguratorPart | null> = {
   cpu: null,
   cooler: null,
@@ -34,6 +36,8 @@ interface StoredBuild {
   ids: number[];
   configId: number | null;
   name: string;
+  /** Copie des pièces : la 3D se construit complète dès l'ouverture, sans attendre l'API */
+  parts?: ConfiguratorPart[];
 }
 
 @Component({
@@ -339,7 +343,7 @@ interface StoredBuild {
                 </div>
               } @else {
                 <div class="picker-catalog-grid">
-                  @for (item of filteredCatalog(); track item.id) {
+                  @for (item of renderedCatalog(); track item.id) {
                     @let isCurrent = selectedComponents()[activePickerCategory()!]?.id === item.id;
                     <div
                       class="picker-card"
@@ -351,6 +355,8 @@ interface StoredBuild {
                           <img
                             [src]="item.image.url"
                             [alt]="item.image.altText || item.name | productName"
+                            loading="lazy"
+                            decoding="async"
                             (error)="handleImgError($event)"
                           />
                         } @else {
@@ -419,6 +425,19 @@ interface StoredBuild {
     @media (max-width: 1024px) {
       .configurator-grid {
         grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 640px) {
+      .configurator-container {
+        padding: 1.25rem 1rem;
+      }
+      .config-header {
+        flex-direction: column;
+        align-items: flex-start;
+        margin-bottom: 1.25rem;
+      }
+      .config-header h1 {
+        font-size: var(--fs-3xl);
       }
     }
     .selection-column {
@@ -1060,6 +1079,13 @@ export class ConfiguratorPage {
   readonly buildCheck = signal<BuildCheck | null>(null);
 
   constructor() {
+    // Nouvelle liste (ouverture, recherche, tri) : affichage progressif depuis le début
+    effect(() => {
+      this.filteredCatalog();
+      untracked(() => this.renderProgressively());
+    });
+    this.destroyRef.onDestroy(() => cancelAnimationFrame(this.growFrame));
+
     toObservable(this.selectedIds)
       .pipe(
         distinctUntilChanged((a, b) => a.join() === b.join()),
@@ -1167,6 +1193,26 @@ export class ConfiguratorPage {
       return a.name.localeCompare(b.name);
     });
   });
+
+  /**
+   * Cartes du sélecteur affichées par lots : le premier écran tout de suite (pendant que le
+   * panneau glisse), le reste dans les images suivantes, bien avant qu'on puisse y défiler.
+   * Construire jusqu'à ~460 cartes d'un coup bloquait la page pendant l'ouverture.
+   */
+  readonly renderedCount = signal(FIRST_CARDS);
+  readonly renderedCatalog = computed(() => this.filteredCatalog().slice(0, this.renderedCount()));
+  private growFrame = 0;
+
+  private renderProgressively() {
+    cancelAnimationFrame(this.growFrame);
+    this.renderedCount.set(FIRST_CARDS);
+    const grow = () => {
+      if (this.renderedCount() >= this.filteredCatalog().length) return;
+      this.renderedCount.update((n) => n + CARDS_PER_FRAME);
+      this.growFrame = requestAnimationFrame(grow);
+    };
+    this.growFrame = requestAnimationFrame(grow);
+  }
 
   selectComponent(item: ConfiguratorPart) {
     this.selectedComponents.update((prev) => ({ ...prev, [item.slot]: item }));
@@ -1318,11 +1364,22 @@ export class ConfiguratorPage {
 
     this.configId.set(stored.configId ?? null);
     this.configName.set(stored.name ?? '');
+    // Copie locale cohérente : affichée tout de suite, puis remplacée par la réponse de l'API
+    // (prix et disponibilités à jour ; la 3D n'est pas reconstruite si les pièces sont les mêmes)
+    const ids = [...stored.ids].sort((a, b) => a - b).join();
+    const cachedIds = (stored.parts ?? [])
+      .map((p) => p.id)
+      .sort((a, b) => a - b)
+      .join();
+    if (stored.parts?.length && cachedIds === ids) this.applyParts(stored.parts);
     this.api
       .check(stored.ids)
       .pipe(map((check) => check.parts))
       .subscribe({
-        next: (parts) => this.applyParts(parts),
+        next: (parts) => {
+          this.applyParts(parts);
+          this.persistLocal();
+        },
         // Composant retiré de la vente entre-temps (404) : on repart d'une configuration vide.
         // Serveur injoignable ou en redémarrage : la sélection enregistrée est conservée.
         error: (e: HttpErrorResponse) => {
@@ -1349,6 +1406,7 @@ export class ConfiguratorPage {
         ids: this.selectedIds(),
         configId: this.configId(),
         name: this.configName(),
+        parts: Object.values(this.selectedComponents()).filter((p): p is ConfiguratorPart => !!p),
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     } catch {

@@ -2,7 +2,7 @@ import { Injectable, signal } from '@angular/core';
 
 export interface Toast {
   id: number;
-  kind: 'cart' | 'error';
+  kind: 'cart' | 'error' | 'success';
   /** Titre en français (traduit à l'affichage) */
   title: string;
   /** Texte libre déjà prêt (nom du produit, message de l'API…) */
@@ -26,6 +26,11 @@ export class ToastService {
   error(text: string) {
     const title = "Impossible d'ajouter au panier"; // traduit à l'affichage
     this.show({ kind: 'error', title, text });
+  }
+
+  /** Confirmation d'une action ; le titre est en français, traduit à l'affichage */
+  success(title: string, text?: string) {
+    this.show({ kind: 'success', title, text });
   }
 
   dismiss(id: number) {

@@ -62,12 +62,15 @@ const VIEWS: Record<
 const IDLE_MS = 5000;
 const QUALITY_KEY = 'bytebazaar_configurator_quality';
 
+// Sans choix mémorisé, les écrans tactiles (téléphones, tablettes) démarrent en mode performance
 function readLowGraphics() {
+  let stored: string | null = null;
   try {
-    return localStorage.getItem(QUALITY_KEY) === 'low';
+    stored = localStorage.getItem(QUALITY_KEY);
   } catch {
-    return false;
+    /* stockage indisponible */
   }
+  return stored ? stored === 'low' : matchMedia('(hover: none)').matches;
 }
 const ZOOM_SECONDS = 1.1;
 
@@ -89,7 +92,6 @@ const ZOOM_SECONDS = 1.1;
           'Vue 3D du poste : cliquez sur le PC pour en choisir les pièces, ou sur un périphérique pour le choisir. La liste des emplacements sous la vue offre les mêmes actions au clavier.'
             | t
         "
-        (pointermove)="onPointerMove($event)"
         (pointerleave)="onPointerLeave()"
         (pointerdown)="onPointerDown($event)"
         (pointerup)="onPointerUp($event)"
@@ -410,7 +412,7 @@ export class PcScene {
     });
 
     // Sélection modifiée → pièces reconstruites (avec animation d'installation).
-    // La première construction a lieu dans init(), sans animation.
+    // La première construction a lieu dans init().
     effect(() => {
       const selection = this.selection();
       this.model?.setSelection(selection, true);
@@ -569,6 +571,9 @@ export class PcScene {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
     renderer.shadowMap.enabled = true;
+    // Ombres recalculées seulement quand le modèle le demande (voir PcModel.shadowsNeedUpdate)
+    renderer.shadowMap.autoUpdate = false;
+    renderer.shadowMap.needsUpdate = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
 
     const scene = new THREE.Scene();
@@ -644,7 +649,9 @@ export class PcScene {
     composer.addPass(new OutputPass());
 
     const model = new PcModel(this.readAccent());
-    model.setSelection(this.selection(), false);
+    // Sélection déjà connue (copie locale) : les pièces glissent en place dès l'ouverture
+    const initial = this.selection();
+    model.setSelection(initial, Object.values(initial).some(Boolean));
     model.setHover(this.tipTarget());
     scene.add(model.root);
     this.model = model;
@@ -655,6 +662,7 @@ export class PcScene {
       low = on;
       model.setLowGraphics(on);
       key.castShadow = !on;
+      renderer.shadowMap.needsUpdate = true;
       const ratio = on ? 1 : pixelRatio;
       renderer.setPixelRatio(ratio);
       composer.setPixelRatio(ratio);
@@ -689,7 +697,7 @@ export class PcScene {
       composer.setSize(w, h);
       camera.aspect = w / h;
       // Recul automatique sur les écrans étroits pour garder la scène entière
-      camera.zoom = Math.min(1, w / h / 1.15);
+      camera.zoom = Math.min(1, w / h / (w < 640 ? 1.5 : 1.15));
       camera.updateProjectionMatrix();
     };
     const resizeObserver = new ResizeObserver(resize);
@@ -711,6 +719,9 @@ export class PcScene {
       if (e.key === 'Escape' && this.mode() === 'pc') this.setMode('desk');
     };
     window.addEventListener('keydown', onKey);
+    // Survol écouté hors du template : seul un changement de cible relance l'affichage
+    const onMove = (event: PointerEvent) => this.onPointerMove(event);
+    canvas.addEventListener('pointermove', onMove, { passive: true });
 
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     this.reducedMotion = motionQuery.matches;
@@ -720,7 +731,26 @@ export class PcScene {
     const anchor = new THREE.Vector3();
     let previous = performance.now();
     let frame = 0;
+    // Vue 3D sortie de l'écran (défilement vers la liste) : plus aucune image calculée ;
+    // elle reprend là où elle en était dès qu'elle redevient visible
+    let onScreen = true;
+    // Programmes graphiques compilés en parallèle avant la première image (au lieu de bloquer
+    // la page pendant le premier rendu)
+    let ready = false;
+    let disposed = false;
+    const visibility = new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      if (ready && onScreen && !frame) {
+        previous = performance.now();
+        frame = requestAnimationFrame(loop);
+      }
+    });
+    visibility.observe(host);
     const loop = (now: number) => {
+      if (!onScreen) {
+        frame = 0;
+        return;
+      }
       frame = requestAnimationFrame(loop);
       const dt = Math.min(0.05, (now - previous) / 1000);
       previous = now;
@@ -745,6 +775,7 @@ export class PcScene {
 
       controls.update();
       model.update(dt, now / 1000, this.reducedMotion);
+      if (model.shadowsNeedUpdate()) renderer.shadowMap.needsUpdate = true;
       if (low) renderer.render(scene, camera);
       else composer.render();
 
@@ -762,13 +793,29 @@ export class PcScene {
         tip.style.top = `${y}px`;
       }
     };
-    frame = requestAnimationFrame(loop);
+    // Les programmes dépendent de la cible du rendu : avec le halo, la scène est dessinée dans
+    // l'image intermédiaire du compositeur (sans mappage de tons), pas directement à l'écran
+    if (!low) renderer.setRenderTarget(composer.readBuffer);
+    const compiling = renderer.compileAsync(scene, camera);
+    renderer.setRenderTarget(null);
+    compiling
+      .catch(() => undefined)
+      .finally(() => {
+        ready = true;
+        if (!disposed && onScreen && !frame) {
+          previous = performance.now();
+          frame = requestAnimationFrame(loop);
+        }
+      });
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(frame);
+      visibility.disconnect();
       resizeObserver.disconnect();
       themeObserver.disconnect();
       window.removeEventListener('keydown', onKey);
+      canvas.removeEventListener('pointermove', onMove);
       motionQuery.removeEventListener('change', onMotion);
       controls.dispose();
       model.dispose();

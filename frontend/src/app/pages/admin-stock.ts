@@ -1,3 +1,4 @@
+import { AdminNav } from '../components/admin-nav';
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -11,10 +12,11 @@ import { ProductNamePipe, TPipe, translate } from '../core/i18n';
 @Component({
   standalone: true,
   selector: 'app-admin-stock',
-  imports: [CommonModule, FormsModule, TndPipe, TPipe, ProductNamePipe],
+  imports: [AdminNav, CommonModule, FormsModule, TndPipe, TPipe, ProductNamePipe],
   template: `
     <div class="container section">
-      <h1>{{ 'Administration — Gestion des Stocks' | t }}</h1>
+      <app-admin-nav />
+      <h1>{{ 'Stock' | t }}</h1>
 
       @if (errorMessage()) {
         <div class="alert red" style="margin-bottom: 1rem;">{{ errorMessage() }}</div>
@@ -454,26 +456,33 @@ export class AdminStockPage implements OnInit {
     this.errorMessage.set(null);
     this.successMessage.set(null);
 
-    this.adminApi.updateStock(prod.id, finalQuantityChange, this.reason, this.note).subscribe({
-      next: () => {
-        this.submitting.set(false);
-        this.successMessage.set(
-          translate('Stock mis à jour avec succès pour le produit #{id} ({name}) !', {
-            id: prod.id,
-            name: prod.name,
-          }),
-        );
-        this.searchQuery.set('');
-        this.selectedProduct.set(null);
-        this.rawQuantity = null;
-        this.note = '';
-        this.loadMovements();
-      },
-      error: (err) => {
-        this.submitting.set(false);
-        const msg = apiErrors(err);
-        this.errorMessage.set(Array.isArray(msg) ? msg.join(', ') : msg);
-      },
-    });
+    this.adminApi
+      .updateStock({
+        productId: prod.id,
+        quantityChange: finalQuantityChange,
+        reason: this.reason,
+        note: this.note,
+      })
+      .subscribe({
+        next: () => {
+          this.submitting.set(false);
+          this.successMessage.set(
+            translate('Stock mis à jour avec succès pour le produit #{id} ({name}) !', {
+              id: prod.id,
+              name: prod.name,
+            }),
+          );
+          this.searchQuery.set('');
+          this.selectedProduct.set(null);
+          this.rawQuantity = null;
+          this.note = '';
+          this.loadMovements();
+        },
+        error: (err) => {
+          this.submitting.set(false);
+          const msg = apiErrors(err);
+          this.errorMessage.set(Array.isArray(msg) ? msg.join(', ') : msg);
+        },
+      });
   }
 }

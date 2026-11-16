@@ -11,9 +11,12 @@ Boutique en ligne de composants PC et de périphériques pour la Tunisie (prix e
 
 - Catalogue de près de 3 900 produits : filtres (catégorie, marque, prix, stock), recherche, tri par pertinence.
 - Configurateur PC 3D : seules les pièces compatibles sont proposées (socket, type de mémoire, format, puissance).
-- Panier invité ou connecté, commande (paiement à la livraison, virement, carte, PayPal), suivi des commandes.
+- Panier invité ou connecté, commande (paiement à la livraison, virement, carte ou PayPal simulés), e-mail de
+  confirmation, suivi daté de chaque étape, annulation tant que la préparation n'a pas commencé, facture
+  imprimable (TVA 19 %).
 - Fiche produit avec suggestions de pièces compatibles après l'ajout au panier.
-- Espace client (profil, adresses, commandes, configurations enregistrées) et administration (commandes, stock).
+- Espace client (profil, adresses, commandes, configurations enregistrées) et administration : tableau de bord
+  (chiffre d'affaires, ventes par catégorie, meilleures ventes, alertes de stock), gestion des commandes et du stock.
 - Site bilingue FR / EN, thème clair / sombre, conditions générales de vente et politique de confidentialité.
 
 ## Installation
@@ -28,6 +31,7 @@ npm install
 npx prisma migrate deploy --config prisma7.config.ts
 npm run seed                  # importe le catalogue (relançable)
 npm run seed:stock            # stock de test reproductible (facultatif)
+npm run seed:demo-orders      # commandes de démonstration pour le tableau de bord (facultatif)
 npm run start:dev
 
 # 2. Site (autre terminal)
@@ -45,9 +49,11 @@ UPDATE "User" SET role = 'ADMIN' WHERE email = 'vous@exemple.tn';
 ## Mise en production
 
 - API : `npm run build` puis `npm run start:prod` (variables de `backend/.env.example`, `FRONTEND_URL` = domaine du site).
-- Site : renseigner l'URL publique de l'API dans `frontend/src/environments/environment.ts`, puis `npm run build`
-  et servir `frontend/dist/frontend/browser` (toutes les routes inconnues renvoient vers `index.html`).
-- Compléter l'identification légale du vendeur dans `frontend/src/app/core/legal-content.ts`.
+- Site : `npm run build`, puis servir `frontend/dist/frontend/browser` (routes inconnues → `index.html`) en relayant
+  `/api/*` vers l'API (sans le préfixe). `npm run serve` le fait sur le port 4300 ; pour une API sur un autre
+  domaine, mettre son URL dans `frontend/src/environments/environment.ts`.
+- Compléter l'identification légale du vendeur dans `frontend/src/app/core/legal-content.ts` et ses coordonnées
+  (facture, virement) dans `frontend/src/app/core/store-info.ts`.
 
 ## Vérifications
 

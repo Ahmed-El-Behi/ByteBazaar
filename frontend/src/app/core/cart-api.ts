@@ -36,53 +36,6 @@ export interface Address {
   isDefault: boolean;
 }
 
-export interface Order {
-  id: number;
-  reference: string;
-  status: string;
-  paymentMethod: string;
-  paymentStatus: string;
-  subtotal: number;
-  shippingFee: number;
-  total: number;
-  shippingName: string;
-  shippingPhone: string;
-  shippingAddress: string;
-  createdAt: string;
-  items: {
-    id: number;
-    productId?: number;
-    productName: string;
-    unitPrice: number;
-    quantity: number;
-    lineTotal: number;
-    imageUrl?: string;
-    productImage?: string;
-    product?: {
-      image?: { url: string; altText: string | null } | null;
-    };
-  }[];
-}
-
-// Libellés en français, traduits à l'affichage (pipe « t »)
-// i18n
-export const PAYMENT_LABELS: Record<string, string> = {
-  CASH_ON_DELIVERY: 'Paiement à la livraison',
-  CARD: 'Carte bancaire',
-  PAYPAL: 'PayPal',
-  BANK_TRANSFER: 'Virement bancaire',
-};
-
-export const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'En attente',
-  CONFIRMED: 'Confirmée',
-  PREPARING: 'En préparation',
-  SHIPPED: 'Expédiée',
-  DELIVERED: 'Livrée',
-  CANCELLED: 'Annulée',
-};
-// /i18n
-
 @Injectable({ providedIn: 'root' })
 export class CartApi {
   private http = inject(HttpClient);
@@ -123,21 +76,5 @@ export class CartApi {
   /** Renvoie la liste des adresses à jour */
   setDefaultAddress(id: number) {
     return this.http.patch<Address[]>(`${API_URL}/orders/addresses/${id}/default`, {});
-  }
-
-  checkout(data: {
-    addressId?: number;
-    newAddress?: Record<string, unknown>;
-    paymentMethod?: string;
-  }) {
-    return this.http.post<Order>(`${API_URL}/orders/checkout`, data);
-  }
-
-  getMyOrders() {
-    return this.http.get<Order[]>(`${API_URL}/orders`);
-  }
-
-  getOrder(id: number) {
-    return this.http.get<Order>(`${API_URL}/orders/${id}`);
   }
 }

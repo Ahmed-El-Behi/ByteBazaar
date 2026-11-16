@@ -6,8 +6,11 @@ import {
 import { randomInt } from 'node:crypto';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { asRecord, badRequest, int, oneOf, text } from '../common/input';
 import { tr } from '../common/i18n';
+import { cancelOrderTx } from './order-cancel';
+import { customerCanCancel, initialPaymentStatus } from './order-status';
 
 export const SHIPPING_FEE = 7; // TND — doit rester identique à SHIPPING_FEE côté frontend (core/models.ts)
 
@@ -28,13 +31,24 @@ const ADDRESS_FIELDS = [
 
 const ORDER_INCLUDE = {
   items: {
+    orderBy: { id: 'asc' },
     include: {
       product: {
-        include: {
-          images: { orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }] },
+        select: {
+          sku: true,
+          slug: true,
+          images: {
+            select: { url: true, altText: true },
+            orderBy: [{ isPrimary: 'desc' }, { position: 'asc' }],
+            take: 1,
+          },
         },
       },
     },
+  },
+  events: {
+    select: { status: true, createdAt: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   },
 } satisfies Prisma.OrderInclude;
 
@@ -44,29 +58,28 @@ type AddressInput = Omit<Prisma.AddressUncheckedCreateInput, 'id' | 'userId'>;
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 function toOrderDto(order: OrderWithItems) {
+  const { userId: _userId, ...rest } = order;
   return {
-    ...order,
+    ...rest,
     subtotal: Number(order.subtotal),
     shippingFee: Number(order.shippingFee),
     total: Number(order.total),
-    items: order.items.map((item) => {
+    canCancel: customerCanCancel(order.status),
+    items: order.items.map(({ product, ...item }) => {
       const unitPrice = Number(item.unitPrice);
-      const firstImage = item.product?.images?.[0] ?? null;
       return {
         ...item,
         unitPrice,
         lineTotal: round3(unitPrice * item.quantity),
-        product: {
-          ...item.product,
-          price: Number(item.product.price),
-          image: firstImage
-            ? { url: firstImage.url, altText: firstImage.altText ?? null }
-            : null,
-        },
+        productSku: product.sku,
+        productSlug: product.slug,
+        image: product.images[0] ?? null,
       };
     }),
   };
 }
+
+export type OrderDto = ReturnType<typeof toOrderDto>;
 
 function parseAddress(body: unknown): AddressInput {
   const b = asRecord(body);
@@ -97,7 +110,10 @@ function newReference(): string {
 
 @Injectable()
 export class OrderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mailService: MailService,
+  ) {}
 
   // Adresses
 
@@ -204,7 +220,9 @@ export class OrderService {
         const orderId = await this.prisma.$transaction((tx) =>
           this.placeOrder(tx, userId, paymentMethod, addressId, newAddress),
         );
-        return this.getOrderDetails(userId, orderId);
+        const order = await this.getOrderDetails(userId, orderId);
+        void this.sendConfirmation(userId, order);
+        return order;
       } catch (error) {
         // Collision (très improbable) sur la référence unique : on réessaie avec une nouvelle référence
         const collision =
@@ -278,11 +296,15 @@ export class OrderService {
         0,
       ),
     );
+    // Paiement en ligne simulé : carte et PayPal sont considérés comme encaissés à la commande
+    const paymentStatus = initialPaymentStatus(paymentMethod);
     const order = await tx.order.create({
       data: {
         userId,
         reference: newReference(),
         paymentMethod,
+        paymentStatus,
+        paidAt: paymentStatus === 'PAID' ? new Date() : null,
         subtotal,
         shippingFee: SHIPPING_FEE,
         total: round3(subtotal + SHIPPING_FEE),
@@ -297,6 +319,7 @@ export class OrderService {
             quantity: i.quantity,
           })),
         },
+        events: { create: { status: 'PENDING', performedById: userId } },
       },
     });
 
@@ -337,5 +360,53 @@ export class OrderService {
         tr('Commande non trouvée', 'Order not found'),
       );
     return toOrderDto(order);
+  }
+
+  async cancelOrder(userId: number, orderId: number) {
+    await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: { id: orderId, userId },
+        include: { items: true },
+      });
+      if (!order)
+        throw new NotFoundException(
+          tr('Commande non trouvée', 'Order not found'),
+        );
+      if (!customerCanCancel(order.status))
+        throw new BadRequestException(
+          tr(
+            'Cette commande est déjà en préparation : contactez le service client pour l’annuler',
+            'This order is already being prepared: contact customer service to cancel it',
+          ),
+        );
+      await cancelOrderTx(tx, order, userId);
+    });
+
+    const order = await this.getOrderDetails(userId, orderId);
+    void this.notifyStatus(userId, order);
+    return order;
+  }
+
+  private async sendConfirmation(userId: number, order: OrderDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true },
+    });
+    if (user) await this.mailService.sendOrderConfirmation(user, order);
+  }
+
+  private async notifyStatus(userId: number, order: OrderDto) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true },
+    });
+    if (user)
+      await this.mailService.sendOrderStatusNotification(
+        user.email,
+        user.firstName,
+        order.reference,
+        order.status,
+        order.id,
+      );
   }
 }

@@ -78,7 +78,13 @@ export const routes: Routes = [
     path: 'commandes/:id',
     loadComponent: () => import('./pages/order-detail').then((m) => m.OrderDetailPage),
     canActivate: [authGuard],
-    title: 'Confirmation · ByteBazaar',
+    title: 'Ma commande · ByteBazaar',
+  },
+  {
+    path: 'commandes/:id/facture',
+    loadComponent: () => import('./pages/invoice').then((m) => m.InvoicePage),
+    canActivate: [authGuard],
+    title: 'Facture · ByteBazaar',
   },
 
   {
@@ -106,6 +112,19 @@ export const routes: Routes = [
   },
   { path: 'mes-commandes', redirectTo: 'compte/commandes', pathMatch: 'full' },
 
+  {
+    path: 'admin',
+    loadComponent: () => import('./pages/admin-dashboard').then((m) => m.AdminDashboardPage),
+    canActivate: [adminGuard],
+    title: 'Tableau de bord · Admin ByteBazaar',
+  },
+  {
+    path: 'admin/commandes/:id/facture',
+    loadComponent: () => import('./pages/invoice').then((m) => m.InvoicePage),
+    canActivate: [adminGuard],
+    data: { admin: true },
+    title: 'Facture · Admin ByteBazaar',
+  },
   {
     path: 'admin/commandes',
     loadComponent: () => import('./pages/admin-orders').then((m) => m.AdminOrdersPage),

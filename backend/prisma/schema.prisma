@@ -82,6 +82,7 @@ model User {
   orders         Order[]
   configurations Configuration[]
   stockMovements StockMovement[]
+  orderEvents    OrderEvent[]
 }
 
 model Address {
@@ -145,10 +146,26 @@ model Order {
   userId Int
   user   User @relation(fields: [userId], references: [id])
 
-  items OrderItem[]
+  items  OrderItem[]
+  events OrderEvent[]
 
   @@index([userId])
   @@index([status])
+  @@index([createdAt])
+}
+
+// Historique des statuts d'une commande (frise de suivi côté client, traçabilité côté admin)
+model OrderEvent {
+  id        Int         @id @default(autoincrement())
+  status    OrderStatus
+  createdAt DateTime    @default(now())
+
+  orderId       Int
+  order         Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  performedById Int?
+  performedBy   User? @relation(fields: [performedById], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
 }
 
 model OrderItem {
