@@ -5,3 +5,9 @@ Thumbs.db
 
 # Fichiers d'environnement (voir backend/.env.example)
 .env
+
+# Documents de cours et livrables (hors code) : gardés en dehors du dépôt
+/*.pdf
+/*.pptx
+/*.docx
+/*.zip

@@ -73,8 +73,8 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
 ### Frontend (`frontend/src/app`)
 - `core/` API services, guards, interceptor, `theme.service.ts` (light/dark), `tnd.pipe.ts`, `spec-labels.ts` (French labels for specs).
 - `components/icon.ts` — `<app-icon name="…">` renders Lucide icons; use it for every icon (no emoji / hand-drawn SVG).
-- Logo: `components/logo-mark.ts` (`<app-logo-mark>`) — pixel-grid « BB » (5×7 per letter, orange + cyan accent pixels) on a navy tile, from `Logo.png`; one-time « boot » animation, accent glow on hover; used in header, footer, invoice. Favicons use the same drawing (`favicon.svg`, `favicon-dark.svg` = + light rim, `favicon.ico` 16/32/48, `apple-touch-icon.png` 180); their URLs carry `?v=2` (index.html + theme.service.ts) — bump it when the logo changes, browsers cache favicons hard.
-- Text is not selectable site-wide (`body { user-select: none }`), except form fields; values to copy (RIB…) have a « Copier » button.
+- Logo: `components/logo-mark.ts` (`<app-logo-mark>`) — pixel-grid « BB » (5×7 per letter, orange + cyan accent pixels) on a navy tile; one-time « boot » animation, accent glow on hover; used in header, footer, invoice. Favicons use the same drawing (`favicon.svg`, `favicon-dark.svg` = + light rim, `favicon.ico` 16/32/48, `apple-touch-icon.png` 180); their URLs carry `?v=2` (index.html + theme.service.ts) — bump it when the logo changes, browsers cache favicons hard.
+- Content text is selectable; interface chrome is not (`button`, `.btn`, `nav`, `label`, `.pill`, `.badge`, tabs, icons, logo — `styles.css`), so quick clicks don't highlight anything. Values to copy (RIB…) also have a « Copier » button.
 - Design tokens in `src/styles.css`: surfaces `--bg < --surface < --surface-2 < --surface-3`, `--text/--text-2/--muted`, `--accent`, `--font-display` + `--font-body`, scale `--fs-2xs … --fs-5xl`, radii `--r-*`, shadows `--shadow*`. Reuse tokens, don't hard-code colours/sizes.
 - Routes are French (`/produits`, `/configurateur`, `/panier`, `/checkout`, `/compte/...`, `/conditions`, `/confidentialite`, `/admin/commandes`, `/admin/stock`). Every page is lazy (`loadComponent`) except Home and ProductList; titles are French and translated by `TranslatedTitleStrategy`.
 - API base URL is `/api` (same origin) in both environments: `ng serve` proxies it via `proxy.conf.json`; `npm run serve` (`scripts/serve.mjs`, port 4300, brotli/gzip + cache headers) serves the production build and proxies it; in production a reverse proxy must forward `/api/*` (prefix stripped) to the API. `core/models.ts` exports `API_URL`.
@@ -124,16 +124,17 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
 
 ## Status
 
-### Done (all committed and pushed on `chore/nettoyage-catalogue-securite`)
-- `903e4f3` Full repo audit & clean-up, catalogue name normalisation, "Pertinence" sort, API hardening (admin role check, rate limits, reset-password flow).
-- `e119aa9` Configurator backend with compatibility filtering + interactive 3D open-side PC (RGB, high fidelity).
-- `741a07e` Visual facelift (fonts, Lucide icons, colour depth); peripherals dataset in DB/Prisma/site with local photos; configurator CPU cooler slot + 3D desk setup with click-to-zoom two-level navigation.
-
-- Uncommitted: complete order flow + admin dashboard (see Architecture), on top of the earlier uncommitted work below.
-- Uncommitted work after `27a9892` (commit when asked): catalogue filters, pink accents, favicon, nav/scroll polish, category covers, product-page upsell + cart toasts, unified buttons, blurred background, legal pages, two-way search, server-side address routes, repo-wide clean-up (comments, Prettier, lazy routes, environments, tests, READMEs).
+### Done (merged into `main`, tag `v1.0`)
+Everything listed in Architecture is committed: catalogue, accounts and password reset, cart, full order flow
+(checkout, history, cancellation, invoice, e-mails), server-side addresses, 3D configurator with compatibility and
+saved builds, admin (dashboard, orders, stock), FR/EN, light/dark themes, responsive layout, performance work,
+pixel « BB » logo. Tested on Chrome and Edge (5 screen sizes), Firefox and Safari/WebKit (desktop).
+Lighthouse (home, production build): performance 60 mobile / 74 desktop (CLS 0.94), accessibility 100,
+best practices 100, SEO 91.
 
 ### Remaining / ideas
-- Open a PR `chore/nettoyage-catalogue-securite` → `main` (not done yet; ask first).
+- Fix the home page layout shift (CLS 0.94 → < 0.1) to reach Lighthouse performance ≥ 90.
+- Deployment (public URL), Swagger API docs + validated DTOs, Playwright e2e tests + CI, `core/` split into subfolders.
 - Speakers and webcams are in the catalogue but not in the 3D desk (only monitor/keyboard/mouse/headset).
 - Configurator could add cooler compatibility checks (socket support, AIO radiator vs case top-mount size, tower height vs case clearance) — currently cooler is only "present or warning".
 - Frontend has only a few unit tests (app creation, i18n); backend e2e tests require the dev DB.

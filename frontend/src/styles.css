@@ -161,10 +161,6 @@ body {
   line-height: 1.55;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
-  /* Texte non sélectionnable (aspect « application ») ; les champs de saisie restent utilisables
-     et les informations à recopier (RIB…) ont un bouton « Copier » */
-  -webkit-user-select: none;
-  user-select: none;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   transition:
@@ -235,12 +231,20 @@ h4 {
   font-variant-numeric: tabular-nums;
 }
 
-input,
-textarea,
-select,
-[contenteditable]:not([contenteditable='false']) {
-  -webkit-user-select: text;
-  user-select: text;
+/* Contenu sélectionnable (références, noms de produits, adresses, textes légaux…), mais pas les
+   éléments d'interface : un clic rapide sur un bouton ou un menu ne surligne rien */
+button,
+.btn,
+nav,
+label,
+.pill,
+.badge,
+[role='tab'],
+[role='button'],
+app-icon,
+app-logo-mark {
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Écrans tactiles : petits boutons (œil des mots de passe, ajout rapide au panier) agrandis par
