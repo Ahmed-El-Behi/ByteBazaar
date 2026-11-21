@@ -149,10 +149,11 @@ const BUILD_STEPS: { icon: IconName; label: string }[] = [
       </div>
     </section>
 
-    @if (brandStrip().length) {
-      <section class="brands" [attr.aria-label]="'Marques disponibles' | t">
-        <div class="marquee">
-          <div class="track">
+    <!-- Cadre toujours présent, hauteur d'une ligne réservée : les marques arrivent de l'API sans pousser la page -->
+    <section class="brands" [attr.aria-label]="'Marques disponibles' | t">
+      <div class="marquee">
+        <div class="track">
+          @if (brandStrip().length) {
             @for (b of brandStrip(); track $index) {
               <a
                 [routerLink]="['/produits']"
@@ -163,151 +164,164 @@ const BUILD_STEPS: { icon: IconName; label: string }[] = [
                 {{ b.name }}
               </a>
             }
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- Sous le bandeau : construit dès que le navigateur est libre (ou si le visiteur fait défiler avant),
+         pour que l'accueil s'affiche plus vite sur mobile. Espace réservé : le pied de page reste hors de vue. -->
+    @defer (on idle; on viewport) {
+      <section class="container section-padding">
+        <div class="section-header" appReveal>
+          <div>
+            <div class="tag-label">
+              <span class="dot"></span> {{ 'Trouvez votre composant' | t }}
+            </div>
+            <h2 class="section-title">{{ 'Chaque pièce. Tout son potentiel.' | t }}</h2>
           </div>
+          <a routerLink="/produits" class="link-arrow">
+            {{ 'Toutes les catégories' | t }}
+            <app-icon name="arrowUpRight" [size]="15" [stroke]="2" />
+          </a>
+        </div>
+
+        <div class="categories-grid">
+          @for (c of tiles(); track c.id; let i = $index) {
+            <a
+              class="category-card"
+              [class.wide]="i < 2"
+              [style.--tone]="tone(i)"
+              appReveal
+              [revealDelay]="(i % 8) * 45"
+              routerLink="/produits"
+              [queryParams]="{ category: c.slug }"
+            >
+              <div class="card-text">
+                <span class="cat-icon"><app-icon [name]="categoryIcon(c.slug)" [size]="19" /></span>
+                <h3 class="cat-title">{{ c | localName }}</h3>
+                <span class="cat-count">{{ '{n} produits' | t: { n: c._count.products } }}</span>
+                <span class="cat-cta"
+                  >{{ 'Explorer' | t }} <app-icon name="arrowRight" [size]="14" [stroke]="2.4"
+                /></span>
+              </div>
+              <div class="cat-visual" aria-hidden="true">
+                <span class="cat-plate">
+                  @if (covers()[c.slug]; as img) {
+                    <img [src]="img.url" alt="" loading="lazy" decoding="async" />
+                  } @else {
+                    <app-icon [name]="categoryIcon(c.slug)" [size]="40" [stroke]="1.5" />
+                  }
+                </span>
+              </div>
+            </a>
+          } @empty {
+            @for (i of [0, 1, 2, 3, 4, 5, 6, 7]; track i) {
+              <div class="category-card skeleton" [class.wide]="i < 2"></div>
+            }
+          }
         </div>
       </section>
-    }
 
-    <section class="container section-padding">
-      <div class="section-header" appReveal>
-        <div>
-          <div class="tag-label"><span class="dot"></span> {{ 'Trouvez votre composant' | t }}</div>
-          <h2 class="section-title">{{ 'Chaque pièce. Tout son potentiel.' | t }}</h2>
+      <section class="container">
+        <div class="config-band" appReveal>
+          <div class="config-copy">
+            <div class="tag-label light">
+              <span class="dot"></span> {{ 'Configurateur PC' | t }}
+            </div>
+            <h2>
+              {{ 'Montez votre PC pièce par pièce,' | t }} <span>{{ 'sans erreur' | t }}</span
+              >.
+            </h2>
+            <p>
+              {{
+                "Choisissez une carte mère : seuls les processeurs du même socket et la mémoire du même type vous sont proposés. Survolez chaque pièce dans la vue 3D et changez-la d'un clic."
+                  | t
+              }}
+            </p>
+            <ul class="config-points">
+              <li>
+                <app-icon name="shield" [size]="17" />
+                {{ 'Compatibilité vérifiée à chaque choix' | t }}
+              </li>
+              <li>
+                <app-icon name="gauge" [size]="17" />
+                {{ "Consommation et puissance d'alimentation estimées" | t }}
+              </li>
+              <li>
+                <app-icon name="package" [size]="17" />
+                {{ 'Configurations enregistrées dans votre compte' | t }}
+              </li>
+            </ul>
+            <a class="btn primary" routerLink="/configurateur">
+              {{ 'Lancer le configurateur' | t }}
+              <app-icon name="arrowRight" [size]="17" [stroke]="2.2" />
+            </a>
+          </div>
+
+          <ol class="build-steps" [attr.aria-label]="'Étapes du montage' | t">
+            @for (s of steps; track s.label; let i = $index) {
+              <li [style.--i]="i">
+                <span class="step-icon"><app-icon [name]="s.icon" [size]="20" /></span>
+                <span class="step-label">{{ s.label | t }}</span>
+                <app-icon class="step-check" name="check" [size]="15" [stroke]="2.6" />
+              </li>
+            }
+          </ol>
         </div>
-        <a routerLink="/produits" class="link-arrow">
-          {{ 'Toutes les catégories' | t }}
-          <app-icon name="arrowUpRight" [size]="15" [stroke]="2" />
-        </a>
-      </div>
+      </section>
 
-      <div class="categories-grid">
-        @for (c of tiles(); track c.id; let i = $index) {
-          <a
-            class="category-card"
-            [class.wide]="i < 2"
-            [style.--tone]="tone(i)"
-            appReveal
-            [revealDelay]="(i % 8) * 45"
-            routerLink="/produits"
-            [queryParams]="{ category: c.slug }"
-          >
-            <div class="card-text">
-              <span class="cat-icon"><app-icon [name]="categoryIcon(c.slug)" [size]="19" /></span>
-              <h3 class="cat-title">{{ c | localName }}</h3>
-              <span class="cat-count">{{ '{n} produits' | t: { n: c._count.products } }}</span>
-              <span class="cat-cta"
-                >{{ 'Explorer' | t }} <app-icon name="arrowRight" [size]="14" [stroke]="2.4"
-              /></span>
-            </div>
-            <div class="cat-visual" aria-hidden="true">
-              <span class="cat-plate">
-                @if (covers()[c.slug]; as img) {
-                  <img [src]="img.url" alt="" loading="lazy" decoding="async" />
-                } @else {
-                  <app-icon [name]="categoryIcon(c.slug)" [size]="40" [stroke]="1.5" />
-                }
-              </span>
-            </div>
-          </a>
-        } @empty {
-          @for (i of [0, 1, 2, 3, 4, 5, 6, 7]; track i) {
-            <div class="category-card skeleton" [class.wide]="i < 2"></div>
-          }
-        }
-      </div>
-    </section>
-
-    <section class="container">
-      <div class="config-band" appReveal>
-        <div class="config-copy">
-          <div class="tag-label light"><span class="dot"></span> {{ 'Configurateur PC' | t }}</div>
-          <h2>
-            {{ 'Montez votre PC pièce par pièce,' | t }} <span>{{ 'sans erreur' | t }}</span
-            >.
-          </h2>
-          <p>
-            {{
-              "Choisissez une carte mère : seuls les processeurs du même socket et la mémoire du même type vous sont proposés. Survolez chaque pièce dans la vue 3D et changez-la d'un clic."
-                | t
-            }}
-          </p>
-          <ul class="config-points">
-            <li>
-              <app-icon name="shield" [size]="17" />
-              {{ 'Compatibilité vérifiée à chaque choix' | t }}
-            </li>
-            <li>
-              <app-icon name="gauge" [size]="17" />
-              {{ "Consommation et puissance d'alimentation estimées" | t }}
-            </li>
-            <li>
-              <app-icon name="package" [size]="17" />
-              {{ 'Configurations enregistrées dans votre compte' | t }}
-            </li>
-          </ul>
-          <a class="btn primary" routerLink="/configurateur">
-            {{ 'Lancer le configurateur' | t }}
-            <app-icon name="arrowRight" [size]="17" [stroke]="2.2" />
+      <section class="container section-padding">
+        <div class="section-header" appReveal>
+          <div>
+            <div class="tag-label"><span class="dot"></span> {{ 'Nouveautés' | t }}</div>
+            <h2 class="section-title">{{ 'Derniers ajouts' | t }}</h2>
+          </div>
+          <a routerLink="/produits" [queryParams]="{ sort: 'newest' }" class="link-arrow">
+            {{ 'Voir les nouveautés' | t }}
+            <app-icon name="arrowUpRight" [size]="15" [stroke]="2" />
           </a>
         </div>
-
-        <ol class="build-steps" [attr.aria-label]="'Étapes du montage' | t">
-          @for (s of steps; track s.label; let i = $index) {
-            <li [style.--i]="i">
-              <span class="step-icon"><app-icon [name]="s.icon" [size]="20" /></span>
-              <span class="step-label">{{ s.label | t }}</span>
-              <app-icon class="step-check" name="check" [size]="15" [stroke]="2.6" />
-            </li>
-          }
-        </ol>
-      </div>
-    </section>
-
-    <section class="container section-padding">
-      <div class="section-header" appReveal>
-        <div>
-          <div class="tag-label"><span class="dot"></span> {{ 'Nouveautés' | t }}</div>
-          <h2 class="section-title">{{ 'Derniers ajouts' | t }}</h2>
-        </div>
-        <a routerLink="/produits" [queryParams]="{ sort: 'newest' }" class="link-arrow">
-          {{ 'Voir les nouveautés' | t }}
-          <app-icon name="arrowUpRight" [size]="15" [stroke]="2" />
-        </a>
-      </div>
-      @if (latest(); as l) {
-        <div class="grid-products">
-          @for (p of l.data.slice(0, 4); track p.id) {
-            <app-product-card [product]="p" />
-          }
-        </div>
-      } @else {
-        <div class="grid-products">
-          @for (i of [0, 1, 2, 3]; track i) {
-            <div class="card product-skeleton">
-              <div class="skeleton sk-img"></div>
-              <div class="skeleton sk-line"></div>
-              <div class="skeleton sk-line short"></div>
-            </div>
-          }
-        </div>
-      }
-    </section>
-
-    <section class="container perks-wrap">
-      <div class="perks">
-        @for (p of perks; track p.title; let i = $index) {
-          <div class="perk" appReveal [revealDelay]="i * 70">
-            <span class="perk-icon"><app-icon [name]="p.icon" [size]="20" /></span>
-            <div>
-              <strong>{{ p.title | t }}</strong>
-              <p>{{ p.text | t }}</p>
-            </div>
+        @if (latest(); as l) {
+          <div class="grid-products">
+            @for (p of l.data.slice(0, 4); track p.id) {
+              <app-product-card [product]="p" />
+            }
+          </div>
+        } @else {
+          <div class="grid-products">
+            @for (i of [0, 1, 2, 3]; track i) {
+              <div class="card product-skeleton">
+                <div class="skeleton sk-img"></div>
+                <div class="skeleton sk-line"></div>
+                <div class="skeleton sk-line short"></div>
+              </div>
+            }
           </div>
         }
-      </div>
-    </section>
+      </section>
+
+      <section class="container perks-wrap">
+        <div class="perks">
+          @for (p of perks; track p.title; let i = $index) {
+            <div class="perk" appReveal [revealDelay]="i * 70">
+              <span class="perk-icon"><app-icon [name]="p.icon" [size]="20" /></span>
+              <div>
+                <strong>{{ p.title | t }}</strong>
+                <p>{{ p.text | t }}</p>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    } @placeholder {
+      <div class="below-fold" aria-hidden="true"></div>
+    }
   `,
   styles: `
+    .below-fold {
+      min-height: 100vh;
+    }
     .hero {
       --px: 0;
       --py: 0;
@@ -637,6 +651,10 @@ const BUILD_STEPS: { icon: IconName; label: string }[] = [
       display: flex;
       gap: 3rem;
       width: max-content;
+      /* Une ligne de marques (même police que les liens) réservée avant leur arrivée */
+      font-family: var(--font-display);
+      font-size: var(--fs-xl);
+      min-height: 1lh;
       animation: marquee 48s linear infinite;
     }
     .marquee:hover .track {
@@ -1301,7 +1319,7 @@ export class HomePage {
    */
   private pauseOffscreen() {
     if (typeof IntersectionObserver === 'undefined') return;
-    const sections = this.host.nativeElement.querySelectorAll<HTMLElement>(':scope > section');
+    const host = this.host.nativeElement;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries)
@@ -1309,8 +1327,18 @@ export class HomePage {
       },
       { rootMargin: '120px 0px' },
     );
-    sections.forEach((section) => observer.observe(section));
-    this.destroyRef.onDestroy(() => observer.disconnect());
+    const observeSections = () =>
+      host
+        .querySelectorAll<HTMLElement>(':scope > section')
+        .forEach((section) => observer.observe(section));
+    observeSections();
+    // Sections du bloc différé (@defer) : ajoutées après le premier affichage
+    const added = new MutationObserver(observeSections);
+    added.observe(host, { childList: true });
+    this.destroyRef.onDestroy(() => {
+      observer.disconnect();
+      added.disconnect();
+    });
   }
 
   readonly steps = BUILD_STEPS;

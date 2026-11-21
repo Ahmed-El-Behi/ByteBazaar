@@ -87,7 +87,13 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
   - Continuous pointer effects that only set CSS variables are bound with `addEventListener` (home hero/category halo, `pc-scene` hover, revenue-chart crosshair), never `(pointermove)` in templates.
   - `CatalogApi.categories()/brands()/categoryCovers()` are cached for the session (`shareReplay`).
   - `core/preloading.ts` (`IdlePreloading`): lazy pages are preloaded once the browser is idle, except `/admin*` (configurator: desktop only, later).
-  - Home: infinite animations are paused (`.offscreen`) while their section is out of view (IntersectionObserver, 120px margin).
+  - Home: infinite animations are paused (`.offscreen`) while their section is out of view (IntersectionObserver, 120px margin; a MutationObserver also picks up the deferred sections).
+  - **Layout shift (CLS) rules** — home CLS went 0.89 → < 0.01, Lighthouse perf mobile 60 → ~89, desktop 74 → 98–100:
+    - `main { display: flow-root }`: the first section's top margin must not collapse through `<main>` (it made `<main>` jump 16px when the page arrived).
+    - The footer is rendered only after the first routed page (`pageShown`, `<router-outlet (activate)>` in `app.html`): visible earlier, it was pushed off-screen.
+    - Home sections below the hero are in `@defer (on idle; on viewport)` with a `100vh` placeholder (`.below-fold`) — they no longer delay the first paint (LCP). The `@defer` runtime costs ~10 kB: initial bundle is now ~498 kB, close to the 500 kB budget.
+    - Never insert content above the fold after an API call without reserving its space (e.g. the brand strip frame is always rendered, `.track { min-height: 1lh }`).
+    - Fallback fonts are size-adjusted Arial (`Plus Jakarta Sans Fallback` 103.9 % / bold 100.1 %, `Bricolage Grotesque Fallback` 92.6 %, measured): text keeps the same line count when the web fonts swap in.
   - Catalogue brand list: `content-visibility: auto` with `contain-intrinsic-size` = the row's real content height (21.69px) so the scrollbar is unchanged.
   - `Icon` and `ProductCard` are OnPush. Images in lists: `loading="lazy" decoding="async"`.
   - Configurator 3D (`pc-scene.ts`, `pc-model.ts`, `three-merge.ts`) — all verified pixel-identical against the previous rendering:
@@ -130,11 +136,11 @@ Everything listed in Architecture is committed: catalogue, accounts and password
 (checkout, history, cancellation, invoice, e-mails), server-side addresses, 3D configurator with compatibility and
 saved builds, admin (dashboard, orders, stock), FR/EN, light/dark themes, responsive layout, performance work,
 pixel « BB » logo. Tested on Chrome and Edge (5 screen sizes), Firefox and Safari/WebKit (desktop).
-Lighthouse (home, production build): performance 60 mobile / 74 desktop (CLS 0.94), accessibility 100,
+Lighthouse (home, production build): performance ~89 mobile / 98–100 desktop (CLS < 0.01), accessibility 100,
 best practices 100, SEO 91.
 
 ### Remaining / ideas
-- Fix the home page layout shift (CLS 0.94 → < 0.1) to reach Lighthouse performance ≥ 90.
+- Mobile Lighthouse ~89: the remaining LCP cost is client-side rendering (prerender/SSR of the home page would be the next step).
 - Deployment (public URL), Playwright e2e tests + CI, `core/` split into subfolders.
 - Speakers and webcams are in the catalogue but not in the 3D desk (only monitor/keyboard/mouse/headset).
 - Configurator could add cooler compatibility checks (socket support, AIO radiator vs case top-mount size, tower height vs case clearance) — currently cooler is only "present or warning".

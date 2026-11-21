@@ -456,6 +456,9 @@ nav .soon {
 
 main {
   min-height: 70vh;
+  /* La marge haute de la première section reste dans <main> : sans cela, elle « traverse » <main>, qui saute
+     vers le bas quand la page arrive (décalage de mise en page) */
+  display: flow-root;
 }
 
 /* Pied de page */

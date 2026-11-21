@@ -47,6 +47,8 @@ export class App {
   readonly searchOpen = signal(false);
   /** Page défilée : l'en-tête devient plus compact et plus marqué */
   readonly scrolled = signal(false);
+  /** Première page affichée : le pied de page apparaît alors sous son contenu */
+  readonly pageShown = signal(false);
   /** Petit « rebond » du badge du panier quand son nombre d'articles change */
   readonly cartBump = signal(false);
 

@@ -3,6 +3,28 @@
    couleurs --accent, --pink, --green / --red / --warn / --info / --violet ;
    typo --font-display / --font-body, échelle --fs-2xs … --fs-5xl ; rayons --r-* ; ombres --shadow*. */
 
+/* Polices de secours ajustées : Arial agrandie ou réduite à la largeur exacte des polices du site (mesurée).
+   Pendant le chargement des polices, le texte occupe déjà le même nombre de lignes : rien ne bouge quand
+   elles arrivent (décalage de mise en page, CLS). */
+@font-face {
+  font-family: 'Plus Jakarta Sans Fallback';
+  src: local('Arial');
+  font-weight: 100 500;
+  size-adjust: 103.9%;
+}
+@font-face {
+  font-family: 'Plus Jakarta Sans Fallback';
+  src: local('Arial Bold');
+  font-weight: 600 900;
+  size-adjust: 100.1%;
+}
+@font-face {
+  font-family: 'Bricolage Grotesque Fallback';
+  src: local('Arial Bold');
+  font-weight: 100 900;
+  size-adjust: 92.6%;
+}
+
 :root {
   /* Surfaces (du fond vers l'avant-plan) */
   --bg: #f3f5fa;
@@ -65,8 +87,8 @@
   --cursor-b: #e8479a;
 
   /* Typographie */
-  --font-display: 'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, sans-serif;
-  --font-body: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Bricolage Grotesque Fallback', system-ui, sans-serif;
+  --font-body: 'Plus Jakarta Sans', 'Plus Jakarta Sans Fallback', 'Segoe UI', system-ui, sans-serif;
   --fs-2xs: 0.6875rem; /* 11 px — micro-étiquettes */
   --fs-xs: 0.75rem; /* 12 px */
   --fs-sm: 0.8125rem; /* 13 px */
