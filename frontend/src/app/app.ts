@@ -1,3 +1,4 @@
+import { LogoMark } from './components/logo-mark';
 import {
   Component,
   DestroyRef,
@@ -20,7 +21,17 @@ import { Ambient } from './components/ambient';
 
 @Component({
   selector: 'app-root',
-  imports: [Icon, RouterOutlet, RouterLink, RouterLinkActive, Cursor, TPipe, Toaster, Ambient],
+  imports: [
+    Icon,
+    LogoMark,
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    Cursor,
+    TPipe,
+    Toaster,
+    Ambient,
+  ],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })

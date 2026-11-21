@@ -55,6 +55,7 @@ export function canvasTexture(
   draw(canvas.getContext('2d')!);
   const texture = new THREE.CanvasTexture(canvas);
   if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  // Netteté des textures vues en biais (bureau, étiquettes) ; three.js plafonne au maximum de la carte
+  texture.anisotropy = 16;
   return texture;
 }

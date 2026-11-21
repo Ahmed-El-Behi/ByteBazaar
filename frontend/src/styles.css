@@ -161,6 +161,10 @@ body {
   line-height: 1.55;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  /* Texte non sélectionnable (aspect « application ») ; les champs de saisie restent utilisables
+     et les informations à recopier (RIB…) ont un bouton « Copier » */
+  -webkit-user-select: none;
+  user-select: none;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   transition:
@@ -231,6 +235,28 @@ h4 {
   font-variant-numeric: tabular-nums;
 }
 
+input,
+textarea,
+select,
+[contenteditable]:not([contenteditable='false']) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Écrans tactiles : petits boutons (œil des mots de passe, ajout rapide au panier) agrandis par
+   une zone de toucher invisible d'au moins 44 px, sans rien changer à leur apparence */
+@media (pointer: coarse) {
+  .eye-btn::after,
+  .quick-add::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+  }
+  .eye-btn::after {
+    inset: -13px;
+  }
+}
+
 /* ---------------------------------------------------------------- Barres de défilement
    Une pilule aux couleurs du site (accent → rose) sur un rail fondu dans le fond de page ;
    elle s'épaissit et s'illumine au survol. Zones internes (filtres, listes, modales) : plus fines.
@@ -258,7 +284,7 @@ h4 {
     padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  border-width: 3px;
+  border-width: 2px;
   background: linear-gradient(180deg, var(--accent-hover), var(--pink)) padding-box;
   box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 40%, transparent);
 }
@@ -281,7 +307,7 @@ body *::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--accent) 38%, var(--border-strong)) padding-box;
 }
 body *::-webkit-scrollbar-thumb:hover {
-  border-width: 2px;
+  border-width: 1.5px;
   background: linear-gradient(
       180deg,
       var(--accent),

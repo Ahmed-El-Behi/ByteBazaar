@@ -469,6 +469,7 @@ export const EN: Record<string, string> = {
   'Refroidissement CPU': 'CPU cooling',
   'Stockage (SSD / HDD)': 'Storage (SSD / HDD)',
   Écran: 'Monitor',
+  Écrans: 'Monitors',
   Clavier: 'Keyboard',
   Souris: 'Mouse',
   Casque: 'Headset',
@@ -497,6 +498,10 @@ export const EN: Record<string, string> = {
     'Click the PC to choose its parts · hover over a peripheral to choose it · drag to rotate',
   'Survolez une pièce · cliquez pour la choisir · glissez pour tourner · Échap pour revenir':
     'Hover over a part · click to choose it · drag to rotate · Esc to go back',
+  'Touchez le PC pour choisir ses pièces · touchez un périphérique pour le choisir · glissez pour tourner':
+    'Tap the PC to choose its parts · tap a peripheral to choose it · drag to rotate',
+  'Touchez une pièce pour la choisir · glissez pour tourner':
+    'Tap a part to choose it · drag to rotate',
   'Réactiver les effets (RGB, ventilateurs, ombres)':
     'Turn the effects back on (RGB, fans, shadows)',
   'Mode performance : couper le RGB, les animations et les effets':

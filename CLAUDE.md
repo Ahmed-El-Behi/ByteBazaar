@@ -73,6 +73,8 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
 ### Frontend (`frontend/src/app`)
 - `core/` API services, guards, interceptor, `theme.service.ts` (light/dark), `tnd.pipe.ts`, `spec-labels.ts` (French labels for specs).
 - `components/icon.ts` — `<app-icon name="…">` renders Lucide icons; use it for every icon (no emoji / hand-drawn SVG).
+- Logo: `components/logo-mark.ts` (`<app-logo-mark>`) — pixel-grid « BB » (5×7 per letter, orange + cyan accent pixels) on a navy tile, from `Logo.png`; one-time « boot » animation, accent glow on hover; used in header, footer, invoice. Favicons use the same drawing (`favicon.svg`, `favicon-dark.svg` = + light rim, `favicon.ico` 16/32/48, `apple-touch-icon.png` 180); their URLs carry `?v=2` (index.html + theme.service.ts) — bump it when the logo changes, browsers cache favicons hard.
+- Text is not selectable site-wide (`body { user-select: none }`), except form fields; values to copy (RIB…) have a « Copier » button.
 - Design tokens in `src/styles.css`: surfaces `--bg < --surface < --surface-2 < --surface-3`, `--text/--text-2/--muted`, `--accent`, `--font-display` + `--font-body`, scale `--fs-2xs … --fs-5xl`, radii `--r-*`, shadows `--shadow*`. Reuse tokens, don't hard-code colours/sizes.
 - Routes are French (`/produits`, `/configurateur`, `/panier`, `/checkout`, `/compte/...`, `/conditions`, `/confidentialite`, `/admin/commandes`, `/admin/stock`). Every page is lazy (`loadComponent`) except Home and ProductList; titles are French and translated by `TranslatedTitleStrategy`.
 - API base URL is `/api` (same origin) in both environments: `ng serve` proxies it via `proxy.conf.json`; `npm run serve` (`scripts/serve.mjs`, port 4300, brotli/gzip + cache headers) serves the production build and proxies it; in production a reverse proxy must forward `/api/*` (prefix stripped) to the API. `core/models.ts` exports `API_URL`.
@@ -91,6 +93,8 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
     - `mergeStaticMeshes`: per part, static opaque meshes with equivalent materials are merged (≈368 → 190 meshes, 233 → 55 shadow casters). Kept separate: spinners, transparent, `userData`-flagged, mirrored meshes, `accentMats`.
     - Shadow map `autoUpdate = false`; `PcModel.shadowsNeedUpdate()` asks for a refresh only when a part moves/changes (install, hover lift, selection, quality) — or every frame while opaque (non-RGB) fan blades spin.
     - `setSelection` reuses a part whose `buildKey` (part id + layout, + mb/gpu presence for the PSU) is unchanged; same ids → no rebuild at all.
+    - Anti-aliasing: the composer's HDR target uses MSAA 4×; if the median frame of the first ~2 s exceeds 20 ms (integrated GPU), it switches once to an `FXAAPass` (MSAA 2×/4× drops an Intel UHD to 40–48 fps, FXAA keeps 60). Canvas textures use anisotropy 16.
+    - Never share a transparent `DoubleSide` material across many meshes without `forceSinglePass` (three.js flips `side` + `needsUpdate` twice per mesh per frame → program re-check each time; the fan-blade material cost ~15 % of the main thread), nor one material between an `InstancedMesh` and a plain mesh.
     - Render loop stops while the canvas is off-screen (IntersectionObserver). Programs are compiled with `compileAsync` against `composer.readBuffer` (bloom renders to a render target) before the first frame.
     - `localStorage['bytebazaar_configurator']` also stores `parts` so the full build is drawn at once on return visits (API check still refreshes it).
     - Picker: parts lists cached per slot+selection+language in `ConfiguratorApi`; cards rendered progressively (`FIRST_CARDS`, `CARDS_PER_FRAME`); images lazy.
@@ -113,6 +117,7 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
   - `pc`: clicking the PC flies the camera in (1.1 s eased tween, controls disabled during flight); each component is hoverable (pops out) and clickable. "← Vue d'ensemble" button or Escape returns to desk.
   - Per-mode camera limits in `VIEWS` (target, radius, polar/azimuth ranges, distance).
 - `pc-model.ts` — builds the case and components (`Builder`, `glowMesh` for RGB, `SlotView` with pop-out axis `z`/`y`), `hitTargets(mode)`, `slotOf(object, mode)`, `anchorOf`. Cooler: air tower or AIO (pump + RGB ring, tubes, radiator under top panel sized from `radiatorMm`; top case fans removed when AIO); ghost frame when empty.
+- `screen-preview.ts` — the monitor's screen: the dark-theme home page in a browser window, drawn on a 2048-px canvas (texts via `translate()`; the monitor is rebuilt when the language changes).
 - `desk-model.ts` — desk (`DESK_Y`, `DESK_TARGET`), monitor (size/aspect from specs, RGB strip if RGB or ≥144 Hz), keyboard (full/TKL/compact, instanced keys, RGB underglow), mouse, headset on stand; cables when wired.
 - `three-utils.ts` — `isWhite`, `isRgb`, `productColor` (colour from the final parenthetical of the product name), `seeded`, `canvasTexture`.
 - Slot lists on the frontend: `PC_SLOTS` / `DESK_SLOTS` in `core/configurator-api.ts`; chips grouped "Unité centrale" / "Poste de travail (facultatif)".

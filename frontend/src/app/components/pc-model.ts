@@ -14,6 +14,7 @@ import {
   type Slot,
 } from '../core/configurator-api';
 import { buildDesk, buildHeadset, buildKeyboard, buildMonitor, buildMouse } from './desk-model';
+import { currentLang } from '../core/i18n';
 import { canvasTexture, seeded } from './three-utils';
 import { mergeStaticMeshes } from './three-merge';
 
@@ -537,6 +538,9 @@ export class PcModel {
       metalness: 0,
       depthWrite: false,
       side: THREE.DoubleSide,
+      // Pales fines et plates : les deux faces en un seul passage. Sinon three.js dessine chaque
+      // pale deux fois en modifiant le matériau entre les deux (≈ 160 vérifications de shader par image)
+      forceSinglePass: true,
     }),
   };
 
@@ -588,15 +592,21 @@ export class PcModel {
 
   // API
 
+  /** Langue des textes dessinés dans la 3D (écran du moniteur) */
+  private lang = currentLang();
+
   setSelection(selection: Selection, animate: boolean) {
-    // Mêmes pièces (prix mis à jour, changement de langue…) : la 3D reste telle quelle
+    // Mêmes pièces (prix mis à jour…) : la 3D reste telle quelle. Changement de langue : seul
+    // l'écran du moniteur (page du site dessinée) est redessiné
     if (
       this.views.size &&
+      this.lang === currentLang() &&
       BUILD_ORDER.every(
         (slot) => (this.views.get(slot)?.partId ?? null) === (selection[slot]?.id ?? null),
       )
     )
       return;
+    this.lang = currentLang();
     this.shadowsDirty = true;
     this.spinners.length = 0;
     // Une pièce du PC dépend de sa référence et de l'agencement du boîtier (format de la carte
@@ -609,7 +619,7 @@ export class PcModel {
       const changed = (old?.partId ?? null) !== (part?.id ?? null);
       const isPc = (PC_SLOTS as Slot[]).includes(slot);
       const buildKey = !isPc
-        ? `${part?.id ?? '-'}`
+        ? `${part?.id ?? '-'}` + (slot === 'monitor' ? `|${currentLang()}` : '')
         : `${part?.id ?? '-'}|${layoutKey}` +
           (slot === 'psu' ? `|${!!selection.motherboard}|${!!selection.gpu}` : '');
       if (old && old.buildKey === buildKey) {

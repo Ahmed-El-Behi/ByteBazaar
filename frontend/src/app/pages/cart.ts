@@ -356,8 +356,25 @@ import { ProductNamePipe, TPipe } from '../core/i18n';
       margin-top: 1rem;
     }
     @media (max-width: 800px) {
+      /* minmax(0, …) : sans lui, la colonne garde la largeur de son contenu et déborde de l'écran */
       .cart-layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+    /* Téléphone : produit sur toute la largeur, quantité et prix sur la ligne suivante */
+    @media (max-width: 560px) {
+      .item-row {
+        flex-wrap: wrap;
+        row-gap: 0.75rem;
+      }
+      .item-info {
+        flex-basis: 100%;
+      }
+      .qty-controls {
+        margin-inline: calc(60px + 1rem) 0;
+      }
+      .item-total {
+        margin-left: auto;
       }
     }
   `,

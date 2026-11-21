@@ -16,6 +16,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { FXAAPass } from 'three/examples/jsm/postprocessing/FXAAPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { PC_SLOTS, type Slot } from '../core/configurator-api';
@@ -143,7 +144,14 @@ const ZOOM_SECONDS = 1.1;
 
       <div class="hud">
         <span class="hint">
-          @if (mode() === 'desk') {
+          @if (touch && mode() === 'desk') {
+            {{
+              'Touchez le PC pour choisir ses pièces · touchez un périphérique pour le choisir · glissez pour tourner'
+                | t
+            }}
+          } @else if (touch) {
+            {{ 'Touchez une pièce pour la choisir · glissez pour tourner' | t }}
+          } @else if (mode() === 'desk') {
             {{
               'Cliquez sur le PC pour choisir ses pièces · survolez un périphérique pour le choisir · glissez pour tourner'
                 | t
@@ -353,6 +361,8 @@ export class PcScene {
   readonly mode = signal<SceneMode>('desk');
   /** Mode performance : graphismes allégés (choix mémorisé dans le navigateur) */
   readonly lowGraphics = signal(readLowGraphics());
+  /** Écran tactile : pas de survol, l'aide parle de « toucher » */
+  readonly touch = matchMedia('(hover: none)').matches;
   private applyQuality?: (low: boolean) => void;
   private readonly pointerTarget = signal<HoverTarget | null>(null);
   private readonly transitioning = signal(false);
@@ -640,13 +650,33 @@ export class PcScene {
     scene.add(inner);
 
     // Post-traitement : halo lumineux (bloom) sur les LED RGB uniquement (seuil élevé)
-    const composer = new EffectComposer(renderer);
+    // Anticrénelage : le compositeur dessine dans une image intermédiaire qui perd celui du canvas
+    // (arêtes dentelées, surtout de près). Image multi-échantillonnée (MSAA 4×) par défaut ; si la
+    // carte graphique ne suit pas (puce intégrée), bascule sur un filtre FXAA, presque gratuit
+    const sceneTarget = new THREE.WebGLRenderTarget(1, 1, {
+      type: THREE.HalfFloatType,
+      samples: Math.min(4, renderer.capabilities.maxSamples),
+    });
+    const composer = new EffectComposer(renderer, sceneTarget);
     composer.setPixelRatio(pixelRatio);
     composer.addPass(new RenderPass(scene, camera));
     // Seuil > 1 (HDR) : seules les LED (émission ≥ 3) dépassent, pas les surfaces blanches éclairées
     const bloom = new UnrealBloomPass(new THREE.Vector2(512, 512), 0.8, 0.45, 1.6);
     composer.addPass(bloom);
     composer.addPass(new OutputPass());
+    const fxaa = new FXAAPass();
+    fxaa.enabled = sceneTarget.samples === 0;
+    composer.addPass(fxaa);
+    const useFxaa = () => {
+      for (const buffer of [composer.renderTarget1, composer.renderTarget2]) {
+        buffer.samples = 0;
+        buffer.dispose(); // réalloué sans multi-échantillonnage au prochain rendu
+      }
+      fxaa.enabled = true;
+    };
+    // Mesure de la fluidité sur les premières images (vue affichée, effets actifs)
+    const FRAMES_TO_CHECK = 120;
+    const frameTimes: number[] = [];
 
     const model = new PcModel(this.readAccent());
     // Sélection déjà connue (copie locale) : les pièces glissent en place dès l'ouverture
@@ -752,8 +782,18 @@ export class PcScene {
         return;
       }
       frame = requestAnimationFrame(loop);
-      const dt = Math.min(0.05, (now - previous) / 1000);
+      const interval = now - previous;
+      const dt = Math.min(0.05, interval / 1000);
       previous = now;
+      // Après le démarrage (installation des pièces, envoi des textures) : si l'image médiane
+      // dépasse 20 ms (< 50 i/s), le MSAA coûte trop cher à cette carte graphique
+      if (!low && !fxaa.enabled && frameTimes.length < FRAMES_TO_CHECK && interval < 250) {
+        frameTimes.push(interval);
+        if (frameTimes.length === FRAMES_TO_CHECK) {
+          const recent = frameTimes.slice(45).sort((a, b) => a - b);
+          if (recent[recent.length >> 1] > 20) useFxaa();
+        }
+      }
 
       if (this.flight) this.stepFlight(dt);
       // Balancement lent de la caméra quand personne n'interagit
@@ -821,6 +861,7 @@ export class PcScene {
       model.dispose();
       composer.dispose();
       bloom.dispose();
+      fxaa.dispose();
       environment.dispose();
       pmrem.dispose();
       background?.dispose();

@@ -3,6 +3,7 @@ import { DatePipe } from '@angular/common';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { catchError, of, switchMap } from 'rxjs';
+import { LogoMark } from '../components/logo-mark';
 import { Icon } from '../components/icon';
 import { AdminApiService } from '../core/admin-api';
 import { AuthService } from '../core/auth-service';
@@ -19,7 +20,7 @@ import { TndPipe } from '../core/tnd.pipe';
  */
 @Component({
   selector: 'app-invoice',
-  imports: [Icon, RouterLink, DatePipe, TndPipe, TPipe, ProductNamePipe],
+  imports: [Icon, LogoMark, RouterLink, DatePipe, TndPipe, TPipe, ProductNamePipe],
   template: `
     <div class="container page">
       <div class="toolbar no-print">
@@ -41,7 +42,7 @@ import { TndPipe } from '../core/tnd.pipe';
           <header class="top">
             <div class="seller">
               <div class="brand">
-                <span class="mark">BB</span>
+                <app-logo-mark class="mark" />
                 <span>Byte<b>Bazaar</b></span>
               </div>
               <p>{{ store.name }}</p>
@@ -223,15 +224,9 @@ import { TndPipe } from '../core/tnd.pipe';
       color: var(--brand);
     }
     .mark {
-      display: grid;
-      place-items: center;
+      flex: none;
       width: 34px;
       height: 34px;
-      border-radius: 10px;
-      background: var(--brand);
-      color: #fff;
-      font-size: var(--fs-sm);
-      font-weight: 800;
     }
     .meta {
       text-align: right;

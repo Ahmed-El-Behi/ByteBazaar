@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import type { ConfiguratorPart } from '../core/configurator-api';
 import type { Builder } from './pc-model';
+import { drawSitePreview } from './screen-preview';
 import { canvasTexture, isRgb, isWhite, productColor, seeded } from './three-utils';
 
 /** Dessus du bureau (le PC a ses pieds juste au-dessus) */
@@ -52,7 +53,7 @@ export function buildDesk(b: Builder) {
   const leg = b.mat(0x1b1d22, { metalness: 0.6, roughness: 0.4 });
   for (const x of [-182, 42]) b.box(4, 70, 74, leg, x, DESK_Y - 39, 0);
 
-  // Tapis de bureau avec liseré RGB
+  // Tapis de bureau
   b.rounded(
     140,
     0.3,
@@ -63,8 +64,6 @@ export function buildDesk(b: Builder) {
     DESK_Y + 0.15,
     21,
   );
-  b.strip(140, 0.2, 0.25, -76, DESK_Y + 0.32, 37);
-  b.strip(140, 0.2, 0.25, -76, DESK_Y + 0.32, 5);
 
   // Support de casque
   const metal = b.mat(0x22252c, { metalness: 0.8, roughness: 0.3 });
@@ -117,40 +116,8 @@ export function buildMonitor(b: Builder, part: ConfiguratorPart | null) {
     b.strip(width * 0.5, 0.3, 0.3, x, centerY + height * 0.3, z - 3.6);
   }
 
-  // Dalle allumée : fond d'écran ByteBazaar (dégradé, vagues RGB, fréquence)
-  const screen = b.track(
-    canvasTexture(1024, Math.round(1024 / aspect), (ctx) => {
-      const { width: w, height: h } = ctx.canvas;
-      const bg = ctx.createLinearGradient(0, 0, w, h);
-      bg.addColorStop(0, '#0b1230');
-      bg.addColorStop(0.55, '#1b1450');
-      bg.addColorStop(1, '#0a2238');
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, w, h);
-      for (let i = 0; i < 6; i++) {
-        ctx.strokeStyle = `hsla(${200 + i * 28}, 90%, 60%, 0.55)`;
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        for (let px = 0; px <= w; px += 16) {
-          const py = h * 0.62 + Math.sin(px / (110 + i * 14) + i) * h * 0.09 + i * 9;
-          if (px === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        }
-        ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.font = `800 ${Math.round(h * 0.12)}px "Segoe UI", system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillText('ByteBazaar', w / 2, h * 0.38);
-      ctx.fillStyle = 'rgba(200,210,255,0.75)';
-      ctx.font = `600 ${Math.round(h * 0.045)}px "Segoe UI", system-ui, sans-serif`;
-      ctx.fillText(
-        `${diagonal}" · ${part.monitor?.refreshRateHz ?? ''} Hz · ${part.monitor?.panelType ?? ''}`,
-        w / 2,
-        h * 0.47,
-      );
-    }),
-  );
+  // Dalle allumée : la page d'accueil de ByteBazaar ouverte dans un navigateur
+  const screen = b.track(canvasTexture(2048, Math.round(2048 / aspect), drawSitePreview));
   const panel = new THREE.Mesh(
     b.track(new THREE.PlaneGeometry(width, height)),
     b.track(new THREE.MeshBasicMaterial({ map: screen })),
@@ -211,7 +178,9 @@ export function buildKeyboard(b: Builder, part: ConfiguratorPart | null) {
   const cols = Math.floor((width - 1.2) / 1.9);
   const capMat = b.mat(white ? 0xf4f5f8 : 0x23262e, { roughness: 0.55, metalness: 0.05 });
   const keyGeo = b.track(new THREE.BoxGeometry(1.6, 0.9, 1.6));
-  const keys = b.track(new THREE.InstancedMesh(keyGeo, capMat, rows * cols));
+  // Matériau propre aux touches : partagé avec la barre d'espace (maillage simple), il obligerait
+  // three.js à changer de programme deux fois par image
+  const keys = b.track(new THREE.InstancedMesh(keyGeo, b.track(capMat.clone()), rows * cols));
   const matrix = new THREE.Matrix4();
   const x0 = x - ((cols - 1) * 1.9) / 2;
   const z0 = z - ((rows - 1) * 1.9) / 2;

@@ -407,6 +407,10 @@ interface StoredBuild {
       margin-bottom: 2rem;
       gap: 1rem;
     }
+    .config-header .btn {
+      flex: none;
+      white-space: nowrap;
+    }
     .config-header h1 {
       font-size: var(--fs-4xl);
       font-weight: 800;
