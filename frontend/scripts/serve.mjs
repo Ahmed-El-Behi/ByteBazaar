@@ -47,6 +47,8 @@ function proxy(req, res) {
         'x-forwarded-for': [req.headers['x-forwarded-for'], req.socket.remoteAddress]
           .filter(Boolean)
           .join(', '),
+        // Préfixe retiré ci-dessus : la documentation de l'API (/api/docs) s'en sert pour ses exemples
+        'x-forwarded-prefix': '/api',
       },
     },
     (apiRes) => {

@@ -51,6 +51,7 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
 
 ### Backend (`backend/src`)
 - `auth/` JWT auth, roles (`ADMIN` re-read from DB every request), password reset (15 min, single use, logs out sessions), rate-limit guard in `common/`.
+- **Swagger + DTOs**: `/docs` (and `/api/docs` through the site; the proxies send `X-Forwarded-Prefix: /api` so « Try it out » targets the right base — `patchDocumentOnRequest` in `main.ts`). Every request body is a DTO class (`<module>/<module>.dto.ts`, `class-validator` + `@ApiProperty`); global `validationPipe` (`common/validation.ts`: `transform`, `whitelist`, `stopAtFirstError`, errors → `badRequest(...)` = `{ message: string[] }`). DTO messages use `msg(fr, en)` / `invalid(labelFr, labelEn)` and **must stay identical to the service messages** (same texts, same order); services keep their checks (defence in depth) and every business rule. Helpers: `Trim`, `TrimLower`, `ToNumber` (« 12 » → 12), `Optional` (skips undefined/null/« »), `IsCompleteAddress`. Shared constants live in the DTO files (`EMAIL_RE`, `PASSWORD_MIN/MAX`, `MAX_QUANTITY`, `PAYMENT_METHODS`, `ADDRESS_FIELDS`). Add `@ApiTags/@ApiOperation` (French) and `@ApiBearerAuth` on new routes.
 - `catalog/` product list/detail, filters, sort; default sort **Pertinence** = `relevance.ts` (per-category popularity, daily-seeded randomness, availability; text match wins when searching).
 - `cart/`, `order/`, `admin/`, `mail/`:
   - `order/order-status.ts` — **pure rules**, unit-tested: forward-only transitions (DELIVERED/CANCELLED final), customer may cancel while PENDING/CONFIRMED, CARD/PAYPAL are paid at checkout (simulated), cancelling a paid order → REFUNDED.
@@ -134,7 +135,7 @@ best practices 100, SEO 91.
 
 ### Remaining / ideas
 - Fix the home page layout shift (CLS 0.94 → < 0.1) to reach Lighthouse performance ≥ 90.
-- Deployment (public URL), Swagger API docs + validated DTOs, Playwright e2e tests + CI, `core/` split into subfolders.
+- Deployment (public URL), Playwright e2e tests + CI, `core/` split into subfolders.
 - Speakers and webcams are in the catalogue but not in the 3D desk (only monitor/keyboard/mouse/headset).
 - Configurator could add cooler compatibility checks (socket support, AIO radiator vs case top-mount size, tower height vs case clearance) — currently cooler is only "present or warning".
 - Frontend has only a few unit tests (app creation, i18n); backend e2e tests require the dev DB.

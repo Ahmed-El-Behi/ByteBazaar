@@ -1,3 +1,5 @@
+import { ADDRESS_FIELDS } from '../common/validation';
+import { PAYMENT_METHODS } from './order.dto';
 import {
   BadRequestException,
   Injectable,
@@ -13,21 +15,6 @@ import { cancelOrderTx } from './order-cancel';
 import { customerCanCancel, initialPaymentStatus } from './order-status';
 
 export const SHIPPING_FEE = 7; // TND — doit rester identique à SHIPPING_FEE côté frontend (core/models.ts)
-
-const PAYMENT_METHODS = [
-  'CASH_ON_DELIVERY',
-  'CARD',
-  'PAYPAL',
-  'BANK_TRANSFER',
-] as const;
-const ADDRESS_FIELDS = [
-  'recipientName',
-  'phone',
-  'street',
-  'city',
-  'governorate',
-  'postalCode',
-] as const;
 
 const ORDER_INCLUDE = {
   items: {

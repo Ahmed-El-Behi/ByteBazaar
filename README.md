@@ -40,6 +40,9 @@ npm install
 npm start                     # http://localhost:4200
 ```
 
+Documentation interactive de l'API (Swagger) : http://localhost:3000/docs, ou http://localhost:4200/api/docs à
+travers le site. Pour tester les routes protégées : `POST /auth/login`, puis coller le `accessToken` dans « Authorize ».
+
 Pour donner le rôle administrateur à un compte :
 
 ```sql
@@ -50,7 +53,8 @@ UPDATE "User" SET role = 'ADMIN' WHERE email = 'vous@exemple.tn';
 
 - API : `npm run build` puis `npm run start:prod` (variables de `backend/.env.example`, `FRONTEND_URL` = domaine du site).
 - Site : `npm run build`, puis servir `frontend/dist/frontend/browser` (routes inconnues → `index.html`) en relayant
-  `/api/*` vers l'API (sans le préfixe). `npm run serve` le fait sur le port 4300 ; pour une API sur un autre
+  `/api/*` vers l'API (sans le préfixe), avec l'en-tête `X-Forwarded-Prefix: /api` (exemples de la documentation
+  `/api/docs`). `npm run serve` le fait sur le port 4300 ; pour une API sur un autre
   domaine, mettre son URL dans `frontend/src/environments/environment.ts`.
 - Compléter l'identification légale du vendeur dans `frontend/src/app/core/legal-content.ts` et ses coordonnées
   (facture, virement) dans `frontend/src/app/core/store-info.ts`.
@@ -80,3 +84,5 @@ cd frontend && npm run typecheck && npm run i18n:check && npm run format:check &
 - Routes `/admin/*` réservées aux comptes `ADMIN`, rôle relu en base à chaque requête.
 - Liens de réinitialisation valables 15 minutes, à usage unique.
 - Connexion, inscription et réinitialisation limitées en nombre de tentatives par adresse IP.
+- Corps de requête validés par des DTO (`class-validator`) : types, formats et bornes vérifiés avant les services,
+  champs inconnus ignorés (un client ne peut pas s'attribuer un rôle en l'ajoutant à sa requête).
