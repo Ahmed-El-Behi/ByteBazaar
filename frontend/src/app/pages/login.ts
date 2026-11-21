@@ -1,37 +1,40 @@
 import { Component, inject, signal } from '@angular/core';
+import { Icon } from '../components/icon';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../core/auth-service';
 import { apiErrors, safeRedirect } from '../core/utils';
+import { TPipe, translate } from '../core/i18n';
 
 @Component({
   selector: 'app-login',
-  imports: [RouterLink],
+  imports: [Icon, RouterLink, TPipe],
   template: `
     <div class="card auth-card">
       @if (!forgotMode()) {
-        <!-- FORMULAIRE DE CONNEXION -->
-        <h1>Connexion</h1>
-        <p class="muted">Retrouve ton compte ByteBazaar.</p>
+        <h1>{{ 'Connexion' | t }}</h1>
+        <p class="muted">{{ 'Retrouve ton compte ByteBazaar.' | t }}</p>
 
         @if (errors().length) {
           <div class="alert">
-            @for (e of errors(); track e) { <p>{{ e }}</p> }
+            @for (e of errors(); track e) {
+              <p>{{ e }}</p>
+            }
           </div>
         }
 
         <form (submit)="submit($event, email.value, password.value)">
           <div class="field">
-            <label for="email">Email</label>
+            <label for="email">{{ 'Email' | t }}</label>
             <input #email id="email" type="email" required autocomplete="email" />
           </div>
           <div class="field">
             <div class="field-header">
-              <label for="password">Mot de passe</label>
+              <label for="password">{{ 'Mot de passe' | t }}</label>
               <button type="button" class="link-btn" (click)="toggleForgotMode(true)">
-                Mot de passe oublié ?
+                {{ 'Mot de passe oublié ?' | t }}
               </button>
             </div>
-            
+
             <div class="password-wrapper">
               <input
                 #password
@@ -44,36 +47,36 @@ import { apiErrors, safeRedirect } from '../core/utils';
                 type="button"
                 class="eye-btn"
                 (click)="showPassword.set(!showPassword())"
-                aria-label="Afficher/Masquer le mot de passe"
+                [attr.aria-label]="'Afficher/Masquer le mot de passe' | t"
               >
                 @if (showPassword()) {
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                    <line x1="1" y1="1" x2="23" y2="23"/>
-                  </svg>
+                  <app-icon name="eyeOff" [size]="18" />
                 } @else {
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
+                  <app-icon name="eye" [size]="18" />
                 }
               </button>
             </div>
           </div>
           <button class="btn primary block" type="submit" [disabled]="busy()">
-            {{ busy() ? 'Connexion…' : 'Se connecter' }}
+            {{ (busy() ? 'Connexion…' : 'Se connecter') | t }}
           </button>
         </form>
 
-        <p class="muted switch">Pas encore de compte ? <a routerLink="/inscription" class="create-account-link">Créer un compte</a></p>
+        <p class="muted switch">
+          {{ 'Pas encore de compte ?' | t }}
+          <a routerLink="/inscription" class="create-account-link">{{ 'Créer un compte' | t }}</a>
+        </p>
       } @else {
-        <!-- FORMULAIRE MOT DE PASSE OUBLIÉ -->
-        <h1>Mot de passe oublié</h1>
-        <p class="muted">Saisis ton adresse email pour recevoir un lien de réinitialisation.</p>
+        <h1>{{ 'Mot de passe oublié' | t }}</h1>
+        <p class="muted">
+          {{ 'Saisis ton adresse email pour recevoir un lien de réinitialisation.' | t }}
+        </p>
 
         @if (errors().length) {
           <div class="alert">
-            @for (e of errors(); track e) { <p>{{ e }}</p> }
+            @for (e of errors(); track e) {
+              <p>{{ e }}</p>
+            }
           </div>
         }
 
@@ -84,44 +87,57 @@ import { apiErrors, safeRedirect } from '../core/utils';
         } @else {
           <form (submit)="submitForgot($event, forgotEmail.value)">
             <div class="field">
-              <label for="forgotEmail">Email</label>
-              <input #forgotEmail id="forgotEmail" type="email" required autocomplete="email" placeholder="exemple@email.tn" />
+              <label for="forgotEmail">{{ 'Email' | t }}</label>
+              <input
+                #forgotEmail
+                id="forgotEmail"
+                type="email"
+                required
+                autocomplete="email"
+                [placeholder]="'exemple@email.tn' | t"
+              />
             </div>
             <button class="btn primary block" type="submit" [disabled]="busy()">
-              {{ busy() ? 'Envoi en cours…' : 'Envoyer le lien de réinitialisation' }}
+              {{ (busy() ? 'Envoi en cours…' : 'Envoyer le lien de réinitialisation') | t }}
             </button>
           </form>
         }
 
         <p class="muted switch">
           <button type="button" class="link-btn" (click)="toggleForgotMode(false)">
-            ← Retour à la connexion
+            <app-icon name="arrowLeft" [size]="16" /> {{ 'Retour à la connexion' | t }}
           </button>
         </p>
       }
     </div>
   `,
   styles: `
-    .switch { margin-top: 1.2rem; text-align: center; }
+    .switch {
+      margin-top: 1.2rem;
+      text-align: center;
+    }
     .field-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.3rem;
     }
-    .field-header label { margin-bottom: 0; }
-    
-    /* BOUTON MOT DE PASSE OUBLIÉ (SANS SOULIGNEMENT) */
+    .field-header label {
+      margin-bottom: 0;
+    }
+
     .link-btn {
       background: none;
       border: none;
-      color: var(--accent, #f59e0b);
-      font-size: 0.85rem;
+      color: var(--accent, var(--accent));
+      font-size: var(--fs-md);
       font-weight: 600;
       cursor: pointer;
       padding: 0;
       text-decoration: none; /* Supprime le soulignement */
-      transition: opacity 0.2s ease, filter 0.2s ease;
+      transition:
+        opacity 0.2s ease,
+        filter 0.2s ease;
     }
     .link-btn:hover {
       opacity: 0.9;
@@ -129,7 +145,7 @@ import { apiErrors, safeRedirect } from '../core/utils';
     }
 
     .create-account-link {
-      color: var(--accent, #f59e0b);
+      color: var(--accent, var(--accent));
       font-weight: 600;
       text-decoration: none;
     }
@@ -138,11 +154,11 @@ import { apiErrors, safeRedirect } from '../core/utils';
     }
 
     .alert-success {
-      background: rgba(34, 197, 94, 0.15);
-      border: 1px solid rgba(34, 197, 94, 0.4);
-      color: #22c55e;
+      background: color-mix(in srgb, var(--green) 15%, transparent);
+      border: 1px solid color-mix(in srgb, var(--green) 40%, transparent);
+      color: var(--green);
       padding: 0.8rem 1rem;
-      border-radius: 10px;
+      border-radius: var(--r-sm);
       margin-bottom: 1rem;
     }
     .password-wrapper {
@@ -215,7 +231,8 @@ export class LoginPage {
       next: (res: any) => {
         this.busy.set(false);
         this.successMessage.set(
-          res?.message || 'Un email contenant le lien de réinitialisation vous a été envoyé.'
+          res?.message ||
+            translate('Un email contenant le lien de réinitialisation vous a été envoyé.'),
         );
       },
       error: (e) => {

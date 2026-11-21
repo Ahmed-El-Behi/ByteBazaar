@@ -10,6 +10,12 @@ export class CatalogController {
     return this.catalog.listCategories();
   }
 
+  /** Photo de chaque catégorie (tuiles de l'accueil) */
+  @Get('categories/covers')
+  categoryCovers() {
+    return this.catalog.categoryCovers();
+  }
+
   @Get('brands')
   brands() {
     return this.catalog.listBrands();
@@ -18,6 +24,12 @@ export class CatalogController {
   @Get('products')
   products(@Query() query: Record<string, string | undefined>) {
     return this.catalog.listProducts(query);
+  }
+
+  /** Vitrine de l'accueil : 3 produits phares tirés au hasard à chaque appel */
+  @Get('products/showcase')
+  showcase() {
+    return this.catalog.showcase();
   }
 
   @Get('products/:slug')

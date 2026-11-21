@@ -1,58 +1,43 @@
 import { Component, inject } from '@angular/core';
+import { Icon } from '../components/icon';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth-service';
+import { TPipe } from '../core/i18n';
 
 @Component({
   standalone: true,
   selector: 'app-account',
-  imports: [CommonModule, RouterLink, RouterLinkActive, RouterOutlet],
+  imports: [Icon, CommonModule, RouterLink, RouterLinkActive, RouterOutlet, TPipe],
   template: `
     <div class="account-container">
-      <h1 class="page-title">Mon compte</h1>
+      <h1 class="page-title">{{ 'Mon compte' | t }}</h1>
 
       <div class="account-grid">
-        <!-- Sidebar Navigation -->
         <aside class="sidebar-card">
           <nav class="nav-list">
             <a routerLink="profil" routerLinkActive="active" class="nav-item">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                <circle cx="12" cy="7" r="4"/>
-              </svg>
-              <span>Profil et adresses</span>
+              <app-icon name="user" [size]="18" />
+              <span>{{ 'Profil et adresses' | t }}</span>
             </a>
 
             <a routerLink="commandes" routerLinkActive="active" class="nav-item">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-                <line x1="3" y1="6" x2="21" y2="6"/>
-                <path d="M16 10a4 4 0 0 1-8 0"/>
-              </svg>
-              <span>Mes commandes</span>
+              <app-icon name="orders" [size]="18" />
+              <span>{{ 'Mes commandes' | t }}</span>
             </a>
 
             <a routerLink="configurations" routerLinkActive="active" class="nav-item">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                <line x1="8" y1="21" x2="16" y2="21"/>
-                <line x1="12" y1="17" x2="12" y2="21"/>
-              </svg>
-              <span>Mes configurations</span>
+              <app-icon name="monitor" [size]="18" />
+              <span>{{ 'Mes configurations' | t }}</span>
             </a>
 
             <button type="button" class="nav-item logout" (click)="auth.logout()">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
-              </svg>
-              <span>Déconnexion</span>
+              <app-icon name="logout" [size]="18" />
+              <span>{{ 'Déconnexion' | t }}</span>
             </button>
           </nav>
         </aside>
 
-        <!-- Zone Principale -->
         <main class="main-content">
           <router-outlet></router-outlet>
         </main>
@@ -67,7 +52,7 @@ import { AuthService } from '../core/auth-service';
     }
 
     .page-title {
-      font-size: 1.8rem;
+      font-size: var(--fs-3xl);
       font-weight: 700;
       color: var(--text);
       margin-bottom: 1.5rem;
@@ -81,13 +66,15 @@ import { AuthService } from '../core/auth-service';
     }
 
     @media (max-width: 768px) {
-      .account-grid { grid-template-columns: 1fr; }
+      .account-grid {
+        grid-template-columns: 1fr;
+      }
     }
 
     .sidebar-card {
       background: var(--surface-2);
       border: 1px solid var(--border);
-      border-radius: 14px;
+      border-radius: var(--r-md);
       padding: 0.6rem;
     }
 
@@ -102,10 +89,10 @@ import { AuthService } from '../core/auth-service';
       align-items: center;
       gap: 0.75rem;
       padding: 0.75rem 1rem;
-      border-radius: 10px;
+      border-radius: var(--r-sm);
       color: var(--muted);
       text-decoration: none;
-      font-size: 0.9rem;
+      font-size: var(--fs-md);
       font-weight: 500;
       transition: all 0.2s ease;
       background: transparent;
@@ -128,16 +115,16 @@ import { AuthService } from '../core/auth-service';
     }
 
     .nav-item.logout {
-      color: #ef4444;
+      color: var(--red);
       margin-top: 0.5rem;
       border-top: 1px solid var(--border);
-      border-radius: 0 0 10px 10px;
+      border-radius: 0 0 var(--r-sm) var(--r-sm);
     }
 
     .nav-item.logout:hover {
-      background: rgba(239, 68, 68, 0.1);
+      background: color-mix(in srgb, var(--red) 10%, transparent);
     }
-  `
+  `,
 })
 export class AccountPage {
   readonly auth = inject(AuthService);

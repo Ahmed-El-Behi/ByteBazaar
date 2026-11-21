@@ -1,19 +1,41 @@
-
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { HIDDEN_SPECS, SPEC_LABELS, translateSpecValue } from '../core/spec-labels';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { catchError, map, of, startWith, switchMap } from 'rxjs';
 import { CatalogApi } from '../core/catalog-api';
-import { ProductDetail } from '../core/models';
+import { ProductDetail, ProductListItem } from '../core/models';
+import { ConfiguratorApi } from '../core/configurator-api';
+import { ToastService } from '../core/toast.service';
+import { ProductCard } from '../components/product-card';
+import { Icon } from '../components/icon';
 import { TndPipe } from '../core/tnd.pipe';
 import { CartStateService } from '../core/cart.service';
 import { apiErrors } from '../core/utils';
+import {
+  I18nService,
+  LocalNamePipe,
+  ProductNamePipe,
+  TPipe,
+  localProductName,
+  translate,
+} from '../core/i18n';
 
 type State =
   | { status: 'loading' | 'notfound' | 'error'; product: null }
   | { status: 'ok'; product: ProductDetail };
 
+// Données structurées affichées en plus des caractéristiques de la source (celles qu'elles n'ont pas)
+const TECH_EXTRAS: Record<string, string[]> = {
+  cpu: ['socket'],
+  motherboard: ['chipset', 'ramType'],
+  gpu: ['tdpWatts'],
+  pcCase: ['supportedFormFactors', 'sfxOnly'],
+};
+
+// Libellés traduits à l'affichage (core/i18n-en.ts)
+// i18n
 const LABELS: Record<string, string> = {
   socket: 'Socket',
   cores: 'Cœurs',
@@ -39,10 +61,35 @@ const LABELS: Record<string, string> = {
   isModular: 'Modulaire',
   supportedFormFactors: 'Formats supportés',
   maxGpuLengthMm: 'Longueur GPU max (mm)',
+  sfxOnly: 'Alimentation SFX uniquement',
+  // Périphériques
+  screenSizeIn: 'Taille (pouces)',
+  resolutionWidth: 'Résolution horizontale (px)',
+  resolutionHeight: 'Résolution verticale (px)',
+  refreshRateHz: 'Fréquence (Hz)',
+  responseTimeMs: 'Temps de réponse (ms)',
+  panelType: 'Dalle',
+  aspectRatio: "Format d'image",
+  wireless: 'Sans fil',
+  maxDpi: 'DPI max',
+  trackingMethod: 'Capteur',
+  handOrientation: 'Orientation',
+  tenkeyless: 'Sans pavé numérique (TKL)',
+  style: 'Style',
+  switches: 'Switchs',
+  backlight: 'Rétroéclairage',
+  microphone: 'Microphone',
+  enclosureType: 'Conception',
+  channels: 'Canaux',
+  maxResolution: 'Résolution max',
+  focusType: 'Mise au point',
+  fovDegrees: 'Champ de vision (°)',
+  connection: 'Connexion',
 };
+// /i18n
 
 function formatValue(value: unknown): string {
-  if (typeof value === 'boolean') return value ? 'Oui' : 'Non';
+  if (typeof value === 'boolean') return value ? translate('Oui') : translate('Non');
 
   if (Array.isArray(value)) {
     return value.map((v) => String(v).replaceAll('_', ' ')).join(', ');
@@ -53,49 +100,39 @@ function formatValue(value: unknown): string {
 
 @Component({
   selector: 'app-product-detail',
-  imports: [RouterLink, TndPipe],
+  imports: [RouterLink, TndPipe, TPipe, LocalNamePipe, ProductNamePipe, ProductCard, Icon],
   template: `
     <div class="container page">
       @if (state().product; as p) {
         <nav class="crumbs muted">
-          <a routerLink="/produits">Catalogue</a> ›
-          <a
-            routerLink="/produits"
-            [queryParams]="{ category: p.category.slug }"
-          >
-            {{ p.category.nameFr }}
+          <a routerLink="/produits">{{ 'Catalogue' | t }}</a> ›
+          <a routerLink="/produits" [queryParams]="{ category: p.category.slug }">
+            {{ p.category | localName }}
           </a>
-          › {{ p.name }}
+          › {{ p.name | productName }}
         </nav>
 
         <div class="main">
           <div class="card ph">
             @if (p.images.length) {
-              <img
-                [src]="p.images[0].url"
-                [alt]="p.images[0].altText ?? p.name"
-              />
+              <img [src]="p.images[0].url" [alt]="p.images[0].altText ?? p.name | productName" />
             } @else {
               <span>{{ p.brand.name }}</span>
             }
           </div>
 
           <div class="info">
-            <small class="muted">
-              {{ p.brand.name }} · Réf. {{ p.sku }}
-            </small>
+            <small class="muted"> {{ p.brand.name }} · {{ 'Réf.' | t }} {{ p.sku }} </small>
 
-            <h1>{{ p.name }}</h1>
+            <h1>{{ p.name | productName }}</h1>
 
-            <p class="desc">{{ p.descriptionFr }}</p>
+            <p class="desc">{{ description(p) }}</p>
 
             <div class="buy card">
               <strong class="price">{{ p.price | tnd }}</strong>
 
               <span class="badge" [class.ok]="p.isAvailable">
-                {{
-                  p.isAvailable ? 'En stock' : 'Rupture de stock'
-                }}
+                {{ (p.isAvailable ? 'En stock' : 'Rupture de stock') | t }}
               </span>
 
               <button
@@ -103,18 +140,10 @@ function formatValue(value: unknown): string {
                 [disabled]="!p.isAvailable || adding()"
                 (click)="addToCart(p)"
               >
-                {{ adding() ? 'Ajout...' : 'Ajouter au panier' }}
+                <app-icon name="cart" [size]="17" [stroke]="2.2" />
+                {{ (adding() ? 'Ajout...' : 'Ajouter au panier') | t }}
               </button>
             </div>
-
-            @if (feedbackMsg()) {
-              <p
-                class="badge ok"
-                style="margin-top:0.8rem; display:inline-block;"
-              >
-                {{ feedbackMsg() }}
-              </p>
-            }
 
             @if (errorMsg()) {
               <p class="badge" style="margin-top:0.8rem; display:inline-block;">{{ errorMsg() }}</p>
@@ -122,9 +151,50 @@ function formatValue(value: unknown): string {
           </div>
         </div>
 
-        @if (techRows().length || p.specs.length) {
+        <!-- Vente additionnelle : pièces compatibles, affichées après l'ajout au panier -->
+        @if (suggestions(); as list) {
+          <section class="upsell">
+            <div class="upsell-head">
+              <span class="upsell-icon"><app-icon name="sparkles" [size]="20" /></span>
+              <div>
+                <h2>{{ 'Complétez votre achat' | t }}</h2>
+                <p class="muted">
+                  {{
+                    'Des pièces compatibles avec ce produit, parmi les plus appréciées et en stock.'
+                      | t
+                  }}
+                </p>
+              </div>
+            </div>
+            @if (list.length) {
+              <div class="grid-products upsell-grid">
+                @for (s of list; track s.id) {
+                  <app-product-card [product]="s" />
+                }
+              </div>
+              <div class="upsell-foot">
+                <a routerLink="/produits" class="btn">
+                  {{ 'Voir tout le catalogue' | t }}
+                  <app-icon name="arrowRight" [size]="16" [stroke]="2.2" />
+                </a>
+              </div>
+            } @else if (suggestionsLoading()) {
+              <div class="grid-products upsell-grid">
+                @for (i of [0, 1, 2, 3]; track i) {
+                  <div class="card sk-card">
+                    <div class="skeleton sk-img"></div>
+                    <div class="skeleton sk-line"></div>
+                    <div class="skeleton sk-line short"></div>
+                  </div>
+                }
+              </div>
+            }
+          </section>
+        }
+
+        @if (techRows().length || specRows().length) {
           <section class="card specs">
-            <h2>Caractéristiques</h2>
+            <h2>{{ 'Caractéristiques' | t }}</h2>
 
             <table>
               @for (r of techRows(); track r.label) {
@@ -134,10 +204,10 @@ function formatValue(value: unknown): string {
                 </tr>
               }
 
-              @for (s of p.specs; track s.id) {
+              @for (s of specRows(); track s.id) {
                 <tr>
-                  <th>{{ s.name }}</th>
-                  <td>{{ s.valueText }}</td>
+                  <th>{{ s.label }}</th>
+                  <td>{{ s.value }}</td>
                 </tr>
               }
             </table>
@@ -145,17 +215,17 @@ function formatValue(value: unknown): string {
         }
       } @else if (state().status === 'notfound') {
         <p class="card empty">
-          Ce produit n'existe pas.
+          {{ "Ce produit n'existe pas." | t }}
           <a routerLink="/produits">
-            <u>Retour au catalogue</u>
+            <u>{{ 'Retour au catalogue' | t }}</u>
           </a>
         </p>
       } @else if (state().status === 'error') {
         <p class="card empty">
-          Impossible de joindre le serveur. Le backend est-il lancé ?
+          {{ 'Impossible de joindre le serveur. Le backend est-il lancé ?' | t }}
         </p>
       } @else {
-        <p class="muted">Chargement…</p>
+        <p class="muted">{{ 'Chargement…' | t }}</p>
       }
     </div>
   `,
@@ -166,7 +236,7 @@ function formatValue(value: unknown): string {
     }
 
     .crumbs {
-      font-size: 0.9rem;
+      font-size: var(--fs-md);
       margin-bottom: 1.2rem;
     }
 
@@ -174,7 +244,6 @@ function formatValue(value: unknown): string {
       color: var(--accent);
     }
 
-    /* Organisation générale */
     .main {
       display: grid;
       grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
@@ -182,7 +251,6 @@ function formatValue(value: unknown): string {
       align-items: start;
     }
 
-    /* Cadre de l'image */
     .ph {
       width: 100%;
       max-width: 380px;
@@ -200,7 +268,6 @@ function formatValue(value: unknown): string {
       box-sizing: border-box;
     }
 
-    /* Image parfaitement centrée */
     .ph img {
       display: block;
       width: 100%;
@@ -216,7 +283,7 @@ function formatValue(value: unknown): string {
     }
 
     h1 {
-      font-size: 1.9rem;
+      font-size: var(--fs-3xl);
       line-height: 1.25;
       margin: 0.5rem 0 0.8rem;
     }
@@ -226,7 +293,6 @@ function formatValue(value: unknown): string {
       line-height: 1.7;
     }
 
-    /* Bloc prix et panier */
     .buy {
       display: flex;
       flex-wrap: wrap;
@@ -239,16 +305,106 @@ function formatValue(value: unknown): string {
     }
 
     .price {
-      font-size: 1.7rem;
+      font-size: var(--fs-3xl);
       color: var(--accent);
       margin-right: auto;
     }
 
-    /* Caractéristiques */
+    .buy .btn.primary {
+      padding: 0.8rem 1.4rem;
+    }
+
+    .upsell {
+      margin-top: 2rem;
+      padding: 1.4rem;
+      border-radius: var(--r-xl);
+      border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+      background:
+        radial-gradient(
+          500px circle at 0% 0%,
+          color-mix(in srgb, var(--accent) 9%, transparent),
+          transparent 60%
+        ),
+        radial-gradient(
+          400px circle at 100% 100%,
+          color-mix(in srgb, var(--pink) 7%, transparent),
+          transparent 60%
+        ),
+        var(--card-bg);
+      box-shadow: var(--shadow);
+      animation: upsell-in 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+    @keyframes upsell-in {
+      from {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+    }
+    .upsell-head {
+      display: flex;
+      align-items: center;
+      gap: 0.9rem;
+      margin-bottom: 1.1rem;
+    }
+    .upsell-head h2 {
+      margin: 0;
+      font-size: var(--fs-xl);
+    }
+    .upsell-head p {
+      margin: 0.15rem 0 0;
+      font-size: var(--fs-sm);
+    }
+    .upsell-icon {
+      display: grid;
+      place-items: center;
+      flex: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--pink));
+      color: #fff;
+      box-shadow: 0 10px 20px -10px color-mix(in srgb, var(--pink) 70%, transparent);
+    }
+    /* 3 colonnes : deux propositions par type de pièce */
+    .upsell-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    @media (max-width: 800px) {
+      .upsell-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 480px) {
+      .upsell-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .upsell-foot {
+      display: flex;
+      justify-content: center;
+      margin-top: 1.3rem;
+    }
+    .sk-card {
+      padding: 0.6rem;
+    }
+    .sk-img {
+      aspect-ratio: 4 / 3;
+      border-radius: var(--r-xl);
+    }
+    .sk-line {
+      height: 14px;
+      border-radius: 6px;
+      margin: 1rem 0.5rem 0;
+    }
+    .sk-line.short {
+      width: 45%;
+      margin-bottom: 0.8rem;
+    }
+
     .specs {
       margin-top: 2rem;
       padding: 1.2rem 1.4rem;
-      border-radius: 28px;
+      border-radius: var(--r-xl);
     }
 
     table {
@@ -275,7 +431,6 @@ function formatValue(value: unknown): string {
       color: var(--muted);
     }
 
-    /* Tablettes et mobiles */
     @media (max-width: 800px) {
       .main {
         grid-template-columns: 1fr;
@@ -292,7 +447,7 @@ function formatValue(value: unknown): string {
       }
 
       h1 {
-        font-size: 1.6rem;
+        font-size: var(--fs-2xl);
       }
 
       .buy {
@@ -307,7 +462,7 @@ function formatValue(value: unknown): string {
       }
 
       .price {
-        font-size: 1.4rem;
+        font-size: var(--fs-2xl);
       }
     }
   `,
@@ -315,23 +470,27 @@ function formatValue(value: unknown): string {
 export class ProductDetailPage {
   private api = inject(CatalogApi);
   private cartState = inject(CartStateService);
+  private configuratorApi = inject(ConfiguratorApi);
+  private toast = inject(ToastService);
+  readonly i18n = inject(I18nService);
 
   slug = input.required<string>();
 
   adding = signal(false);
-  feedbackMsg = signal<string | null>(null);
+  /** Pièces compatibles proposées après l'ajout au panier (null : pas encore demandées) */
+  readonly suggestions = signal<ProductListItem[] | null>(null);
+  readonly suggestionsLoading = signal(false);
+  private suggestionsFor: number | null = null;
   errorMsg = signal<string | null>(null);
 
   readonly state = toSignal<State, State>(
     toObservable(this.slug).pipe(
       switchMap((slug) =>
         this.api.product(slug).pipe(
-          map(
-            (product): State => ({
-              status: 'ok',
-              product,
-            }),
-          ),
+          map((product): State => ({
+            status: 'ok',
+            product,
+          })),
           catchError((e: HttpErrorResponse) =>
             of<State>({
               status: e.status === 404 ? 'notfound' : 'error',
@@ -353,23 +512,81 @@ export class ProductDetailPage {
     },
   );
 
+  constructor() {
+    effect(() => {
+      this.slug();
+      this.suggestions.set(null);
+      this.suggestionsFor = null;
+      this.errorMsg.set(null);
+    });
+  }
+
+  /** Caractéristiques de la source, traduites (sans doublon avec les données structurées). */
+  readonly specRows = computed(() => {
+    // Les caractéristiques de la source sont en anglais : traduites en français, telles quelles en anglais
+    const english = this.i18n.lang() === 'en';
+    return (this.state().product?.specs ?? [])
+      .filter((s) => !HIDDEN_SPECS.has(s.name))
+      .map((s) =>
+        english
+          ? { id: s.id, label: s.name, value: s.valueText }
+          : {
+              id: s.id,
+              label: SPEC_LABELS[s.name] ?? s.name,
+              value: translateSpecValue(s.valueText),
+            },
+      );
+  });
+
   readonly techRows = computed(() => {
     const technical = this.state().product?.technical;
+    this.i18n.lang(); // libellés et Oui / Non selon la langue
 
     if (!technical) return [];
 
+    const extras = TECH_EXTRAS[String(technical['kind'])] ?? [];
     return Object.entries(technical)
-      .filter(
-        ([key, value]) =>
-          key !== 'kind' &&
-          value !== null &&
-          value !== undefined,
-      )
+      .filter(([key, value]) => extras.includes(key) && value !== null && value !== undefined)
       .map(([key, value]) => ({
-        label: LABELS[key] ?? key,
+        label:
+          technical['kind'] === 'gpu' && key === 'tdpWatts'
+            ? this.i18n.t('Consommation (W)')
+            : this.i18n.t(LABELS[key] ?? key),
         value: formatValue(value),
       }));
   });
+
+  /** Description dans la langue choisie (le nom du produit qu'elle cite garde sa couleur traduite) */
+  description(p: ProductDetail): string {
+    if (this.i18n.lang() !== 'en' || !p.descriptionEn) return p.descriptionFr;
+    return p.descriptionEn.split(p.name).join(localProductName(p.name, 'en'));
+  }
+
+  /** Charge (une fois par produit) les pièces compatibles à proposer, puis les fait apparaître */
+  private loadSuggestions(productId: number) {
+    if (this.suggestionsFor === productId) return;
+    this.suggestionsFor = productId;
+    this.suggestionsLoading.set(true);
+    this.suggestions.set([]);
+    this.configuratorApi.suggestions(productId).subscribe({
+      next: (list) => {
+        if (this.suggestionsFor !== productId) return;
+        this.suggestionsLoading.set(false);
+        this.suggestions.set(list.length ? list : null);
+        setTimeout(
+          () =>
+            document
+              .querySelector('.upsell')
+              ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }),
+          80,
+        );
+      },
+      error: () => {
+        this.suggestionsLoading.set(false);
+        this.suggestions.set(null);
+      },
+    });
+  }
 
   addToCart(p: ProductDetail) {
     this.adding.set(true);
@@ -387,8 +604,8 @@ export class ProductDetailPage {
     this.cartState.addItem(product, 1).subscribe({
       next: () => {
         this.adding.set(false);
-        this.feedbackMsg.set('Produit ajouté au panier !');
-        setTimeout(() => this.feedbackMsg.set(null), 3000);
+        this.toast.added(p.name, product.image?.url);
+        this.loadSuggestions(p.id);
       },
       error: (e) => {
         this.adding.set(false);

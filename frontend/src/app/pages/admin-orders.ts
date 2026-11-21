@@ -1,152 +1,265 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { Component, computed, inject, input, signal } from '@angular/core';
+import { DatePipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
+import { AdminNav } from '../components/admin-nav';
+import { Icon, type IconName } from '../components/icon';
+import { OrderTimeline } from '../components/order-timeline';
 import { AdminApiService, type AdminOrder } from '../core/admin-api';
+import { ProductNamePipe, TPipe, translate } from '../core/i18n';
+import {
+  PAYMENT_LABELS,
+  PAYMENT_STATUS_LABELS,
+  STATUS_LABELS,
+  paymentTone,
+  statusTone,
+  type OrderStatus,
+  type PaymentStatus,
+} from '../core/orders-api';
+import { ToastService } from '../core/toast.service';
 import { TndPipe } from '../core/tnd.pipe';
 import { apiErrors } from '../core/utils';
 
-const STATUS_ORDER: Record<string, number> = {
-  PENDING: 1,
-  CONFIRMED: 2,
-  SHIPPED: 3,
-  DELIVERED: 4,
-  CANCELLED: 99
-};
+type Filter = 'toutes' | 'a-traiter' | 'expediees' | 'livrees' | 'annulees' | 'virements';
 
-interface StatusChangePayload {
+// i18n
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: 'toutes', label: 'Toutes' },
+  { id: 'a-traiter', label: 'À traiter' },
+  { id: 'expediees', label: 'Expédiées' },
+  { id: 'livrees', label: 'Livrées' },
+  { id: 'annulees', label: 'Annulées' },
+  { id: 'virements', label: 'Virements en attente' },
+];
+
+/** Étape suivante proposée pour chaque statut, avec le libellé de son bouton */
+const NEXT: Partial<Record<OrderStatus, { status: OrderStatus; label: string; icon: IconName }>> = {
+  PENDING: { status: 'CONFIRMED', label: 'Confirmer', icon: 'check' },
+  CONFIRMED: { status: 'PREPARING', label: 'Lancer la préparation', icon: 'package' },
+  PREPARING: { status: 'SHIPPED', label: 'Marquer expédiée', icon: 'truck' },
+  SHIPPED: { status: 'DELIVERED', label: 'Marquer livrée', icon: 'checkCircle' },
+};
+// /i18n
+
+function matches(o: AdminOrder, filter: Filter): boolean {
+  switch (filter) {
+    case 'a-traiter':
+      return ['PENDING', 'CONFIRMED', 'PREPARING'].includes(o.status);
+    case 'expediees':
+      return o.status === 'SHIPPED';
+    case 'livrees':
+      return o.status === 'DELIVERED';
+    case 'annulees':
+      return o.status === 'CANCELLED';
+    case 'virements':
+      return (
+        o.paymentMethod === 'BANK_TRANSFER' &&
+        o.paymentStatus === 'PENDING' &&
+        o.status !== 'CANCELLED'
+      );
+    default:
+      return true;
+  }
+}
+
+interface Pending {
   order: AdminOrder;
-  targetStatus: string;
-  selectElement?: HTMLSelectElement;
+  change: { status?: OrderStatus; paymentStatus?: PaymentStatus };
+  title: string;
 }
 
 @Component({
-  standalone: true,
   selector: 'app-admin-orders',
-  imports: [CommonModule, FormsModule, TndPipe],
+  imports: [AdminNav, Icon, OrderTimeline, RouterLink, DatePipe, TndPipe, TPipe, ProductNamePipe],
   template: `
     <div class="container page">
-      <div class="header">
+      <app-admin-nav />
+
+      <header class="head">
         <div>
-          <h1>Gestion des Commandes</h1>
-          <p class="muted">Gérez le suivi des livraisons et les statuts des commandes clients.</p>
+          <h1>{{ 'Commandes' | t }}</h1>
+          <p class="muted">{{ '{n} commande(s) au total' | t: { n: orders().length } }}</p>
         </div>
-        <button class="btn primary btn-refresh-header" (click)="loadOrders()" type="button">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.5 2v6h-6M2.5 22v-6h6" />
-            <path d="M2 11.5a10 10 0 0 1 18.8-4.3L21.5 8M2.5 16l1.2 0.8A10 10 0 0 0 22 12.5" />
-          </svg>
-          Actualiser
+        <button type="button" class="btn" (click)="load()" [disabled]="loading()">
+          <app-icon name="refresh" [size]="16" /> {{ 'Actualiser' | t }}
         </button>
+      </header>
+
+      <div class="toolbar">
+        <label class="search">
+          <app-icon name="search" [size]="16" />
+          <input
+            type="search"
+            [value]="query()"
+            (input)="query.set($any($event.target).value)"
+            [placeholder]="'Référence, client, e-mail ou téléphone…' | t"
+            [attr.aria-label]="'Rechercher une commande' | t"
+          />
+        </label>
+        <div class="filters" role="tablist">
+          @for (f of filters; track f.id) {
+            <button
+              type="button"
+              role="tab"
+              [attr.aria-selected]="filter() === f.id"
+              [class.on]="filter() === f.id"
+              (click)="filter.set(f.id)"
+            >
+              {{ f.label | t }} <span class="count">{{ counts()[f.id] }}</span>
+            </button>
+          }
+        </div>
       </div>
 
-      @if (errorMessage()) {
-        <div class="alert red" style="margin-bottom: 1rem;">{{ errorMessage() }}</div>
+      @if (error()) {
+        <p class="alert">{{ error() }}</p>
       }
 
-      @if (loading()) {
-        <p class="muted">Chargement des commandes admin...</p>
-      } @else {
-        <div class="card table-wrapper">
-          <table class="orders-table">
+      <section class="card list" [class.refreshing]="loading() && orders().length">
+        @if (loading() && !orders().length) {
+          <div class="skeleton sk-list"></div>
+        } @else if (!visible().length) {
+          <p class="muted none">{{ 'Aucune commande ne correspond.' | t }}</p>
+        } @else {
+          <table>
             <thead>
               <tr>
-                <th>Réf.</th>
-                <th>Client</th>
-                <th>Date</th>
-                <th>Total</th>
-                <th>Mode Paiement</th>
-                <th>Statut Commande</th>
-                <th style="text-align: right;"></th>
+                <th>{{ 'Réf.' | t }}</th>
+                <th class="hide-xs">{{ 'Client' | t }}</th>
+                <th class="hide-sm">{{ 'Date' | t }}</th>
+                <th>{{ 'Statut' | t }}</th>
+                <th class="hide-sm">{{ 'Paiement' | t }}</th>
+                <th class="num">{{ 'Total' | t }}</th>
+                <th>
+                  <span class="sr-only">{{ 'Détails' | t }}</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              @for (o of orders(); track o.id) {
-                <tr [class.locked-row]="isLocked(o.status)">
-                  <td><strong>{{ o.reference }}</strong></td>
-                  <td>
-                    <div class="client-info">
-                      <span class="client-name">{{ o.user?.firstName }} {{ o.user?.lastName }}</span>
-                      <small class="muted">{{ o.user?.email }}</small>
-                    </div>
+              @for (o of visible(); track o.id) {
+                <tr class="row" [class.open]="openId() === o.id" (click)="toggle(o.id)">
+                  <td class="c-ref">
+                    <strong class="nowrap">{{ o.reference }}</strong>
+                    <small class="muted block only-xs"
+                      >{{ o.user?.firstName }} {{ o.user?.lastName }}</small
+                    >
                   </td>
-                  <td><span class="date">{{ o.createdAt | date:'dd/MM/yyyy HH:mm' }}</span></td>
-                  <td><strong>{{ o.total | tnd }}</strong></td>
-                  
-                  <!-- MODE PAIEMENT -->
-                  <td>
-                    <span class="payment-method-badge" [ngClass]="getPaymentMethodClass(o.paymentMethod)">
-                      {{ getPaymentMethodLabel(o.paymentMethod) }}
-                    </span>
+                  <td class="hide-xs">
+                    <span class="client">{{ o.user?.firstName }} {{ o.user?.lastName }}</span>
+                    <small class="muted block hide-sm">{{ o.user?.email }}</small>
                   </td>
-
-                  <!-- STATUT COMMANDE AVEC SÉLECTEUR PERSONNALISÉ -->
-                  <td>
-                    <div class="select-container">
-                      <select
-                        class="select-badge"
-                        [ngClass]="getOrderStatusClass(o.status)"
-                        [value]="o.status"
-                        [disabled]="isLocked(o.status)"
-                        (change)="promptStatusChange($event, o)"
-                      >
-                        <option value="PENDING" [disabled]="isOptionDisabled(o.status, 'PENDING')">
-                          Reçue (En attente)
-                        </option>
-                        <option value="CONFIRMED" [disabled]="isOptionDisabled(o.status, 'CONFIRMED')">
-                          Confirmée
-                        </option>
-                        <option value="SHIPPED" [disabled]="isOptionDisabled(o.status, 'SHIPPED')">
-                          Expédiée
-                        </option>
-                        <option value="DELIVERED" [disabled]="isOptionDisabled(o.status, 'DELIVERED')">
-                          Livrée
-                        </option>
-                        <option value="CANCELLED" [disabled]="isOptionDisabled(o.status, 'CANCELLED')">
-                          Annulée
-                        </option>
-                      </select>
-                    </div>
+                  <td class="hide-sm">{{ o.createdAt | date: 'dd/MM/yyyy · HH:mm' }}</td>
+                  <td class="c-status">
+                    <span class="pill" [class]="'tone-' + tone(o.status)">{{
+                      statusLabels[o.status] | t
+                    }}</span>
                   </td>
-
-                  <!-- BOUTON DÉTAILS -->
-                  <td style="text-align: right;">
-                    <div class="action-cell">
-                      <button 
-                        class="btn-action-icon" 
-                        (click)="toggleDetails(o.id)" 
-                        [class.open]="selectedOrderId() === o.id" 
-                        title="Voir les détails"
-                      >
-                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                          <polyline points="6 9 12 15 18 9"></polyline>
-                        </svg>
-                      </button>
-                    </div>
+                  <td class="hide-sm">
+                    <span class="pill" [class]="'tone-' + payTone(o.paymentStatus)">{{
+                      paymentStatusLabels[o.paymentStatus] | t
+                    }}</span>
+                    <small class="muted block">{{ paymentLabels[o.paymentMethod] | t }}</small>
+                  </td>
+                  <td class="num c-total">
+                    <strong>{{ o.total | tnd }}</strong>
+                  </td>
+                  <td class="chev">
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      [attr.aria-expanded]="openId() === o.id"
+                      [attr.aria-label]="'Voir les détails' | t"
+                    >
+                      <app-icon name="chevronDown" [size]="18" />
+                    </button>
                   </td>
                 </tr>
-
-                <!-- DÉTAILS DÉROULANTS -->
-                @if (selectedOrderId() === o.id) {
-                  <tr class="details-row">
+                @if (openId() === o.id) {
+                  <tr class="details">
                     <td colspan="7">
-                      <div class="details-box">
-                        <h4>Détails de la commande #{{ o.reference }}</h4>
-                        <div class="items-list">
-                          @for (item of o.items; track item.id) {
-                            <div class="item-row">
-                              <span>
-                                <strong>{{ item.productName }}</strong> 
-                                @if (item.productSku) { <small class="muted">(SKU: {{ item.productSku }})</small> }
-                              </span>
-                              <span>x{{ item.quantity }} × {{ item.unitPrice | tnd }} = <strong>{{ item.lineTotal | tnd }}</strong></span>
-                            </div>
-                          }
-                        </div>
-                        <div class="details-summary">
-                          <span>Sous-total: {{ o.subtotal | tnd }}</span> |
-                          <span>Livraison: {{ o.shippingFee | tnd }}</span> |
-                          <strong>Total: {{ o.total | tnd }}</strong>
-                        </div>
+                      <div class="detail-grid">
+                        <section>
+                          <h3>{{ 'Suivi' | t }}</h3>
+                          <app-order-timeline [status]="o.status" [events]="o.events" />
+                          <ul class="history">
+                            @for (e of o.events; track $index) {
+                              <li>
+                                <span class="pill" [class]="'tone-' + tone(e.status)">{{
+                                  statusLabels[e.status] | t
+                                }}</span>
+                                <span class="muted">{{
+                                  e.createdAt | date: 'dd/MM/yyyy · HH:mm'
+                                }}</span>
+                                @if (e.performedBy) {
+                                  <span class="muted">
+                                    — {{ e.performedBy.firstName }} {{ e.performedBy.lastName }}
+                                  </span>
+                                }
+                              </li>
+                            }
+                          </ul>
+                        </section>
+
+                        <section>
+                          <h3>{{ 'Articles' | t }}</h3>
+                          <ul class="items">
+                            @for (item of o.items; track item.id) {
+                              <li>
+                                <span>
+                                  <a [routerLink]="['/produits', item.productSlug]">{{
+                                    item.productName | productName
+                                  }}</a>
+                                  <small class="muted block">{{ item.productSku }}</small>
+                                </span>
+                                <span class="nowrap"
+                                  >{{ item.quantity }} × {{ item.unitPrice | tnd }}</span
+                                >
+                              </li>
+                            }
+                          </ul>
+                          <p class="totals">
+                            {{ 'Livraison' | t }} {{ o.shippingFee | tnd }} ·
+                            <strong>{{ 'Total' | t }} {{ o.total | tnd }}</strong>
+                          </p>
+
+                          <h3>{{ 'Livraison' | t }}</h3>
+                          <p class="addr">
+                            <strong>{{ o.shippingName }}</strong> · {{ o.shippingPhone }}<br />
+                            {{ o.shippingAddress }}
+                          </p>
+                        </section>
+                      </div>
+
+                      <div class="actions">
+                        @if (next(o); as n) {
+                          <button
+                            type="button"
+                            class="btn primary"
+                            (click)="ask(o, { status: n.status }, n.label)"
+                          >
+                            <app-icon [name]="n.icon" [size]="16" /> {{ n.label | t }}
+                          </button>
+                        }
+                        @if (o.paymentStatus === 'PENDING' && o.status !== 'CANCELLED') {
+                          <button
+                            type="button"
+                            class="btn"
+                            (click)="ask(o, { paymentStatus: 'PAID' }, 'Marquer comme payée')"
+                          >
+                            <app-icon name="banknote" [size]="16" /> {{ 'Marquer comme payée' | t }}
+                          </button>
+                        }
+                        <a class="btn" [routerLink]="['/admin/commandes', o.id, 'facture']">
+                          <app-icon name="fileText" [size]="16" /> {{ 'Facture' | t }}
+                        </a>
+                        @if (o.status !== 'CANCELLED' && o.status !== 'DELIVERED') {
+                          <button
+                            type="button"
+                            class="btn danger-soft"
+                            (click)="ask(o, { status: 'CANCELLED' }, 'Annuler la commande')"
+                          >
+                            <app-icon name="circleX" [size]="16" /> {{ 'Annuler la commande' | t }}
+                          </button>
+                        }
                       </div>
                     </td>
                   </tr>
@@ -154,32 +267,51 @@ interface StatusChangePayload {
               }
             </tbody>
           </table>
-        </div>
-      }
+        }
+      </section>
 
-      <!-- MODAL DE CONFIRMATION DE CHANGEMENT DE STATUT -->
-      @if (pendingStatusChange(); as pending) {
-        <div class="modal-backdrop" (click)="cancelStatusChange()">
-          <div class="modal-card" (click)="$event.stopPropagation()">
-            <h3>Changer le statut de la commande</h3>
-            
-            <p style="margin-top: 0.6rem; line-height: 1.5;">
-              Êtes-vous sûr de vouloir faire passer la commande <strong>#{{ pending.order.reference }}</strong> au statut :
-              <br />
-              <span class="target-status-badge" [ngClass]="getOrderStatusClass(pending.targetStatus)">
-                {{ getOrderStatusLabel(pending.targetStatus) }}
-              </span>
+      @if (pending(); as p) {
+        <div class="modal-backdrop" (click)="pending.set(null)">
+          <div
+            class="modal card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-title"
+            (click)="$event.stopPropagation()"
+          >
+            <h3 id="confirm-title">{{ p.title | t }} — {{ p.order.reference }}</h3>
+            <p class="muted">
+              @if (p.change.status === 'CANCELLED') {
+                {{
+                  'Les articles seront remis en stock et le client prévenu par e-mail. Cette action est définitive.'
+                    | t
+                }}
+                @if (p.order.paymentStatus === 'PAID') {
+                  {{ 'Le paiement sera marqué comme remboursé.' | t }}
+                }
+              } @else if (p.change.status) {
+                {{
+                  'Le client sera prévenu par e-mail du nouveau statut : {status}.'
+                    | t: { status: (statusLabels[p.change.status] | t) }
+                }}
+              } @else {
+                {{ 'Le paiement de cette commande sera enregistré comme reçu.' | t }}
+              }
             </p>
-
-            @if (pending.targetStatus === 'CANCELLED') {
-              <div class="warning-box">
-                <strong>Attention :</strong> L'annulation est irréversible. La commande sera définitivement verrouillée.
-              </div>
-            }
-
             <div class="modal-actions">
-              <button class="btn secondary" (click)="cancelStatusChange()">Annuler</button>
-              <button class="btn primary" [class.danger]="pending.targetStatus === 'CANCELLED'" (click)="confirmStatusChange()">Confirmer</button>
+              <button type="button" class="btn" (click)="pending.set(null)">
+                {{ 'Retour' | t }}
+              </button>
+              <button
+                type="button"
+                class="btn"
+                [class.primary]="p.change.status !== 'CANCELLED'"
+                [class.danger]="p.change.status === 'CANCELLED'"
+                [disabled]="saving()"
+                (click)="confirm(p)"
+              >
+                {{ (saving() ? 'Enregistrement…' : 'Confirmer') | t }}
+              </button>
             </div>
           </div>
         </div>
@@ -187,310 +319,463 @@ interface StatusChangePayload {
     </div>
   `,
   styles: `
-    .page { padding-block: 1.5rem; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
-    .header h1 { margin: 0; }
-    .btn-refresh-header { display: inline-flex; align-items: center; gap: 0.5rem; }
-
-    .table-wrapper { overflow-x: auto; padding: 0; }
-    .orders-table { width: 100%; border-collapse: collapse; text-align: left; }
-    .orders-table th, .orders-table td { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-    .orders-table th { background: var(--surface-2); color: var(--muted); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
-    
-    .client-info { display: flex; flex-direction: column; }
-    .client-name { font-weight: 600; }
-    .date { font-size: 0.85rem; color: var(--muted); }
-
-    .action-cell {
-      display: inline-flex;
-      align-items: center;
-      justify-content: flex-end;
+    .page {
+      padding-block: 1.5rem 3rem;
     }
-
-    .btn-action-icon {
-      background: var(--surface-2);
+    .head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .head h1 {
+      margin: 0 0 0.2rem;
+      font-size: var(--fs-3xl);
+    }
+    .head p {
+      margin: 0;
+    }
+    .toolbar {
+      display: grid;
+      gap: 0.8rem;
+      margin-bottom: 1rem;
+    }
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      max-width: 460px;
+      padding: 0 0.9rem;
       border: 1px solid var(--border);
-      border-radius: 8px;
-      width: 34px;
-      height: 34px;
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--muted);
+    }
+    .search:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--accent-soft);
+    }
+    .search input {
+      flex: 1;
+      min-width: 0;
+      padding: 0.6rem 0;
+      border: 0 !important;
+      outline: none !important;
+      box-shadow: none !important;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+    }
+    .filters {
+      display: flex;
+      gap: 0.35rem;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .filters button {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      color: var(--muted);
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    .btn-action-icon:hover {
+      gap: 0.4rem;
+      padding: 0.4rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 999px;
       background: var(--surface);
-      color: var(--accent);
+      color: var(--text-2);
+      font: inherit;
+      font-size: var(--fs-sm);
+      font-weight: 600;
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .filters button:hover {
       border-color: var(--accent);
     }
-    .btn-action-icon.open {
+    .filters button.on {
+      color: var(--on-accent);
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .count {
+      min-width: 1.4em;
+      padding: 0 0.35rem;
+      border-radius: 999px;
+      background: color-mix(in srgb, currentColor 14%, transparent);
+      font-size: var(--fs-xs);
+      text-align: center;
+    }
+
+    .list {
+      position: relative;
+      padding: 0;
+      overflow-x: auto;
+      transition: opacity 0.2s;
+    }
+    .list.refreshing {
+      opacity: 0.55;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--fs-md);
+    }
+    th {
+      padding: 0.75rem 1rem;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: var(--fs-xs);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-align: left;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 0.8rem 1rem;
+      border-top: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .row {
+      cursor: pointer;
+    }
+    .row:hover td,
+    .row.open td {
+      background: color-mix(in srgb, var(--accent) 4%, transparent);
+    }
+    .client {
+      font-weight: 600;
+    }
+    .block {
+      display: block;
+    }
+    .num {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .chev {
+      width: 1%;
+    }
+    .icon-btn {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .row.open .icon-btn {
       transform: rotate(180deg);
       color: var(--accent);
       border-color: var(--accent);
     }
-
-    .payment-method-badge {
-      padding: 0.35rem 0.75rem;
-      border-radius: 99px;
-      font-size: 0.75rem;
-      font-weight: 700;
-      display: inline-block;
-      text-transform: uppercase;
+    .details td {
+      border-top: 0;
+      padding: 0.4rem 1rem 1.4rem;
+      background: color-mix(in srgb, var(--accent) 4%, transparent);
     }
-    .pay-cod { background: rgba(59, 130, 246, 0.12); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
-    .pay-online { background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
-
-    /* DESIGN PREMIUM DU SELECTEUR DE STATUT */
-    .select-container {
-      position: relative;
-      display: inline-block;
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 1.6rem;
+      padding: 1rem 1.1rem;
+      border: 1px solid var(--border);
+      border-radius: var(--r-lg);
+      background: var(--surface);
+    }
+    .detail-grid h3 {
+      margin: 0 0 0.8rem;
+      font-size: var(--fs-md);
+    }
+    .detail-grid h3:not(:first-child) {
+      margin-top: 1.1rem;
+    }
+    .history {
+      list-style: none;
+      margin: 1.1rem 0 0;
+      padding: 0;
+      display: grid;
+      gap: 0.4rem;
+      font-size: var(--fs-sm);
+    }
+    .history li {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .items {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.5rem;
+    }
+    .items li {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      font-size: var(--fs-sm);
+    }
+    .items a:hover {
+      color: var(--accent);
+    }
+    .nowrap {
+      white-space: nowrap;
+    }
+    .totals {
+      margin: 0.7rem 0 0;
+      text-align: right;
+      font-size: var(--fs-sm);
+    }
+    .addr {
+      margin: 0;
+      font-size: var(--fs-sm);
+      line-height: 1.5;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-top: 1rem;
+    }
+    .none {
+      padding: 2rem;
+      text-align: center;
+    }
+    .sk-list {
+      height: 420px;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
     }
 
-    .select-badge {
-      appearance: none;
-      -webkit-appearance: none;
-      -moz-appearance: none;
-      padding: 0.45rem 2rem 0.45rem 0.85rem;
-      border-radius: 10px;
-      font-size: 0.82rem;
-      font-weight: 700;
-      border: 1px solid transparent;
-      outline: none;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 0.6rem center;
+    .btn.danger {
+      color: #fff;
+      background: var(--red);
+      border-color: var(--red);
     }
-    
-    .select-badge:hover:not(:disabled) {
-      filter: brightness(1.15);
-      transform: translateY(-1px);
-    }
-
-    .select-badge:disabled {
-      opacity: 0.65;
-      cursor: not-allowed;
-      background-image: none;
-      padding-right: 0.85rem;
-    }
-
-    /* FORMATAGE NATIVE DROPDOWN OPTIONS */
-    .select-badge option {
-      background-color: #111827 !important;
-      color: #ffffff !important;
-      padding: 0.6rem;
-      font-weight: 600;
-      font-size: 0.85rem;
-    }
-    .select-badge option:disabled {
-      color: #4b5563 !important;
-      background-color: #1f2937 !important;
-    }
-
-    .order-status-pending { background-color: rgba(245, 158, 11, 0.15); color: #f59e0b; border-color: rgba(245, 158, 11, 0.35); }
-    .order-status-confirmed { background-color: rgba(59, 130, 246, 0.15); color: #3b82f6; border-color: rgba(59, 130, 246, 0.35); }
-    .order-status-shipped { background-color: rgba(168, 85, 247, 0.15); color: #a855f7; border-color: rgba(168, 85, 247, 0.35); }
-    .order-status-delivered { background-color: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.35); }
-    .order-status-cancelled { background-color: rgba(239, 68, 68, 0.15); color: #ef4444; border-color: rgba(239, 68, 68, 0.35); }
-
-    .locked-row { opacity: 0.9; }
-    .details-row { background: var(--surface-2); }
-    .details-box { padding: 1rem; }
-    .details-box h4 { margin: 0 0 0.8rem 0; }
-    .items-list { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.8rem; }
-    .item-row { display: flex; justify-content: space-between; font-size: 0.88rem; }
-    .details-summary { border-top: 1px solid var(--border); padding-top: 0.6rem; font-size: 0.9rem; text-align: right; }
-
-    /* MODAL DE CONFIRMATION SOIGNÉ */
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.55);
-      backdrop-filter: blur(4px);
+      z-index: 1000;
       display: grid;
       place-items: center;
-      z-index: 1000;
       padding: 1rem;
+      background: rgba(8, 12, 24, 0.55);
     }
-    .modal-card {
-      background: var(--surface-2, #111827);
-      border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
-      border-radius: 16px;
+    .modal {
+      width: min(460px, 100%);
       padding: 1.6rem;
-      max-width: 420px;
-      width: 100%;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
     }
-    .modal-card h3 { margin: 0; font-size: 1.15rem; font-weight: 700; }
-    
-    .target-status-badge {
-      display: inline-block;
-      margin-top: 0.6rem;
-      padding: 0.35rem 0.8rem;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 0.85rem;
-      border: 1px solid transparent;
+    .modal h3 {
+      margin: 0 0 0.6rem;
+      font-size: var(--fs-lg);
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.6rem;
+      margin-top: 1.3rem;
     }
 
-    .warning-box {
-      margin-top: 0.9rem;
-      background: rgba(239, 68, 68, 0.12);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      color: #ef4444;
-      padding: 0.75rem;
-      border-radius: 8px;
-      font-size: 0.82rem;
-      line-height: 1.4;
+    @media (max-width: 860px) {
+      .detail-grid {
+        grid-template-columns: 1fr;
+      }
     }
-
-    .modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.4rem; }
-    
-    .btn.danger {
-      background: #ef4444;
-      color: #ffffff;
-      border-color: #ef4444;
+    .only-xs {
+      display: none;
     }
-    .btn.danger:hover {
-      background: #dc2626;
+    @media (max-width: 640px) {
+      .hide-sm {
+        display: none;
+      }
+      th,
+      td {
+        padding-inline: 0.6rem;
+      }
+      .head h1 {
+        font-size: var(--fs-2xl);
+      }
+      .actions .btn {
+        flex: 1 1 100%;
+      }
+    }
+    /* Téléphone : chaque commande devient une carte (référence et bouton en haut,
+       statut et total dessous), le détail se déplie sur toute la largeur */
+    @media (max-width: 480px) {
+      table,
+      tbody,
+      tr,
+      td {
+        display: block;
+      }
+      thead {
+        display: none;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 0.5rem 0.8rem;
+        padding: 0.8rem 0.9rem;
+        border-top: 1px solid var(--border);
+      }
+      .row td {
+        padding: 0;
+        border: 0;
+        background: none !important;
+      }
+      .c-ref {
+        grid-area: 1 / 1;
+      }
+      .chev {
+        grid-area: 1 / 2;
+        width: auto;
+      }
+      .c-status {
+        grid-area: 2 / 1;
+      }
+      .c-total {
+        grid-area: 2 / 2;
+      }
+      .details td {
+        padding: 0 0.6rem 1rem;
+      }
+      .detail-grid {
+        padding: 0.9rem;
+      }
+      .hide-xs {
+        display: none;
+      }
+      .only-xs {
+        display: block;
+      }
     }
   `,
 })
-export class AdminOrdersPage implements OnInit {
-  private readonly adminApi = inject(AdminApiService);
+export class AdminOrdersPage {
+  private readonly api = inject(AdminApiService);
+  private readonly toast = inject(ToastService);
 
-  orders = signal<AdminOrder[]>([]);
-  loading = signal(true);
-  errorMessage = signal<string | null>(null);
-  selectedOrderId = signal<number | null>(null);
-  
-  // Gère la commande en cours de confirmation dans le modal
-  pendingStatusChange = signal<StatusChangePayload | null>(null);
+  /** Filtre ou référence transmis par le tableau de bord (?filtre=…, ?ref=…) */
+  readonly filtre = input<string>();
+  readonly ref = input<string>();
 
-  ngOnInit() {
-    this.loadOrders();
+  readonly filters = FILTERS;
+  readonly statusLabels = STATUS_LABELS;
+  readonly paymentLabels = PAYMENT_LABELS;
+  readonly paymentStatusLabels = PAYMENT_STATUS_LABELS;
+
+  readonly orders = signal<AdminOrder[]>([]);
+  readonly loading = signal(true);
+  readonly error = signal<string | null>(null);
+  readonly query = signal('');
+  readonly filter = signal<Filter>('toutes');
+  readonly openId = signal<number | null>(null);
+  readonly pending = signal<Pending | null>(null);
+  readonly saving = signal(false);
+
+  readonly counts = computed(
+    () =>
+      Object.fromEntries(
+        FILTERS.map((f) => [f.id, this.orders().filter((o) => matches(o, f.id)).length]),
+      ) as Record<Filter, number>,
+  );
+
+  readonly visible = computed(() => {
+    const q = this.query().trim().toLowerCase();
+    const filter = this.filter();
+    return this.orders().filter((o) => {
+      if (!matches(o, filter)) return false;
+      if (!q) return true;
+      const haystack = [
+        o.reference,
+        o.user?.firstName,
+        o.user?.lastName,
+        o.user?.email,
+        o.user?.phone,
+        o.shippingName,
+        o.shippingPhone,
+      ]
+        .join(' ')
+        .toLowerCase();
+      return q.split(/\s+/).every((word) => haystack.includes(word));
+    });
+  });
+
+  constructor() {
+    this.load(true);
   }
 
-  loadOrders() {
+  load(first = false) {
     this.loading.set(true);
-    this.adminApi.getAllOrders().subscribe({
-      next: (data) => {
-        this.orders.set(data);
+    this.error.set(null);
+    this.api.getAllOrders().subscribe({
+      next: (list) => {
+        this.orders.set(list);
         this.loading.set(false);
+        if (first) this.applyLink(list);
       },
-      error: (err) => {
-        const msg = apiErrors(err);
-        this.errorMessage.set(Array.isArray(msg) ? msg.join(', ') : msg);
+      error: (e) => {
         this.loading.set(false);
+        this.error.set(apiErrors(e).join(' '));
       },
     });
   }
 
-  toggleDetails(id: number) {
-    this.selectedOrderId.set(this.selectedOrderId() === id ? null : id);
-  }
-
-  isLocked(status: string): boolean {
-    return status === 'CANCELLED' || status === 'DELIVERED';
-  }
-
-  isOptionDisabled(currentStatus: string, targetStatus: string): boolean {
-    if (this.isLocked(currentStatus)) {
-      return true;
+  /** Lien du tableau de bord : filtre présélectionné, ou commande ouverte directement */
+  private applyLink(list: AdminOrder[]) {
+    const filtre = this.filtre();
+    if (filtre && FILTERS.some((f) => f.id === filtre)) this.filter.set(filtre as Filter);
+    const ref = this.ref();
+    if (ref) {
+      this.query.set(ref);
+      this.openId.set(list.find((o) => o.reference === ref)?.id ?? null);
     }
-    if (targetStatus === 'CANCELLED') {
-      return false;
-    }
-    const currentRank = STATUS_ORDER[currentStatus] || 0;
-    const targetRank = STATUS_ORDER[targetStatus] || 0;
-    return targetRank < currentRank;
   }
 
-  promptStatusChange(event: Event, order: AdminOrder) {
-    const selectElement = event.target as HTMLSelectElement;
-    const targetStatus = selectElement.value;
-
-    if (targetStatus === order.status) return;
-
-    // Ouvre le modal personnalisé
-    this.pendingStatusChange.set({
-      order,
-      targetStatus,
-      selectElement
-    });
+  toggle(id: number) {
+    this.openId.set(this.openId() === id ? null : id);
   }
 
-  cancelStatusChange() {
-    const pending = this.pendingStatusChange();
-    if (pending?.selectElement) {
-      pending.selectElement.value = pending.order.status; // Rétablit l'ancien statut visuellement
-    }
-    this.pendingStatusChange.set(null);
+  next(o: AdminOrder) {
+    return NEXT[o.status] ?? null;
   }
 
-  confirmStatusChange() {
-    const pending = this.pendingStatusChange();
-    if (!pending) return;
+  ask(order: AdminOrder, change: Pending['change'], title: string) {
+    this.pending.set({ order, change, title });
+  }
 
-    const { order, targetStatus, selectElement } = pending;
-
-    this.adminApi.updateOrderStatus(order.id, { status: targetStatus }).subscribe({
-      next: (updatedOrder) => {
-        this.orders.update((list) =>
-          list.map((o) => (o.id === order.id ? { ...o, status: updatedOrder.status } : o))
-        );
-        this.pendingStatusChange.set(null);
+  confirm(p: Pending) {
+    this.saving.set(true);
+    this.api.updateOrderStatus(p.order.id, p.change).subscribe({
+      next: (updated) => {
+        this.orders.update((list) => list.map((o) => (o.id === updated.id ? updated : o)));
+        this.saving.set(false);
+        this.pending.set(null);
+        this.toast.success('Commande mise à jour', updated.reference); // traduit à l'affichage
       },
-      error: (err) => {
-        if (selectElement) {
-          selectElement.value = order.status;
-        }
-        const msg = apiErrors(err);
-        this.errorMessage.set('Erreur lors de la mise à jour: ' + (Array.isArray(msg) ? msg.join(', ') : msg));
-        this.pendingStatusChange.set(null);
+      error: (e) => {
+        this.saving.set(false);
+        this.pending.set(null);
+        this.error.set(`${translate('Erreur lors de la mise à jour :')} ${apiErrors(e).join(' ')}`);
       },
     });
   }
 
-  getPaymentMethodLabel(method?: string): string {
-    switch (method) {
-      case 'CASH_ON_DELIVERY': return 'À la livraison';
-      case 'PAYPAL': return 'PayPal';
-      case 'BANK_TRANSFER': return 'Virement';
-      case 'CARD': return 'Carte Bancaire';
-      default: return method || '—';
-    }
+  tone(status: OrderStatus) {
+    return statusTone(status);
   }
 
-  getPaymentMethodClass(method?: string): string {
-    if (method === 'CASH_ON_DELIVERY') {
-      return 'pay-cod';
-    }
-    return 'pay-online';
-  }
-
-  getOrderStatusLabel(status: string): string {
-    switch (status) {
-      case 'PENDING': return 'Reçue (En attente)';
-      case 'CONFIRMED': return 'Confirmée';
-      case 'SHIPPED': return 'Expédiée';
-      case 'DELIVERED': return 'Livrée';
-      case 'CANCELLED': return 'Annulée';
-      default: return status;
-    }
-  }
-
-  getOrderStatusClass(status: string): string {
-    switch (status) {
-      case 'PENDING': return 'order-status-pending';
-      case 'CONFIRMED': return 'order-status-confirmed';
-      case 'SHIPPED': return 'order-status-shipped';
-      case 'DELIVERED': return 'order-status-delivered';
-      case 'CANCELLED': return 'order-status-cancelled';
-      default: return '';
-    }
+  payTone(status: PaymentStatus) {
+    return paymentTone(status);
   }
 }

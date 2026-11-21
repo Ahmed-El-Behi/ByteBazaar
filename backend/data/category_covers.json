@@ -1,0 +1,110 @@
+{
+  "processeurs": [
+    "PCP-459576",
+    "PCP-378496",
+    "PCP-378495",
+    "PCP-409942",
+    "PCP-436678",
+    "PCP-296157"
+  ],
+  "cartes-graphiques": [
+    "PCP-564076",
+    "PCP-354847",
+    "PCP-509079",
+    "PCP-371601",
+    "PCP-260867",
+    "PCP-372709"
+  ],
+  "cartes-meres": [
+    "PCP-550486",
+    "PCP-505394",
+    "PCP-323994",
+    "PCP-505393",
+    "PCP-302187",
+    "PCP-439863"
+  ],
+  "memoire-ram": [
+    "PCP-508101",
+    "PCP-217734",
+    "PCP-471234",
+    "PCP-84605",
+    "PCP-49519",
+    "PCP-255338"
+  ],
+  "stockage": [
+    "PCP-495615",
+    "PCP-438388",
+    "PCP-156751",
+    "PCP-14740",
+    "PCP-264184",
+    "PCP-394005"
+  ],
+  "alimentations": [
+    "PCP-440052",
+    "PCP-319809",
+    "PCP-581347",
+    "PCP-169553",
+    "PCP-111221",
+    "PCP-216101"
+  ],
+  "boitiers": [
+    "PCP-258894",
+    "PCP-479101",
+    "PCP-48966",
+    "PCP-363552",
+    "PCP-534290"
+  ],
+  "refroidissement": [
+    "PCP-305852",
+    "PCP-414625",
+    "PCP-459705",
+    "PCP-425596",
+    "PCP-459706",
+    "PCP-386661"
+  ],
+  "ecrans": [
+    "ACC-MON-BDBE775D",
+    "ACC-MON-6DFFC2A1",
+    "ACC-MON-7661D848",
+    "ACC-MON-29DD4BBA",
+    "ACC-MON-7276D4D7"
+  ],
+  "souris": [
+    "ACC-MOU-9525A7DB",
+    "ACC-MOU-90AC18F8",
+    "ACC-MOU-F0656B11",
+    "ACC-MOU-B3AAA06E",
+    "ACC-MOU-D74B7F3C",
+    "ACC-MOU-B4CE35E8"
+  ],
+  "claviers": [
+    "ACC-KBD-4847A2C4",
+    "ACC-KBD-55D83D14",
+    "ACC-KBD-AF7D3352",
+    "ACC-KBD-40213370",
+    "ACC-KBD-7618A178"
+  ],
+  "casques": [
+    "ACC-HDS-7376190A",
+    "ACC-HDS-3F5C8EE6",
+    "ACC-HDS-BB6D5B3A",
+    "ACC-HDS-99F5A0C6",
+    "ACC-HDS-60F051CF",
+    "ACC-HDS-613321C3"
+  ],
+  "enceintes": [
+    "ACC-SPK-1F99E90C",
+    "ACC-SPK-CA9F4EFD",
+    "ACC-SPK-9E5E7195",
+    "ACC-SPK-579A90B6",
+    "ACC-SPK-48BAE99A"
+  ],
+  "webcams": [
+    "ACC-CAM-CF9F6A2E",
+    "ACC-CAM-450672B8",
+    "ACC-CAM-E06F4A5A",
+    "ACC-CAM-87C4C1EF",
+    "ACC-CAM-3AA9E5BA",
+    "ACC-CAM-7C8F0ECB"
+  ]
+}

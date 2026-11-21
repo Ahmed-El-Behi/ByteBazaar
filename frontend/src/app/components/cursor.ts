@@ -1,4 +1,12 @@
-import { Component, DestroyRef, ElementRef, NgZone, afterNextRender, inject, viewChild } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  NgZone,
+  afterNextRender,
+  inject,
+  viewChild,
+} from '@angular/core';
 
 const TEXT =
   'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]), textarea';
@@ -16,34 +24,118 @@ const ITEM = 'h1, h2, h3, h4, p, li, td, th, img, span, small, strong';
     <div class="c dot" #dot><i></i></div>
   `,
   styles: `
-    :host { position: fixed; inset: 0; pointer-events: none; z-index: 9999; opacity: 0; transition: opacity 0.25s; }
-    :host(.on) { opacity: 1; }
-    .c { position: fixed; left: 0; top: 0; will-change: transform; }
-    .c i { position: absolute; display: block; border-radius: 50%; transition: transform 0.25s cubic-bezier(0.3, 0.7, 0.3, 1), background 0.25s, border-color 0.25s, opacity 0.2s; }
+    :host {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+    :host(.on) {
+      opacity: 1;
+    }
+    .c {
+      position: fixed;
+      left: 0;
+      top: 0;
+      will-change: transform;
+    }
+    .c i {
+      position: absolute;
+      display: block;
+      border-radius: 50%;
+      transition:
+        transform 0.25s cubic-bezier(0.3, 0.7, 0.3, 1),
+        background 0.25s,
+        border-color 0.25s,
+        opacity 0.2s;
+    }
 
-    .dot i { width: 8px; height: 8px; margin: -4px 0 0 -4px; background: var(--cursor-a); }
-    .ring i { width: 38px; height: 38px; margin: -19px 0 0 -19px; border: 1.5px solid color-mix(in srgb, var(--cursor-a) 65%, transparent); }
-    .glow i { width: 130px; height: 130px; margin: -65px 0 0 -65px; background: radial-gradient(circle, color-mix(in srgb, var(--cursor-a) 24%, transparent), transparent 65%); }
+    .dot i {
+      width: 8px;
+      height: 8px;
+      margin: -4px 0 0 -4px;
+      background: var(--cursor-a);
+    }
+    .ring i {
+      width: 38px;
+      height: 38px;
+      margin: -19px 0 0 -19px;
+      border: 1.5px solid color-mix(in srgb, var(--cursor-a) 65%, transparent);
+    }
+    .glow i {
+      width: 130px;
+      height: 130px;
+      margin: -65px 0 0 -65px;
+      background: radial-gradient(
+        circle,
+        color-mix(in srgb, var(--cursor-a) 24%, transparent),
+        transparent 65%
+      );
+    }
 
     /* contenu : texte, images */
-    :host([data-state='item']) .ring i { transform: scale(0.8); border-color: var(--cursor-b); }
-    :host([data-state='item']) .dot i { background: var(--cursor-b); }
-    :host([data-state='item']) .glow i { background: radial-gradient(circle, color-mix(in srgb, var(--cursor-b) 22%, transparent), transparent 65%); }
+    :host([data-state='item']) .ring i {
+      transform: scale(0.8);
+      border-color: var(--cursor-b);
+    }
+    :host([data-state='item']) .dot i {
+      background: var(--cursor-b);
+    }
+    :host([data-state='item']) .glow i {
+      background: radial-gradient(
+        circle,
+        color-mix(in srgb, var(--cursor-b) 22%, transparent),
+        transparent 65%
+      );
+    }
 
     /* cartes */
-    :host([data-state='card']) .ring i { transform: scale(1.9); border-color: color-mix(in srgb, var(--cursor-b) 55%, transparent); }
-    :host([data-state='card']) .dot i { transform: scale(0.6); background: var(--cursor-b); }
-    :host([data-state='card']) .glow i { background: radial-gradient(circle, color-mix(in srgb, var(--cursor-b) 26%, transparent), transparent 65%); }
+    :host([data-state='card']) .ring i {
+      transform: scale(1.9);
+      border-color: color-mix(in srgb, var(--cursor-b) 55%, transparent);
+    }
+    :host([data-state='card']) .dot i {
+      transform: scale(0.6);
+      background: var(--cursor-b);
+    }
+    :host([data-state='card']) .glow i {
+      background: radial-gradient(
+        circle,
+        color-mix(in srgb, var(--cursor-b) 26%, transparent),
+        transparent 65%
+      );
+    }
 
     /* liens, boutons, interrupteurs */
-    :host([data-state='link']) .ring i { transform: scale(1.5); border-color: var(--cursor-b); background: color-mix(in srgb, var(--cursor-b) 25%, transparent); }
-    :host([data-state='link']) .dot i { transform: scale(0.5); background: var(--cursor-b); }
-    :host([data-state='link']) .glow i { transform: scale(1.3); background: radial-gradient(circle, color-mix(in srgb, var(--cursor-b) 32%, transparent), transparent 65%); }
+    :host([data-state='link']) .ring i {
+      transform: scale(1.5);
+      border-color: var(--cursor-b);
+      background: color-mix(in srgb, var(--cursor-b) 25%, transparent);
+    }
+    :host([data-state='link']) .dot i {
+      transform: scale(0.5);
+      background: var(--cursor-b);
+    }
+    :host([data-state='link']) .glow i {
+      transform: scale(1.3);
+      background: radial-gradient(
+        circle,
+        color-mix(in srgb, var(--cursor-b) 32%, transparent),
+        transparent 65%
+      );
+    }
 
     /* champs de saisie : on laisse le curseur texte natif */
-    :host([data-state='text']) .dot i, :host([data-state='text']) .ring i { opacity: 0; }
+    :host([data-state='text']) .dot i,
+    :host([data-state='text']) .ring i {
+      opacity: 0;
+    }
 
-    :host(.down) .ring i { transform: scale(0.75) !important; }
+    :host(.down) .ring i {
+      transform: scale(0.75) !important;
+    }
   `,
 })
 export class Cursor {

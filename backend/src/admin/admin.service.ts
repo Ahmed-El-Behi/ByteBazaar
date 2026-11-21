@@ -1,11 +1,45 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, Prisma } from '../generated/prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PaymentStatus, Prisma, StockReason } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
-import { UpdateOrderStatusDto, UpdateProductStatusDto, UpdateStockDto } from './admin.dto';
+import { asRecord, badRequest, int, oneOf, text } from '../common/input';
+import { tr } from '../common/i18n';
+import { cancelOrderTx } from '../order/order-cancel';
+import { ORDER_STATUSES, assertTransition } from '../order/order-status';
+
+const PAYMENT_STATUSES = Object.values(PaymentStatus);
+const STOCK_REASONS = Object.values(StockReason);
+
+const ORDER_INCLUDE = {
+  items: {
+    orderBy: { id: 'asc' },
+    include: { product: { select: { sku: true, slug: true } } },
+  },
+  user: {
+    select: {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      phone: true,
+    },
+  },
+  events: {
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: {
+      status: true,
+      createdAt: true,
+      performedBy: { select: { firstName: true, lastName: true } },
+    },
+  },
+} satisfies Prisma.OrderInclude;
 
 type OrderWithDetails = Prisma.OrderGetPayload<{
-  include: { items: true; user: { select: { id: true; email: true; firstName: true; lastName: true } } };
+  include: typeof ORDER_INCLUDE;
 }>;
 
 function formatOrder(order: OrderWithDetails) {
@@ -14,10 +48,13 @@ function formatOrder(order: OrderWithDetails) {
     subtotal: Number(order.subtotal),
     shippingFee: Number(order.shippingFee),
     total: Number(order.total),
-    items: order.items.map((item) => ({
+    items: order.items.map(({ product, ...item }) => ({
       ...item,
       unitPrice: Number(item.unitPrice),
-      lineTotal: Math.round(Number(item.unitPrice) * item.quantity * 1000) / 1000,
+      lineTotal:
+        Math.round(Number(item.unitPrice) * item.quantity * 1000) / 1000,
+      productSku: product.sku,
+      productSlug: product.slug,
     })),
   };
 }
@@ -29,7 +66,7 @@ export class AdminService {
     private readonly mailService: MailService,
   ) {}
 
-  // --- GESTION DU STOCK ET PRODUITS ---
+  // Produits et stock
 
   async getProductById(id: number) {
     const product = await this.prisma.product.findUnique({
@@ -39,217 +76,232 @@ export class AdminService {
         brand: { select: { name: true } },
       },
     });
-
-    if (!product) {
-      throw new NotFoundException(`Produit #${id} introuvable`);
-    }
-
-    return {
-      ...product,
-      price: Number(product.price),
-    };
+    if (!product)
+      throw new NotFoundException(
+        tr(`Produit #${id} introuvable`, `Product #${id} not found`),
+      );
+    return { ...product, price: Number(product.price) };
   }
 
-  async updateStock(adminUserId: number, dto: UpdateStockDto) {
-    const productId = Number.parseInt(String(dto.productId), 10);
-    const quantityChange = Number.parseInt(String(dto.quantityChange), 10);
-
-    if (Number.isNaN(productId)) {
-      throw new BadRequestException('ID produit invalide');
-    }
-
-    if (Number.isNaN(quantityChange) || quantityChange === 0) {
-      throw new BadRequestException('La variation de stock (quantityChange) doit être un entier différent de 0');
-    }
+  async updateStock(adminUserId: number, body: unknown) {
+    const b = asRecord(body);
+    const productId = int(b.productId, tr('ID produit', 'Product ID'), {
+      min: 1,
+    });
+    const quantityChange = int(
+      b.quantityChange,
+      tr('Variation de stock', 'Stock change'),
+      {
+        min: -100_000,
+        max: 100_000,
+      },
+    );
+    if (quantityChange === 0)
+      throw badRequest(
+        tr(
+          'La variation de stock doit être différente de 0',
+          'The stock change must be different from 0',
+        ),
+      );
+    const reason =
+      oneOf(b.reason, STOCK_REASONS, tr('Motif', 'Reason')) ?? 'ADJUSTMENT';
+    const note =
+      text(b.note) || `Ajustement manuel admin (User #${adminUserId})`;
 
     return this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({ where: { id: productId } });
-      if (!product) {
-        throw new NotFoundException(`Produit #${productId} introuvable dans le catalogue`);
-      }
-
-      const newQuantity = product.stockQuantity + quantityChange;
-      if (newQuantity < 0) {
-        throw new BadRequestException(`Stock insuffisant. Stock actuel : ${product.stockQuantity}`);
-      }
-
-      const updatedProduct = await tx.product.update({
+      const product = await tx.product.findUnique({
         where: { id: productId },
-        data: { stockQuantity: newQuantity },
+        select: { stockQuantity: true },
       });
+      if (!product)
+        throw new NotFoundException(
+          tr(
+            `Produit #${productId} introuvable dans le catalogue`,
+            `Product #${productId} not found in the catalogue`,
+          ),
+        );
+
+      // Mise à jour conditionnelle : le stock ne peut pas devenir négatif, même en concurrence
+      const changed = await tx.product.updateMany({
+        where: { id: productId, stockQuantity: { gte: -quantityChange } },
+        data: { stockQuantity: { increment: quantityChange } },
+      });
+      if (changed.count === 0) {
+        throw new BadRequestException(
+          tr(
+            `Stock insuffisant. Stock actuel : ${product.stockQuantity}`,
+            `Insufficient stock. Current stock: ${product.stockQuantity}`,
+          ),
+        );
+      }
 
       await tx.stockMovement.create({
         data: {
           productId,
           performedById: adminUserId,
           quantityChange,
-          reason: dto.reason || 'ADJUSTMENT',
-          note: dto.note || `Ajustement manuel admin (User #${adminUserId})`,
+          reason,
+          note,
         },
       });
 
-      return updatedProduct;
+      return tx.product.findUniqueOrThrow({ where: { id: productId } });
     });
   }
 
-  async toggleProductStatus(productId: number, dto: UpdateProductStatusDto) {
-    const id = Number.parseInt(String(productId), 10);
-    const product = await this.prisma.product.findUnique({ where: { id } });
-    if (!product) throw new NotFoundException('Produit non trouvé');
+  async setProductStatus(productId: number, body: unknown) {
+    const isActive = asRecord(body).isActive;
+    if (typeof isActive !== 'boolean')
+      throw badRequest(
+        tr('isActive doit être un booléen', 'isActive must be a boolean'),
+      );
+
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { id: true },
+    });
+    if (!product)
+      throw new NotFoundException(
+        tr('Produit non trouvé', 'Product not found'),
+      );
 
     return this.prisma.product.update({
-      where: { id },
-      data: { isActive: dto.isActive },
+      where: { id: productId },
+      data: { isActive },
     });
   }
 
-  async getStockMovements(productId?: number) {
-    const pId = productId ? Number.parseInt(String(productId), 10) : undefined;
+  async getStockMovements(rawProductId?: string) {
+    const productId = rawProductId
+      ? int(rawProductId, tr('ID produit', 'Product ID'), { min: 1 })
+      : undefined;
     const movements = await this.prisma.stockMovement.findMany({
-      where: pId && !Number.isNaN(pId) ? { productId: pId } : undefined,
-      orderBy: { createdAt: 'desc' },
+      where: productId ? { productId } : undefined,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 100,
       include: {
-        product: { select: { id: true, name: true, sku: true, stockQuantity: true } },
-        performedBy: { select: { firstName: true, lastName: true, email: true } },
+        product: {
+          select: { id: true, name: true, sku: true, stockQuantity: true },
+        },
+        performedBy: {
+          select: { firstName: true, lastName: true, email: true },
+        },
       },
     });
 
-    const productCurrentStocks = new Map<number, number>();
-
-    return movements.map((m) => {
-      const prodId = m.productId;
-
-      if (!productCurrentStocks.has(prodId)) {
-        productCurrentStocks.set(prodId, m.product?.stockQuantity ?? 0);
-      }
-
-      const currentStockAtThisStep = productCurrentStocks.get(prodId)!;
-      productCurrentStocks.set(prodId, currentStockAtThisStep - m.quantityChange);
-
-      const { performedBy, ...rest } = m;
-      return {
-        ...rest,
-        user: performedBy,
-        historicalStock: currentStockAtThisStep,
-      };
+    // Stock après chaque mouvement, reconstitué à rebours depuis le stock actuel
+    const runningStock = new Map<number, number>();
+    return movements.map(({ performedBy, ...movement }) => {
+      const stockAfter =
+        runningStock.get(movement.productId) ?? movement.product.stockQuantity;
+      runningStock.set(
+        movement.productId,
+        stockAfter - movement.quantityChange,
+      );
+      return { ...movement, user: performedBy, historicalStock: stockAfter };
     });
   }
 
-  // --- GESTION DES COMMANDES ---
+  // Commandes
 
-  async getAllOrders(status?: OrderStatus) {
+  async getAllOrders(rawStatus?: string) {
+    const status = oneOf(rawStatus, ORDER_STATUSES, tr('Statut', 'Status'));
     const orders = await this.prisma.order.findMany({
       where: status ? { status } : undefined,
       orderBy: { createdAt: 'desc' },
-      include: {
-        items: true,
-        user: { select: { id: true, email: true, firstName: true, lastName: true } },
-      },
+      include: ORDER_INCLUDE,
     });
-
     return orders.map(formatOrder);
   }
 
-  async getAdminOrderDetails(orderId: number) {
-    const id = Number.parseInt(String(orderId), 10);
+  async getAdminOrderDetails(id: number) {
     const order = await this.prisma.order.findUnique({
       where: { id },
-      include: {
-        items: true,
-        user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
-      },
+      include: ORDER_INCLUDE,
     });
-
-    if (!order) throw new NotFoundException('Commande non trouvée');
+    if (!order)
+      throw new NotFoundException(
+        tr('Commande non trouvée', 'Order not found'),
+      );
     return formatOrder(order);
   }
 
-  async updateOrderStatus(adminUserId: number, orderId: number, dto: UpdateOrderStatusDto) {
-    const id = Number.parseInt(String(orderId), 10);
-    const formattedResult = await this.prisma.$transaction(async (tx) => {
-      const order = await tx.order.findUnique({
-        where: { id },
-        include: { items: true },
-      });
+  async updateOrderStatus(adminUserId: number, id: number, body: unknown) {
+    const b = asRecord(body);
+    const status = oneOf(
+      b.status,
+      ORDER_STATUSES,
+      tr('Statut de commande', 'Order status'),
+    );
+    const paymentStatus = oneOf(
+      b.paymentStatus,
+      PAYMENT_STATUSES,
+      tr('Statut de paiement', 'Payment status'),
+    );
+    if (!status && !paymentStatus)
+      throw badRequest(
+        tr('Aucune modification demandée', 'No change requested'),
+      );
 
-      if (!order) throw new NotFoundException('Commande non trouvée');
-
-      const dataToUpdate: Prisma.OrderUpdateInput = {};
-
-      if (dto.status) {
-        dataToUpdate.status = dto.status;
-
-        if (dto.status === 'SHIPPED' && !order.shippedAt) dataToUpdate.shippedAt = new Date();
-        if (dto.status === 'DELIVERED') {
-          if (!order.deliveredAt) dataToUpdate.deliveredAt = new Date();
-          dataToUpdate.paymentStatus = 'PAID';
-          if (!order.paidAt) dataToUpdate.paidAt = new Date();
-        }
-
-        if (dto.status === 'CANCELLED' && order.status !== 'CANCELLED') {
-          for (const item of order.items) {
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { stockQuantity: { increment: item.quantity } },
-            });
-
-            await tx.stockMovement.create({
-              data: {
-                productId: item.productId,
-                performedById: adminUserId,
-                quantityChange: item.quantity,
-                reason: 'RETURN',
-                note: `Annulation commande ${order.reference || `#${order.id}`}`,
-              },
-            });
-          }
-        }
-      }
-
-      if (dto.paymentStatus) {
-        dataToUpdate.paymentStatus = dto.paymentStatus;
-        if (dto.paymentStatus === 'PAID' && !order.paidAt) {
-          dataToUpdate.paidAt = new Date();
-        }
-      }
-
-      const updated = await tx.order.update({
-        where: { id },
-        data: dataToUpdate,
-        include: {
-          items: true,
-          user: { select: { id: true, email: true, firstName: true, lastName: true } },
-        },
-      });
-
-      return formatOrder(updated);
-    });
-
-    // Déclenchement de la notification de commande en arrière-plan
-    if (dto.status && formattedResult.user && formattedResult.user.email) {
-      const targetEmail = formattedResult.user.email;
-      const clientName = formattedResult.user.firstName || 'Client';
-      const reference = formattedResult.reference || `#${formattedResult.id}`;
-
-      console.log(`[Mail] Tentative d'envoi de notification à : ${targetEmail}`);
-
-      this.mailService
-        .sendOrderStatusNotification(
-          targetEmail,
-          clientName,
-          formattedResult.id,
-          reference,
-          dto.status,
-        )
-        .then(() => {
-          console.log(`[Mail] Notification envoyée avec succès pour la commande ${reference}`);
-        })
-        .catch((err) => {
-          console.error(`[Mail] Erreur lors de l'envoi du mail de commande :`, err);
+    const { order, statusChanged } = await this.prisma.$transaction(
+      async (tx) => {
+        const current = await tx.order.findUnique({
+          where: { id },
+          include: { items: true },
         });
+        if (!current)
+          throw new NotFoundException(
+            tr('Commande non trouvée', 'Order not found'),
+          );
+
+        const statusChanged = !!status && status !== current.status;
+        if (status && statusChanged) assertTransition(current.status, status);
+
+        // Annulation : remise en stock et remboursement éventuel (voir cancelOrderTx)
+        if (status === 'CANCELLED' && statusChanged) {
+          await cancelOrderTx(tx, current, adminUserId);
+        } else {
+          const data: Prisma.OrderUpdateInput = {};
+          const now = new Date();
+          if (status && statusChanged) {
+            data.status = status;
+            data.events = { create: { status, performedById: adminUserId } };
+            if (status === 'SHIPPED' && !current.shippedAt)
+              data.shippedAt = now;
+            if (status === 'DELIVERED') {
+              if (!current.shippedAt) data.shippedAt = now;
+              data.deliveredAt = now;
+              // Paiement à la livraison ou virement arrivé : la commande livrée est réglée
+              data.paymentStatus = 'PAID';
+              if (!current.paidAt) data.paidAt = now;
+            }
+          }
+          if (paymentStatus && paymentStatus !== current.paymentStatus) {
+            data.paymentStatus = paymentStatus;
+            if (paymentStatus === 'PAID' && !current.paidAt) data.paidAt = now;
+          }
+          await tx.order.update({ where: { id }, data });
+        }
+
+        const order = await tx.order.findUniqueOrThrow({
+          where: { id },
+          include: ORDER_INCLUDE,
+        });
+        return { order, statusChanged };
+      },
+    );
+
+    // Notification client en arrière-plan (MailService journalise les échecs)
+    if (statusChanged && order.user?.email) {
+      void this.mailService.sendOrderStatusNotification(
+        order.user.email,
+        order.user.firstName,
+        order.reference,
+        order.status,
+        order.id,
+      );
     }
 
-    return formattedResult;
+    return formatOrder(order);
   }
 }

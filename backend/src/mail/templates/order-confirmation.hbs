@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #f4f4f7; padding: 20px; color: #333; }
+    .card { background: #ffffff; border-radius: 8px; padding: 30px; max-width: 600px; margin: 0 auto; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+    .header { text-align: center; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+    .header h1 { color: #4F46E5; margin: 0; }
+    .content { padding: 20px 0; line-height: 1.6; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    td { padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; vertical-align: top; }
+    td.num { text-align: right; white-space: nowrap; }
+    .totals td { border: none; padding: 4px 0; }
+    .grand td { font-weight: bold; font-size: 16px; color: #4F46E5; padding-top: 10px; }
+    .box { background: #f7f7fb; border-radius: 6px; padding: 12px 16px; margin: 12px 0; font-size: 14px; }
+    .btn { display: inline-block; background-color: #4F46E5; color: #ffffff !important; padding: 12px 22px; border-radius: 24px; text-decoration: none; font-weight: bold; }
+    .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #888; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>ByteBazaar</h1>
+    </div>
+    <div class="content">
+      <h2>Merci {{ firstName }} !</h2>
+      <p>Votre commande <strong>{{ reference }}</strong> du {{ date }} a bien été enregistrée.</p>
+
+      <table>
+        {{#each items}}
+        <tr>
+          <td>{{ this.name }} <span style="color:#888">× {{ this.quantity }}</span></td>
+          <td class="num">{{ this.lineTotal }}</td>
+        </tr>
+        {{/each}}
+      </table>
+      <table class="totals">
+        <tr><td>Sous-total</td><td class="num">{{ subtotal }}</td></tr>
+        <tr><td>Livraison</td><td class="num">{{ shippingFee }}</td></tr>
+        <tr class="grand"><td>Total TTC</td><td class="num">{{ total }}</td></tr>
+      </table>
+
+      <div class="box">
+        <strong>Livraison</strong><br>
+        {{ shippingName }} — {{ shippingPhone }}<br>
+        {{ shippingAddress }}
+      </div>
+      <div class="box">
+        <strong>Paiement</strong> : {{ paymentLabel }}<br>
+        {{ paymentNote }}
+      </div>
+
+      <p style="text-align:center; margin-top: 24px;">
+        <a class="btn" href="{{ orderUrl }}">Suivre ma commande</a>
+      </p>
+    </div>
+    <div class="footer">
+      <p>Merci de votre confiance,<br>L'équipe ByteBazaar</p>
+    </div>
+  </div>
+</body>
+</html>
