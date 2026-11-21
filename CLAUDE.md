@@ -38,7 +38,7 @@ npm run i18n:check           # 0 missing / 0 param mismatch
 npm run format:check         # Prettier (npm run format to fix); backend is Prettier-clean too
 
 # e2e (Playwright, Chrome) — against a TEST database (bytebazaar_e2e), API on 3001 + `API_TARGET=http://localhost:3001 npm run serve` (4300)
-E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… npm test   # 17 tests; register is rate-limited 10/IP/15 min → restart the test API after a few runs
+E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… npm test   # 18 tests; register is rate-limited 10/IP/15 min → restart the test API after a few runs
 ```
 - CI: `.github/workflows/ci.yml` — jobs backend (lint, tsc, prettier, jest), frontend (typecheck, i18n, prettier, vitest, build), e2e (Postgres service, seeds, `test:e2e`, Playwright; report artifact `rapport-playwright`).
 

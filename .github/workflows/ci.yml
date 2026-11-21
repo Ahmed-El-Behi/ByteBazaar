@@ -145,7 +145,7 @@ jobs:
         if: failure()
         run: tail -n 100 api.log site.log
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: rapport-playwright

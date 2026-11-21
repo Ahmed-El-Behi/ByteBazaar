@@ -22,6 +22,29 @@ test('thème : bascule clair / sombre, mémorisée', async ({ page }) => {
   await expect(html).toHaveAttribute('data-theme', 'dark');
 });
 
+// Régression : l'en-tête rétrécit au défilement ; près du haut de la page, il oscillait sans fin
+// (rétrécissement → ancrage du défilement → retour sous le seuil → agrandissement…)
+test('en-tête stable quand la page est à quelques pixels du haut', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('footer.footer').waitFor({ state: 'attached' });
+  for (const y of [6, 10, 14, 20]) {
+    const positions = await page.evaluate(async (y) => {
+      window.scrollTo(0, 0);
+      await new Promise((r) => setTimeout(r, 400));
+      window.scrollTo(0, y);
+      await new Promise((r) => setTimeout(r, 600)); // transition de l'en-tête : 0,25 s
+      const button = document.querySelector('.lang-switch')!;
+      const seen = new Set<number>();
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => requestAnimationFrame(r));
+        seen.add(Math.round(button.getBoundingClientRect().y * 10));
+      }
+      return seen.size;
+    }, y);
+    expect(positions, `défilement à ${y} px`).toBe(1);
+  }
+});
+
 test.describe('téléphone (390 × 844)', () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
