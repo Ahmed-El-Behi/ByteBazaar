@@ -11,9 +11,8 @@ import { asRecord, badRequest, text } from '../common/input';
 import { hashPassword, verifyPassword } from './password';
 import { tr } from '../common/i18n';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PASSWORD_MIN = 8;
-const PASSWORD_MAX = 128;
+// Règles partagées avec les DTO (validés en amont par le ValidationPipe ; contrôles gardés ici en défense en profondeur)
+import { EMAIL_RE, PASSWORD_MAX, PASSWORD_MIN } from './auth.dto';
 const RESET_PURPOSE = 'reset-password';
 
 const PUBLIC_USER = {

@@ -1,11 +1,14 @@
 # ByteBazaar
 
+[![CI](https://github.com/Ahmed-El-Behi/ByteBazaar/actions/workflows/ci.yml/badge.svg)](https://github.com/Ahmed-El-Behi/ByteBazaar/actions/workflows/ci.yml)
+
 Boutique en ligne de composants PC et de périphériques pour la Tunisie (prix en TND), en français et en anglais.
 
 | Dossier     | Technologie                                                     | Port |
 | ----------- | --------------------------------------------------------------- | ---- |
 | `backend/`  | NestJS 12 · Prisma 7 · PostgreSQL · Nodemailer                  | 3000 |
 | `frontend/` | Angular 22 (composants standalone, signals) · Three.js · Lucide | 4200 |
+| `e2e/`      | Playwright (tests de bout en bout)                              | —    |
 
 ## Fonctionnalités
 
@@ -40,6 +43,9 @@ npm install
 npm start                     # http://localhost:4200
 ```
 
+Documentation interactive de l'API (Swagger) : http://localhost:3000/docs, ou http://localhost:4200/api/docs à
+travers le site. Pour tester les routes protégées : `POST /auth/login`, puis coller le `accessToken` dans « Authorize ».
+
 Pour donner le rôle administrateur à un compte :
 
 ```sql
@@ -50,7 +56,8 @@ UPDATE "User" SET role = 'ADMIN' WHERE email = 'vous@exemple.tn';
 
 - API : `npm run build` puis `npm run start:prod` (variables de `backend/.env.example`, `FRONTEND_URL` = domaine du site).
 - Site : `npm run build`, puis servir `frontend/dist/frontend/browser` (routes inconnues → `index.html`) en relayant
-  `/api/*` vers l'API (sans le préfixe). `npm run serve` le fait sur le port 4300 ; pour une API sur un autre
+  `/api/*` vers l'API (sans le préfixe), avec l'en-tête `X-Forwarded-Prefix: /api` (exemples de la documentation
+  `/api/docs`). `npm run serve` le fait sur le port 4300 ; pour une API sur un autre
   domaine, mettre son URL dans `frontend/src/environments/environment.ts`.
 - Compléter l'identification légale du vendeur dans `frontend/src/app/core/legal-content.ts` et ses coordonnées
   (facture, virement) dans `frontend/src/app/core/store-info.ts`.
@@ -61,6 +68,42 @@ UPDATE "User" SET role = 'ADMIN' WHERE email = 'vous@exemple.tn';
 cd backend && npm run lint && npm test && npm run test:e2e   # test:e2e : base de développement requise
 cd frontend && npm run typecheck && npm run i18n:check && npm run format:check && npm test && npm run build
 ```
+
+### Tests de bout en bout (Playwright)
+
+`e2e/tests/` rejoue les parcours réels dans Chrome : accueil, catalogue et recherche, panier invité, parcours client
+complet (inscription → panier → commande → suivi → annulation → reconnexion), erreurs de l'API affichées et traduites,
+configurateur (choix d'une pièce, pièces compatibles), langue, thème, absence de défilement horizontal sur téléphone,
+Swagger, et administration (tableau de bord, commandes, stock ; accès refusé aux visiteurs).
+
+Les tests écrivent en base (comptes `@e2e.bytebazaar.test`, commandes) : utiliser une **base de test**, pas la base de développement.
+
+```bash
+# base de test : migrations + catalogue + stock + commandes de démonstration
+cd backend
+DATABASE_URL=postgresql://…/bytebazaar_e2e npx prisma migrate deploy --config prisma7.config.ts
+DATABASE_URL=postgresql://…/bytebazaar_e2e npm run seed && npm run seed:stock && npm run seed:demo-orders
+npm run build && DATABASE_URL=postgresql://…/bytebazaar_e2e PORT=3001 node dist/main
+
+# site (build de production, relaie /api vers l'API de test)
+cd frontend && npm run build && API_TARGET=http://localhost:3001 npm run serve   # port 4300
+
+# tests (Chrome installé en local ; E2E_ADMIN_* : un compte ADMIN de la base de test, sinon les tests admin sont ignorés)
+cd e2e && npm install
+E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… npm test          # rapport : npm run report
+```
+
+Les inscriptions sont limitées à 10 par IP et par quart d'heure : une exécution en fait 3 ; après plusieurs exécutions
+d'affilée, redémarrer l'API de test (compteur en mémoire).
+
+### Intégration continue
+
+`.github/workflows/ci.yml`, à chaque push et pull request :
+
+1. **backend** — oxlint, `tsc`, Prettier, tests unitaires Jest ;
+2. **frontend** — `typecheck`, traductions, Prettier, tests Vitest, build de production (budget 500 kB) ;
+3. **e2e** — PostgreSQL jetable, migrations et données de démonstration, tests e2e Jest de l'API, puis Playwright sur
+   le build de production ; rapport HTML téléchargeable dans l'onglet *Actions* (`rapport-playwright`).
 
 ## Catalogue
 
@@ -80,3 +123,5 @@ cd frontend && npm run typecheck && npm run i18n:check && npm run format:check &
 - Routes `/admin/*` réservées aux comptes `ADMIN`, rôle relu en base à chaque requête.
 - Liens de réinitialisation valables 15 minutes, à usage unique.
 - Connexion, inscription et réinitialisation limitées en nombre de tentatives par adresse IP.
+- Corps de requête validés par des DTO (`class-validator`) : types, formats et bornes vérifiés avant les services,
+  champs inconnus ignorés (un client ne peut pas s'attribuer un rôle en l'ajoutant à sa requête).

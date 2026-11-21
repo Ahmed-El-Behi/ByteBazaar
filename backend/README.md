@@ -43,3 +43,12 @@ Scripts de données (`scripts/`) :
 | —              | `/health`                                                                                                                |
 
 Les messages renvoyés suivent l'en-tête `Accept-Language` (`fr` par défaut, `en`) : voir `src/common/i18n.ts`.
+
+## Documentation et validation
+
+- **Swagger** : `/docs` (page interactive), `/docs-json` (spécification OpenAPI). Routes groupées par module, avec
+  description, paramètres, exemples et cadenas sur les routes protégées (« Authorize » avec le jeton de connexion).
+- **DTO** (`*.dto.ts` de chaque module) : chaque corps de requête est une classe `class-validator` documentée pour
+  Swagger. Le `ValidationPipe` global (`src/common/validation.ts`) renvoie les erreurs au format attendu par le
+  site (`{ statusCode: 400, message: string[] }`), traduites, et retire les champs inconnus. Les services gardent
+  leurs propres contrôles et toutes les règles métier (stock, unicité, transitions de statut).

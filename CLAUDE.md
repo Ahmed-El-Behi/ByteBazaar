@@ -36,7 +36,11 @@ npm test                     # Vitest (app.spec.ts, core/i18n.spec.ts)
 npm run typecheck            # tsc, noUnusedLocals / noUnusedParameters enabled
 npm run i18n:check           # 0 missing / 0 param mismatch
 npm run format:check         # Prettier (npm run format to fix); backend is Prettier-clean too
+
+# e2e (Playwright, Chrome) — against a TEST database (bytebazaar_e2e), API on 3001 + `API_TARGET=http://localhost:3001 npm run serve` (4300)
+E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… npm test   # 18 tests; register is rate-limited 10/IP/15 min → restart the test API after a few runs
 ```
+- CI: `.github/workflows/ci.yml` — jobs backend (lint, tsc, prettier, jest), frontend (typecheck, i18n, prettier, vitest, build), e2e (Postgres service, seeds, `test:e2e`, Playwright; report artifact `rapport-playwright`).
 
 **Working conventions**
 - The user usually runs `ng serve` (4200) and the API in watch mode (3000) themselves — don't start servers on those ports; reuse them for browser checks.
@@ -51,6 +55,7 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
 
 ### Backend (`backend/src`)
 - `auth/` JWT auth, roles (`ADMIN` re-read from DB every request), password reset (15 min, single use, logs out sessions), rate-limit guard in `common/`.
+- **Swagger + DTOs**: `/docs` (and `/api/docs` through the site; the proxies send `X-Forwarded-Prefix: /api` so « Try it out » targets the right base — `patchDocumentOnRequest` in `main.ts`). Every request body is a DTO class (`<module>/<module>.dto.ts`, `class-validator` + `@ApiProperty`); global `validationPipe` (`common/validation.ts`: `transform`, `whitelist`, `stopAtFirstError`, errors → `badRequest(...)` = `{ message: string[] }`). DTO messages use `msg(fr, en)` / `invalid(labelFr, labelEn)` and **must stay identical to the service messages** (same texts, same order); services keep their checks (defence in depth) and every business rule. Helpers: `Trim`, `TrimLower`, `ToNumber` (« 12 » → 12), `Optional` (skips undefined/null/« »), `IsCompleteAddress`. Shared constants live in the DTO files (`EMAIL_RE`, `PASSWORD_MIN/MAX`, `MAX_QUANTITY`, `PAYMENT_METHODS`, `ADDRESS_FIELDS`). Add `@ApiTags/@ApiOperation` (French) and `@ApiBearerAuth` on new routes.
 - `catalog/` product list/detail, filters, sort; default sort **Pertinence** = `relevance.ts` (per-category popularity, daily-seeded randomness, availability; text match wins when searching).
 - `cart/`, `order/`, `admin/`, `mail/`:
   - `order/order-status.ts` — **pure rules**, unit-tested: forward-only transitions (DELIVERED/CANCELLED final), customer may cancel while PENDING/CONFIRMED, CARD/PAYPAL are paid at checkout (simulated), cancelling a paid order → REFUNDED.
@@ -86,7 +91,13 @@ npm run format:check         # Prettier (npm run format to fix); backend is Pret
   - Continuous pointer effects that only set CSS variables are bound with `addEventListener` (home hero/category halo, `pc-scene` hover, revenue-chart crosshair), never `(pointermove)` in templates.
   - `CatalogApi.categories()/brands()/categoryCovers()` are cached for the session (`shareReplay`).
   - `core/preloading.ts` (`IdlePreloading`): lazy pages are preloaded once the browser is idle, except `/admin*` (configurator: desktop only, later).
-  - Home: infinite animations are paused (`.offscreen`) while their section is out of view (IntersectionObserver, 120px margin).
+  - Home: infinite animations are paused (`.offscreen`) while their section is out of view (IntersectionObserver, 120px margin; a MutationObserver also picks up the deferred sections).
+  - **Layout shift (CLS) rules** — home CLS went 0.89 → < 0.01, Lighthouse perf mobile 60 → ~89, desktop 74 → 98–100:
+    - `main { display: flow-root }`: the first section's top margin must not collapse through `<main>` (it made `<main>` jump 16px when the page arrived).
+    - The footer is rendered only after the first routed page (`pageShown`, `<router-outlet (activate)>` in `app.html`): visible earlier, it was pushed off-screen.
+    - Home sections below the hero are in `@defer (on idle; on viewport)` with a `100vh` placeholder (`.below-fold`) — they no longer delay the first paint (LCP). The `@defer` runtime costs ~10 kB: initial bundle is now ~498 kB, close to the 500 kB budget.
+    - Never insert content above the fold after an API call without reserving its space (e.g. the brand strip frame is always rendered, `.track { min-height: 1lh }`).
+    - Fallback fonts are size-adjusted Arial (`Plus Jakarta Sans Fallback` 103.9 % / bold 100.1 %, `Bricolage Grotesque Fallback` 92.6 %, measured): text keeps the same line count when the web fonts swap in.
   - Catalogue brand list: `content-visibility: auto` with `contain-intrinsic-size` = the row's real content height (21.69px) so the scrollbar is unchanged.
   - `Icon` and `ProductCard` are OnPush. Images in lists: `loading="lazy" decoding="async"`.
   - Configurator 3D (`pc-scene.ts`, `pc-model.ts`, `three-merge.ts`) — all verified pixel-identical against the previous rendering:
@@ -129,12 +140,12 @@ Everything listed in Architecture is committed: catalogue, accounts and password
 (checkout, history, cancellation, invoice, e-mails), server-side addresses, 3D configurator with compatibility and
 saved builds, admin (dashboard, orders, stock), FR/EN, light/dark themes, responsive layout, performance work,
 pixel « BB » logo. Tested on Chrome and Edge (5 screen sizes), Firefox and Safari/WebKit (desktop).
-Lighthouse (home, production build): performance 60 mobile / 74 desktop (CLS 0.94), accessibility 100,
+Lighthouse (home, production build): performance ~89 mobile / 98–100 desktop (CLS < 0.01), accessibility 100,
 best practices 100, SEO 91.
 
 ### Remaining / ideas
-- Fix the home page layout shift (CLS 0.94 → < 0.1) to reach Lighthouse performance ≥ 90.
-- Deployment (public URL), Swagger API docs + validated DTOs, Playwright e2e tests + CI, `core/` split into subfolders.
+- Mobile Lighthouse ~89: the remaining LCP cost is client-side rendering (prerender/SSR of the home page would be the next step).
+- Deployment (public URL), `core/` split into subfolders.
 - Speakers and webcams are in the catalogue but not in the 3D desk (only monitor/keyboard/mouse/headset).
 - Configurator could add cooler compatibility checks (socket support, AIO radiator vs case top-mount size, tower height vs case clearance) — currently cooler is only "present or warning".
 - Frontend has only a few unit tests (app creation, i18n); backend e2e tests require the dev DB.

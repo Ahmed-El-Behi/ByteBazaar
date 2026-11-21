@@ -1,3 +1,4 @@
+import { MAX_QUANTITY } from './cart.dto';
 import {
   BadRequestException,
   Injectable,
@@ -7,8 +8,6 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { int } from '../common/input';
 import { tr } from '../common/i18n';
-
-const MAX_QUANTITY = 99;
 
 const CART_INCLUDE = {
   items: {

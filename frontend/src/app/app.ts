@@ -47,6 +47,8 @@ export class App {
   readonly searchOpen = signal(false);
   /** Page défilée : l'en-tête devient plus compact et plus marqué */
   readonly scrolled = signal(false);
+  /** Première page affichée : le pied de page apparaît alors sous son contenu */
+  readonly pageShown = signal(false);
   /** Petit « rebond » du badge du panier quand son nombre d'articles change */
   readonly cartBump = signal(false);
 
@@ -95,7 +97,13 @@ export class App {
     });
 
     if (typeof window !== 'undefined') {
-      const onScroll = () => this.scrolled.set(window.scrollY > 8);
+      // Deux seuils écartés de plus que les 10 px dont l'en-tête rétrécit : avec un seul seuil, le rétrécissement
+      // fait remonter la page (ancrage du défilement) sous le seuil, l'en-tête regrandit, et ainsi de suite
+      const onScroll = () => {
+        const y = window.scrollY;
+        if (y > 24) this.scrolled.set(true);
+        else if (y < 4) this.scrolled.set(false);
+      };
       window.addEventListener('scroll', onScroll, { passive: true });
       onScroll();
     }
