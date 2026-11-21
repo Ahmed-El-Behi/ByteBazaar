@@ -6,7 +6,7 @@ import { RolesGuard } from './roles';
 function contextFor(role: string | undefined): ExecutionContext {
   return {
     getHandler: () =>
-      Reflect.get(AdminController.prototype, 'getAllOrders') as () => unknown,
+      Reflect.get(AdminController.prototype, 'listOrders') as () => unknown,
     getClass: () => AdminController,
     switchToHttp: () => ({
       getRequest: () => ({ user: role ? { id: 1, role } : undefined }),

@@ -122,6 +122,7 @@ export const EN: Record<string, string> = {
   Précédent: 'Previous',
   Suivant: 'Next',
   'Page {page} / {total}': 'Page {page} / {total}',
+  Pagination: 'Pagination',
   'Chargement…': 'Loading…',
   'Impossible de joindre le serveur. Le backend est-il lancé ?':
     'Unable to reach the server. Is the backend running?',

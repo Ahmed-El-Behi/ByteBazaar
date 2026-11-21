@@ -1,11 +1,25 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { API_URL } from './models';
+import { API_URL, type Paginated } from './models';
 import type { Order, OrderStatus, PaymentMethod, PaymentStatus } from './orders-api';
 
 export interface AdminOrder extends Order {
   user?: { id: number; firstName: string; lastName: string; email: string; phone: string | null };
+}
+
+/** Filtres de la page « Commandes » (appliqués par l'API) */
+export type AdminOrderFilter =
+  'toutes' | 'a-traiter' | 'expediees' | 'livrees' | 'annulees' | 'virements';
+
+/** Ligne de la liste des commandes : le détail (articles, historique, livraison) se charge à l'ouverture */
+export type AdminOrderSummary = Pick<
+  AdminOrder,
+  'id' | 'reference' | 'status' | 'paymentMethod' | 'paymentStatus' | 'total' | 'createdAt' | 'user'
+>;
+
+export interface AdminOrderPage extends Paginated<AdminOrderSummary> {
+  counts: Record<AdminOrderFilter, number>;
 }
 
 export interface StockMovement {
@@ -80,10 +94,16 @@ export class AdminApiService {
     });
   }
 
-  getAllOrders(status?: string): Observable<AdminOrder[]> {
-    let params = new HttpParams();
-    if (status) params = params.set('status', status);
-    return this.http.get<AdminOrder[]>(`${API_URL}/admin/orders`, { params });
+  listOrders(query: {
+    filter: AdminOrderFilter;
+    q: string;
+    page: number;
+    limit?: number;
+  }): Observable<AdminOrderPage> {
+    let params = new HttpParams().set('filter', query.filter).set('page', query.page);
+    if (query.q.trim()) params = params.set('q', query.q.trim());
+    if (query.limit) params = params.set('limit', query.limit);
+    return this.http.get<AdminOrderPage>(`${API_URL}/admin/orders`, { params });
   }
 
   getAdminOrderDetails(id: number): Observable<AdminOrder> {

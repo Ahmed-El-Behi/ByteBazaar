@@ -1,10 +1,18 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, catchError, of, switchMap } from 'rxjs';
 import { DatePipe } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { AdminNav } from '../components/admin-nav';
 import { Icon, type IconName } from '../components/icon';
 import { OrderTimeline } from '../components/order-timeline';
-import { AdminApiService, type AdminOrder } from '../core/admin-api';
+import {
+  AdminApiService,
+  type AdminOrder,
+  type AdminOrderFilter,
+  type AdminOrderPage,
+  type AdminOrderSummary,
+} from '../core/admin-api';
 import { ProductNamePipe, TPipe, translate } from '../core/i18n';
 import {
   PAYMENT_LABELS,
@@ -19,7 +27,7 @@ import { ToastService } from '../core/toast.service';
 import { TndPipe } from '../core/tnd.pipe';
 import { apiErrors } from '../core/utils';
 
-type Filter = 'toutes' | 'a-traiter' | 'expediees' | 'livrees' | 'annulees' | 'virements';
+type Filter = AdminOrderFilter;
 
 // i18n
 const FILTERS: { id: Filter; label: string }[] = [
@@ -40,29 +48,17 @@ const NEXT: Partial<Record<OrderStatus, { status: OrderStatus; label: string; ic
 };
 // /i18n
 
-function matches(o: AdminOrder, filter: Filter): boolean {
-  switch (filter) {
-    case 'a-traiter':
-      return ['PENDING', 'CONFIRMED', 'PREPARING'].includes(o.status);
-    case 'expediees':
-      return o.status === 'SHIPPED';
-    case 'livrees':
-      return o.status === 'DELIVERED';
-    case 'annulees':
-      return o.status === 'CANCELLED';
-    case 'virements':
-      return (
-        o.paymentMethod === 'BANK_TRANSFER' &&
-        o.paymentStatus === 'PENDING' &&
-        o.status !== 'CANCELLED'
-      );
-    default:
-      return true;
-  }
-}
+const NO_COUNTS: Record<Filter, number> = {
+  toutes: 0,
+  'a-traiter': 0,
+  expediees: 0,
+  livrees: 0,
+  annulees: 0,
+  virements: 0,
+};
 
 interface Pending {
-  order: AdminOrder;
+  order: AdminOrderSummary;
   change: { status?: OrderStatus; paymentStatus?: PaymentStatus };
   title: string;
 }
@@ -77,9 +73,9 @@ interface Pending {
       <header class="head">
         <div>
           <h1>{{ 'Commandes' | t }}</h1>
-          <p class="muted">{{ '{n} commande(s) au total' | t: { n: orders().length } }}</p>
+          <p class="muted">{{ '{n} commande(s) au total' | t: { n: counts().toutes } }}</p>
         </div>
-        <button type="button" class="btn" (click)="load()" [disabled]="loading()">
+        <button type="button" class="btn" (click)="refresh()" [disabled]="loading()">
           <app-icon name="refresh" [size]="16" /> {{ 'Actualiser' | t }}
         </button>
       </header>
@@ -90,7 +86,7 @@ interface Pending {
           <input
             type="search"
             [value]="query()"
-            (input)="query.set($any($event.target).value)"
+            (input)="onSearch($any($event.target).value)"
             [placeholder]="'Référence, client, e-mail ou téléphone…' | t"
             [attr.aria-label]="'Rechercher une commande' | t"
           />
@@ -102,7 +98,7 @@ interface Pending {
               role="tab"
               [attr.aria-selected]="filter() === f.id"
               [class.on]="filter() === f.id"
-              (click)="filter.set(f.id)"
+              (click)="setFilter(f.id)"
             >
               {{ f.label | t }} <span class="count">{{ counts()[f.id] }}</span>
             </button>
@@ -114,10 +110,10 @@ interface Pending {
         <p class="alert">{{ error() }}</p>
       }
 
-      <section class="card list" [class.refreshing]="loading() && orders().length">
-        @if (loading() && !orders().length) {
+      <section class="card list" #list [class.refreshing]="loading() && result()">
+        @if (!result()) {
           <div class="skeleton sk-list"></div>
-        } @else if (!visible().length) {
+        } @else if (!rows().length) {
           <p class="muted none">{{ 'Aucune commande ne correspond.' | t }}</p>
         } @else {
           <table>
@@ -135,7 +131,7 @@ interface Pending {
               </tr>
             </thead>
             <tbody>
-              @for (o of visible(); track o.id) {
+              @for (o of rows(); track o.id) {
                 <tr class="row" [class.open]="openId() === o.id" (click)="toggle(o.id)">
                   <td class="c-ref">
                     <strong class="nowrap">{{ o.reference }}</strong>
@@ -176,91 +172,97 @@ interface Pending {
                 @if (openId() === o.id) {
                   <tr class="details">
                     <td colspan="7">
-                      <div class="detail-grid">
-                        <section>
-                          <h3>{{ 'Suivi' | t }}</h3>
-                          <app-order-timeline [status]="o.status" [events]="o.events" />
-                          <ul class="history">
-                            @for (e of o.events; track $index) {
-                              <li>
-                                <span class="pill" [class]="'tone-' + tone(e.status)">{{
-                                  statusLabels[e.status] | t
-                                }}</span>
-                                <span class="muted">{{
-                                  e.createdAt | date: 'dd/MM/yyyy · HH:mm'
-                                }}</span>
-                                @if (e.performedBy) {
-                                  <span class="muted">
-                                    — {{ e.performedBy.firstName }} {{ e.performedBy.lastName }}
+                      @if (details()[o.id]; as d) {
+                        <div class="detail-grid">
+                          <section>
+                            <h3>{{ 'Suivi' | t }}</h3>
+                            <app-order-timeline [status]="d.status" [events]="d.events" />
+                            <ul class="history">
+                              @for (e of d.events; track $index) {
+                                <li>
+                                  <span class="pill" [class]="'tone-' + tone(e.status)">{{
+                                    statusLabels[e.status] | t
+                                  }}</span>
+                                  <span class="muted">{{
+                                    e.createdAt | date: 'dd/MM/yyyy · HH:mm'
+                                  }}</span>
+                                  @if (e.performedBy) {
+                                    <span class="muted">
+                                      — {{ e.performedBy.firstName }} {{ e.performedBy.lastName }}
+                                    </span>
+                                  }
+                                </li>
+                              }
+                            </ul>
+                          </section>
+
+                          <section>
+                            <h3>{{ 'Articles' | t }}</h3>
+                            <ul class="items">
+                              @for (item of d.items; track item.id) {
+                                <li>
+                                  <span>
+                                    <a [routerLink]="['/produits', item.productSlug]">{{
+                                      item.productName | productName
+                                    }}</a>
+                                    <small class="muted block">{{ item.productSku }}</small>
                                   </span>
-                                }
-                              </li>
-                            }
-                          </ul>
-                        </section>
+                                  <span class="nowrap"
+                                    >{{ item.quantity }} × {{ item.unitPrice | tnd }}</span
+                                  >
+                                </li>
+                              }
+                            </ul>
+                            <p class="totals">
+                              {{ 'Livraison' | t }} {{ d.shippingFee | tnd }} ·
+                              <strong>{{ 'Total' | t }} {{ d.total | tnd }}</strong>
+                            </p>
 
-                        <section>
-                          <h3>{{ 'Articles' | t }}</h3>
-                          <ul class="items">
-                            @for (item of o.items; track item.id) {
-                              <li>
-                                <span>
-                                  <a [routerLink]="['/produits', item.productSlug]">{{
-                                    item.productName | productName
-                                  }}</a>
-                                  <small class="muted block">{{ item.productSku }}</small>
-                                </span>
-                                <span class="nowrap"
-                                  >{{ item.quantity }} × {{ item.unitPrice | tnd }}</span
-                                >
-                              </li>
-                            }
-                          </ul>
-                          <p class="totals">
-                            {{ 'Livraison' | t }} {{ o.shippingFee | tnd }} ·
-                            <strong>{{ 'Total' | t }} {{ o.total | tnd }}</strong>
-                          </p>
+                            <h3>{{ 'Livraison' | t }}</h3>
+                            <p class="addr">
+                              <strong>{{ d.shippingName }}</strong> · {{ d.shippingPhone }}<br />
+                              {{ d.shippingAddress }}
+                            </p>
+                          </section>
+                        </div>
 
-                          <h3>{{ 'Livraison' | t }}</h3>
-                          <p class="addr">
-                            <strong>{{ o.shippingName }}</strong> · {{ o.shippingPhone }}<br />
-                            {{ o.shippingAddress }}
-                          </p>
-                        </section>
-                      </div>
-
-                      <div class="actions">
-                        @if (next(o); as n) {
-                          <button
-                            type="button"
-                            class="btn primary"
-                            (click)="ask(o, { status: n.status }, n.label)"
-                          >
-                            <app-icon [name]="n.icon" [size]="16" /> {{ n.label | t }}
-                          </button>
-                        }
-                        @if (o.paymentStatus === 'PENDING' && o.status !== 'CANCELLED') {
-                          <button
-                            type="button"
-                            class="btn"
-                            (click)="ask(o, { paymentStatus: 'PAID' }, 'Marquer comme payée')"
-                          >
-                            <app-icon name="banknote" [size]="16" /> {{ 'Marquer comme payée' | t }}
-                          </button>
-                        }
-                        <a class="btn" [routerLink]="['/admin/commandes', o.id, 'facture']">
-                          <app-icon name="fileText" [size]="16" /> {{ 'Facture' | t }}
-                        </a>
-                        @if (o.status !== 'CANCELLED' && o.status !== 'DELIVERED') {
-                          <button
-                            type="button"
-                            class="btn danger-soft"
-                            (click)="ask(o, { status: 'CANCELLED' }, 'Annuler la commande')"
-                          >
-                            <app-icon name="circleX" [size]="16" /> {{ 'Annuler la commande' | t }}
-                          </button>
-                        }
-                      </div>
+                        <div class="actions">
+                          @if (next(d); as n) {
+                            <button
+                              type="button"
+                              class="btn primary"
+                              (click)="ask(d, { status: n.status }, n.label)"
+                            >
+                              <app-icon [name]="n.icon" [size]="16" /> {{ n.label | t }}
+                            </button>
+                          }
+                          @if (d.paymentStatus === 'PENDING' && d.status !== 'CANCELLED') {
+                            <button
+                              type="button"
+                              class="btn"
+                              (click)="ask(d, { paymentStatus: 'PAID' }, 'Marquer comme payée')"
+                            >
+                              <app-icon name="banknote" [size]="16" />
+                              {{ 'Marquer comme payée' | t }}
+                            </button>
+                          }
+                          <a class="btn" [routerLink]="['/admin/commandes', d.id, 'facture']">
+                            <app-icon name="fileText" [size]="16" /> {{ 'Facture' | t }}
+                          </a>
+                          @if (d.status !== 'CANCELLED' && d.status !== 'DELIVERED') {
+                            <button
+                              type="button"
+                              class="btn danger-soft"
+                              (click)="ask(d, { status: 'CANCELLED' }, 'Annuler la commande')"
+                            >
+                              <app-icon name="circleX" [size]="16" />
+                              {{ 'Annuler la commande' | t }}
+                            </button>
+                          }
+                        </div>
+                      } @else {
+                        <div class="skeleton sk-detail"></div>
+                      }
                     </td>
                   </tr>
                 }
@@ -269,6 +271,32 @@ interface Pending {
           </table>
         }
       </section>
+
+      @if (result(); as r) {
+        @if (r.meta.totalPages > 1) {
+          <nav class="pager" [attr.aria-label]="'Pagination' | t">
+            <button
+              type="button"
+              class="btn"
+              [disabled]="r.meta.page <= 1 || loading()"
+              (click)="goTo(r.meta.page - 1, list)"
+            >
+              <app-icon name="chevronLeft" [size]="16" [stroke]="2" /> {{ 'Précédent' | t }}
+            </button>
+            <span class="muted">{{
+              'Page {page} / {total}' | t: { page: r.meta.page, total: r.meta.totalPages }
+            }}</span>
+            <button
+              type="button"
+              class="btn"
+              [disabled]="r.meta.page >= r.meta.totalPages || loading()"
+              (click)="goTo(r.meta.page + 1, list)"
+            >
+              {{ 'Suivant' | t }} <app-icon name="chevronRight" [size]="16" [stroke]="2" />
+            </button>
+          </nav>
+        }
+      }
 
       @if (pending(); as p) {
         <div class="modal-backdrop" (click)="pending.set(null)">
@@ -548,6 +576,17 @@ interface Pending {
     .sk-list {
       height: 420px;
     }
+    .sk-detail {
+      height: 220px;
+      border-radius: var(--r-lg);
+    }
+    .pager {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 1rem;
+      margin-top: 1.2rem;
+    }
     .sr-only {
       position: absolute;
       width: 1px;
@@ -661,7 +700,7 @@ interface Pending {
     }
   `,
 })
-export class AdminOrdersPage {
+export class AdminOrdersPage implements OnInit {
   private readonly api = inject(AdminApiService);
   private readonly toast = inject(ToastService);
 
@@ -674,83 +713,127 @@ export class AdminOrdersPage {
   readonly paymentLabels = PAYMENT_LABELS;
   readonly paymentStatusLabels = PAYMENT_STATUS_LABELS;
 
-  readonly orders = signal<AdminOrder[]>([]);
+  /** Page courante renvoyée par l'API (25 commandes, filtre et recherche appliqués côté serveur) */
+  readonly result = signal<AdminOrderPage | null>(null);
+  readonly rows = computed(() => this.result()?.data ?? []);
+  readonly counts = computed(() => this.result()?.counts ?? NO_COUNTS);
+  /** Détail des commandes ouvertes (articles, historique, livraison), chargé à la demande */
+  readonly details = signal<Record<number, AdminOrder>>({});
+
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
   readonly query = signal('');
   readonly filter = signal<Filter>('toutes');
+  readonly page = signal(1);
   readonly openId = signal<number | null>(null);
   readonly pending = signal<Pending | null>(null);
   readonly saving = signal(false);
 
-  readonly counts = computed(
-    () =>
-      Object.fromEntries(
-        FILTERS.map((f) => [f.id, this.orders().filter((o) => matches(o, f.id)).length]),
-      ) as Record<Filter, number>,
-  );
-
-  readonly visible = computed(() => {
-    const q = this.query().trim().toLowerCase();
-    const filter = this.filter();
-    return this.orders().filter((o) => {
-      if (!matches(o, filter)) return false;
-      if (!q) return true;
-      const haystack = [
-        o.reference,
-        o.user?.firstName,
-        o.user?.lastName,
-        o.user?.email,
-        o.user?.phone,
-        o.shippingName,
-        o.shippingPhone,
-      ]
-        .join(' ')
-        .toLowerCase();
-      return q.split(/\s+/).every((word) => haystack.includes(word));
-    });
-  });
+  private readonly requests = new Subject<void>();
+  private searchTimer?: ReturnType<typeof setTimeout>;
+  /** Référence à ouvrir dès qu'elle apparaît dans la liste (lien du tableau de bord) */
+  private openRef: string | null = null;
 
   constructor() {
-    this.load(true);
+    // Une nouvelle demande annule la précédente : une réponse périmée n'écrase jamais la liste
+    this.requests
+      .pipe(
+        switchMap(() => {
+          this.loading.set(true);
+          this.error.set(null);
+          return this.api
+            .listOrders({ filter: this.filter(), q: this.query(), page: this.page() })
+            .pipe(
+              catchError((e) => {
+                this.error.set(apiErrors(e).join(' '));
+                return of(null);
+              }),
+            );
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe((res) => {
+        this.loading.set(false);
+        if (!res) return;
+        this.result.set(res);
+        if (this.openRef) {
+          const match = res.data.find((o) => o.reference === this.openRef);
+          this.openRef = null;
+          if (match) this.toggle(match.id);
+        }
+      });
   }
 
-  load(first = false) {
-    this.loading.set(true);
-    this.error.set(null);
-    this.api.getAllOrders().subscribe({
-      next: (list) => {
-        this.orders.set(list);
-        this.loading.set(false);
-        if (first) this.applyLink(list);
-      },
-      error: (e) => {
-        this.loading.set(false);
-        this.error.set(apiErrors(e).join(' '));
-      },
-    });
-  }
-
-  /** Lien du tableau de bord : filtre présélectionné, ou commande ouverte directement */
-  private applyLink(list: AdminOrder[]) {
+  ngOnInit() {
     const filtre = this.filtre();
     if (filtre && FILTERS.some((f) => f.id === filtre)) this.filter.set(filtre as Filter);
     const ref = this.ref();
     if (ref) {
       this.query.set(ref);
-      this.openId.set(list.find((o) => o.reference === ref)?.id ?? null);
+      this.openRef = ref;
     }
+    this.load();
+  }
+
+  load() {
+    this.requests.next();
+  }
+
+  /** Bouton « Actualiser » : liste, compteurs et détail ouvert rechargés */
+  refresh() {
+    this.details.set({});
+    const open = this.openId();
+    this.load();
+    if (open) this.loadDetail(open);
+  }
+
+  /** Recherche lancée 300 ms après la dernière frappe */
+  onSearch(value: string) {
+    this.query.set(value);
+    clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => {
+      this.page.set(1);
+      this.openId.set(null);
+      this.load();
+    }, 300);
+  }
+
+  setFilter(filter: Filter) {
+    if (filter === this.filter()) return;
+    this.filter.set(filter);
+    this.page.set(1);
+    this.openId.set(null);
+    this.load();
+  }
+
+  goTo(page: number, list: HTMLElement) {
+    this.page.set(page);
+    this.openId.set(null);
+    this.load();
+    if (list.getBoundingClientRect().top < 0) list.scrollIntoView({ block: 'start' });
   }
 
   toggle(id: number) {
-    this.openId.set(this.openId() === id ? null : id);
+    if (this.openId() === id) {
+      this.openId.set(null);
+      return;
+    }
+    this.openId.set(id);
+    if (!this.details()[id]) this.loadDetail(id);
   }
 
-  next(o: AdminOrder) {
+  private loadDetail(id: number) {
+    this.api.getAdminOrderDetails(id).subscribe({
+      next: (order) => this.details.update((all) => ({ ...all, [id]: order })),
+      error: (e) => this.error.set(apiErrors(e).join(' ')),
+    });
+  }
+
+  next(o: AdminOrderSummary) {
     return NEXT[o.status] ?? null;
   }
 
-  ask(order: AdminOrder, change: Pending['change'], title: string) {
+  ask(order: AdminOrderSummary, change: Pending['change'], title: string) {
     this.pending.set({ order, change, title });
   }
 
@@ -758,10 +841,12 @@ export class AdminOrdersPage {
     this.saving.set(true);
     this.api.updateOrderStatus(p.order.id, p.change).subscribe({
       next: (updated) => {
-        this.orders.update((list) => list.map((o) => (o.id === updated.id ? updated : o)));
+        this.details.update((all) => ({ ...all, [updated.id]: updated }));
         this.saving.set(false);
         this.pending.set(null);
         this.toast.success('Commande mise à jour', updated.reference); // traduit à l'affichage
+        // Ligne et compteurs à jour (la commande peut changer de filtre)
+        this.load();
       },
       error: (e) => {
         this.saving.set(false);

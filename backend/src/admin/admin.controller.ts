@@ -20,6 +20,7 @@ import type { AuthedRequest } from '../auth/jwt-auth.guard';
 import { Roles, RolesGuard } from '../auth/roles';
 import { ORDER_STATUSES } from '../order/order-status';
 import { AdminService } from './admin.service';
+import { ADMIN_ORDER_FILTERS } from './order-filters';
 import { DashboardService } from './dashboard.service';
 import { OrderStatusDto, ProductStatusDto, UpdateStockDto } from './admin.dto';
 
@@ -87,11 +88,35 @@ export class AdminController {
     return this.adminService.getStockMovements(productId);
   }
 
-  @ApiOperation({ summary: 'Toutes les commandes' })
+  @ApiOperation({
+    summary: 'Commandes, page par page',
+    description:
+      'Lignes légères (le détail se charge avec GET /admin/orders/:id), filtre et recherche appliqués par la base, et nombre de commandes de chaque filtre.',
+  })
+  @ApiQuery({ name: 'filter', required: false, enum: ADMIN_ORDER_FILTERS })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    description:
+      'Référence, client, e-mail ou téléphone (chaque mot doit correspondre)',
+  })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    example: 25,
+    description: '1 à 100',
+  })
   @ApiQuery({ name: 'status', required: false, enum: ORDER_STATUSES })
   @Get('orders')
-  getAllOrders(@Query('status') status?: string) {
-    return this.adminService.getAllOrders(status);
+  listOrders(
+    @Query('filter') filter?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.adminService.listOrders({ filter, q, page, limit, status });
   }
 
   @ApiOperation({

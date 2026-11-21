@@ -22,7 +22,7 @@ See `README.md` (setup, catalogue, security) and `backend/README.md` (data pipel
 npm run start:dev            # API in watch mode
 npm run seed                 # sync DB with both catalogue JSON files (idempotent, never overwrites stock)
 npm run seed:stock           # reproducible test stock
-npm run seed:demo-orders     # ~200 fake orders over 120 days for the dashboard (demo customers @demo.bytebazaar.test, idempotent, stock untouched)
+npm run seed:demo-orders     # ~1,200 fictitious customers (gmail/outlook/hotmail… addresses) + ~3,600 orders since 2024-01-01 (seasonality, churn), idempotent, stock untouched; customers flagged `User.isDemo` → MailService never e-mails them
 npm test                     # unit tests (jest, ESM)   — 28+ tests, must pass
 npm run test:e2e             # needs dev DB
 npm run lint                 # oxlint — must be 0 warnings
@@ -111,7 +111,7 @@ E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… npm test   # 18 tests; register is ra
     - Picker: parts lists cached per slot+selection+language in `ConfiguratorApi`; cards rendered progressively (`FIRST_CARDS`, `CARDS_PER_FRAME`); images lazy.
     - Configurator chunk preloaded on intent (pointer/touch/focus on a `/configurateur` link, `app.ts`) and, on desktop only, by `IdlePreloading` after 5 s.
   - `scripts/serve.mjs` compresses every asset once at start-up (brotli 11 / gzip 9, cache keyed by mtime).
-- Admin: `components/admin-nav.ts` tabs; `admin-dashboard.ts` (`/admin`) with `components/revenue-chart.ts` (SVG, crosshair + tooltip, arrow keys, screen-reader table); single chart hue `--viz-series` (validated with the dataviz skill). `admin-orders.ts`: search, filters with counts (`?filtre=a-traiter|virements`, `?ref=`), next-step buttons, mark paid, cancel, history. Phones: rows become cards.
+- Admin: `components/admin-nav.ts` tabs; `admin-dashboard.ts` (`/admin`) with `components/revenue-chart.ts` (SVG, crosshair + tooltip, arrow keys, screen-reader table); single chart hue `--viz-series` (validated with the dataviz skill). `admin-orders.ts`: **server-side pagination** — `GET /admin/orders?filter=&q=&page=&limit=` returns 25 light rows + `counts` per filter (filters/search in `admin/order-filters.ts`, pure + unit-tested); the detail (items, history, address) is fetched on row open via `GET /admin/orders/:id` and cached; search debounced 300 ms, `switchMap` drops stale responses. Never load every order in the browser again (3,600+ demo orders = 4.9 MB). `?filtre=a-traiter|virements`, `?ref=` (opens that order), next-step buttons, mark paid, cancel, history. Phones: rows become cards.
 
 ### Languages (FR default / EN) — every user-facing text must exist in both
 - Header toggle (`app.html`, `.lang-switch`) → `I18nService` (`core/i18n.ts`), saved in `localStorage['bytebazaar_lang']`, sets `<html lang>`.

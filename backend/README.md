@@ -7,7 +7,7 @@ Voir le [README principal](../README.md) pour l'installation complète.
 | `npm run start:dev`        | API en mode développement (rechargement automatique)                       |
 | `npm run seed`             | Synchronise le catalogue depuis `data/catalogue_local_images_cleaned.json` |
 | `npm run seed:stock`       | Stock de test reproductible pour les produits à 0                          |
-| `npm run seed:demo-orders` | ≈ 200 commandes fictives sur 120 jours (tableau de bord) ; relançable      |
+| `npm run seed:demo-orders` | ≈ 1 200 clients fictifs et 3 600 commandes depuis janvier 2024 ; relançable. Clients marqués `isDemo` : aucun e-mail ne leur est envoyé |
 | `npm test`                 | Tests unitaires                                                            |
 | `npm run test:e2e`         | Tests d'intégration (base de développement requise)                        |
 | `npm run lint`             | oxlint                                                                     |

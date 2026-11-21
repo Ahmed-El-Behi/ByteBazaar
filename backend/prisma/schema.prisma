@@ -76,6 +76,8 @@ model User {
   createdAt         DateTime  @default(now())
   // Toute session émise avant cette date est refusée (changement / réinitialisation du mot de passe)
   passwordChangedAt DateTime?
+  // Client fictif (données de démonstration) : jamais destinataire d'un e-mail
+  isDemo            Boolean   @default(false)
 
   addresses      Address[]
   cart           Cart?

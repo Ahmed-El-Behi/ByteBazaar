@@ -1,5 +1,6 @@
-import { MailerService } from '@nestjs-modules/mailer';
+import { ISendMailOptions, MailerService } from '@nestjs-modules/mailer';
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 import type { OrderStatus } from '../generated/prisma/enums';
 import { STATUS_LABELS } from '../order/order-status';
 
@@ -59,7 +60,29 @@ function escapeHtml(value: string): string {
 export class MailService {
   private readonly logger = new Logger(MailService.name);
 
-  constructor(private readonly mailerService: MailerService) {}
+  constructor(
+    private readonly mailerService: MailerService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  /**
+   * Point de passage unique de tous les e-mails. Les clients fictifs (seed:demo-orders) ont des adresses
+   * réalistes qui peuvent appartenir à de vraies personnes : ils ne reçoivent jamais rien.
+   */
+  private async send(
+    options: ISendMailOptions & { to: string },
+  ): Promise<boolean> {
+    const recipient = await this.prisma.user.findUnique({
+      where: { email: options.to },
+      select: { isDemo: true },
+    });
+    if (recipient?.isDemo) {
+      this.logger.log(`E-mail non envoyé : client fictif (${options.to})`);
+      return false;
+    }
+    await this.mailerService.sendMail(options);
+    return true;
+  }
 
   /** Récapitulatif envoyé à la validation de la commande. Ne lève jamais d'erreur. */
   async sendOrderConfirmation(
@@ -67,33 +90,36 @@ export class MailService {
     order: ConfirmationOrder,
   ) {
     try {
-      await this.mailerService.sendMail({
-        to: user.email,
-        subject: `Confirmation de votre commande ${order.reference}`,
-        template: './order-confirmation',
-        context: {
-          firstName: user.firstName || 'Client',
-          reference: order.reference,
-          date: order.createdAt.toLocaleDateString('fr-FR', {
-            timeZone: 'Africa/Tunis',
-          }),
-          items: order.items.map((i) => ({
-            name: i.productName,
-            quantity: i.quantity,
-            lineTotal: money(i.lineTotal),
-          })),
-          subtotal: money(order.subtotal),
-          shippingFee: money(order.shippingFee),
-          total: money(order.total),
-          shippingName: order.shippingName,
-          shippingPhone: order.shippingPhone,
-          shippingAddress: order.shippingAddress,
-          paymentLabel:
-            PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod,
-          paymentNote: PAYMENT_NOTES[order.paymentMethod] ?? '',
-          orderUrl: `${frontendUrl()}/commandes/${order.id}`,
-        },
-      });
+      if (
+        !(await this.send({
+          to: user.email,
+          subject: `Confirmation de votre commande ${order.reference}`,
+          template: './order-confirmation',
+          context: {
+            firstName: user.firstName || 'Client',
+            reference: order.reference,
+            date: order.createdAt.toLocaleDateString('fr-FR', {
+              timeZone: 'Africa/Tunis',
+            }),
+            items: order.items.map((i) => ({
+              name: i.productName,
+              quantity: i.quantity,
+              lineTotal: money(i.lineTotal),
+            })),
+            subtotal: money(order.subtotal),
+            shippingFee: money(order.shippingFee),
+            total: money(order.total),
+            shippingName: order.shippingName,
+            shippingPhone: order.shippingPhone,
+            shippingAddress: order.shippingAddress,
+            paymentLabel:
+              PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod,
+            paymentNote: PAYMENT_NOTES[order.paymentMethod] ?? '',
+            orderUrl: `${frontendUrl()}/commandes/${order.id}`,
+          },
+        }))
+      )
+        return;
       this.logger.log(
         `Confirmation envoyée pour la commande ${order.reference}`,
       );
@@ -114,19 +140,22 @@ export class MailService {
     orderId: number,
   ) {
     try {
-      await this.mailerService.sendMail({
-        to: toEmail,
-        subject: `Mise à jour de votre commande ${orderReference}`,
-        template: './order-status',
-        context: {
-          firstName: firstName || 'Client',
-          orderReference,
-          statusLabel: STATUS_LABELS[status].fr,
-          statusMessage:
-            STATUS_MESSAGES[status] ?? 'Votre commande a été mise à jour.',
-          orderUrl: `${frontendUrl()}/commandes/${orderId}`,
-        },
-      });
+      if (
+        !(await this.send({
+          to: toEmail,
+          subject: `Mise à jour de votre commande ${orderReference}`,
+          template: './order-status',
+          context: {
+            firstName: firstName || 'Client',
+            orderReference,
+            statusLabel: STATUS_LABELS[status].fr,
+            statusMessage:
+              STATUS_MESSAGES[status] ?? 'Votre commande a été mise à jour.',
+            orderUrl: `${frontendUrl()}/commandes/${orderId}`,
+          },
+        }))
+      )
+        return;
       this.logger.log(
         `Notification de statut envoyée pour la commande ${orderReference}`,
       );
@@ -141,12 +170,15 @@ export class MailService {
   /** Mail de bienvenue à l'inscription. Ne lève jamais d'erreur. */
   async sendWelcomeEmail(toEmail: string, firstName: string) {
     try {
-      await this.mailerService.sendMail({
-        to: toEmail,
-        subject: 'Bienvenue sur ByteBazaar ! 🎉',
-        template: './welcome',
-        context: { firstName: firstName || 'Membre' },
-      });
+      if (
+        !(await this.send({
+          to: toEmail,
+          subject: 'Bienvenue sur ByteBazaar ! 🎉',
+          template: './welcome',
+          context: { firstName: firstName || 'Membre' },
+        }))
+      )
+        return;
       this.logger.log(`Mail de bienvenue envoyé à ${toEmail}`);
     } catch (error) {
       this.logger.error(
@@ -165,7 +197,7 @@ export class MailService {
     const resetLink = `${frontendUrl()}/reset-password?token=${encodeURIComponent(token)}`;
     const name = escapeHtml(firstName || 'Client');
 
-    await this.mailerService.sendMail({
+    await this.send({
       to: toEmail,
       subject: 'Réinitialisation de votre mot de passe - ByteBazaar',
       html: `

@@ -10,6 +10,13 @@ import { asRecord, badRequest, int, oneOf, text } from '../common/input';
 import { tr } from '../common/i18n';
 import { cancelOrderTx } from '../order/order-cancel';
 import { ORDER_STATUSES, assertTransition } from '../order/order-status';
+import {
+  ADMIN_ORDER_FILTERS,
+  filterCounts,
+  filterWhere,
+  pendingTransferWhere,
+  searchWhere,
+} from './order-filters';
 
 const PAYMENT_STATUSES = Object.values(PaymentStatus);
 const STOCK_REASONS = Object.values(StockReason);
@@ -204,14 +211,81 @@ export class AdminService {
 
   // Commandes
 
-  async getAllOrders(rawStatus?: string) {
-    const status = oneOf(rawStatus, ORDER_STATUSES, tr('Statut', 'Status'));
-    const orders = await this.prisma.order.findMany({
-      where: status ? { status } : undefined,
-      orderBy: { createdAt: 'desc' },
-      include: ORDER_INCLUDE,
-    });
-    return orders.map(formatOrder);
+  /**
+   * Liste paginée pour la page « Commandes » : lignes légères (sans articles ni historique, chargés à
+   * l'ouverture d'une commande), filtre et recherche appliqués par la base, compteurs de chaque filtre.
+   */
+  async listOrders(query: {
+    filter?: string;
+    q?: string;
+    page?: string;
+    limit?: string;
+    status?: string;
+  }) {
+    const filter =
+      oneOf(query.filter, ADMIN_ORDER_FILTERS, tr('Filtre', 'Filter')) ??
+      'toutes';
+    const status = oneOf(query.status, ORDER_STATUSES, tr('Statut', 'Status'));
+    const page = query.page
+      ? int(query.page, tr('Page', 'Page'), { min: 1, max: 100_000 })
+      : 1;
+    const limit = query.limit
+      ? int(query.limit, tr('Nombre par page', 'Page size'), {
+          min: 1,
+          max: 100,
+        })
+      : 25;
+    const where: Prisma.OrderWhereInput = {
+      AND: [
+        filterWhere(filter),
+        ...(status ? [{ status }] : []),
+        ...searchWhere(text(query.q)),
+      ],
+    };
+
+    const [total, rows, byStatus, pendingTransfers] = await Promise.all([
+      this.prisma.order.count({ where }),
+      this.prisma.order.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          reference: true,
+          status: true,
+          paymentMethod: true,
+          paymentStatus: true,
+          total: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+            },
+          },
+        },
+      }),
+      this.prisma.order.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.order.count({ where: pendingTransferWhere() }),
+    ]);
+
+    return {
+      data: rows.map((o) => ({ ...o, total: Number(o.total) })),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+      counts: filterCounts(
+        byStatus.map((g) => ({ status: g.status, count: g._count._all })),
+        pendingTransfers,
+      ),
+    };
   }
 
   async getAdminOrderDetails(id: number) {
