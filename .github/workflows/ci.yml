@@ -124,7 +124,8 @@ jobs:
         run: |
           npm ci
           npm run build
-          nohup node scripts/serve.mjs > ../site.log 2>&1 &
+          # PORT=3000 (variable du job) est celui de l'API : le site doit rester sur 4300
+          PORT=4300 nohup node scripts/serve.mjs > ../site.log 2>&1 &
           npx --yes wait-on@8.0.3 -t 60000 http-get://localhost:4300/api/health
 
       - name: Playwright
