@@ -1,0 +1,15 @@
+{
+  "name": "bytebazaar-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Tests de bout en bout du site ByteBazaar (Playwright) : parcours réels sur le frontend et l'API",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.0.0"
+  }
+}

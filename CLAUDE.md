@@ -36,7 +36,11 @@ npm test                     # Vitest (app.spec.ts, core/i18n.spec.ts)
 npm run typecheck            # tsc, noUnusedLocals / noUnusedParameters enabled
 npm run i18n:check           # 0 missing / 0 param mismatch
 npm run format:check         # Prettier (npm run format to fix); backend is Prettier-clean too
+
+# e2e (Playwright, Chrome) — against a TEST database (bytebazaar_e2e), API on 3001 + `API_TARGET=http://localhost:3001 npm run serve` (4300)
+E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… npm test   # 17 tests; register is rate-limited 10/IP/15 min → restart the test API after a few runs
 ```
+- CI: `.github/workflows/ci.yml` — jobs backend (lint, tsc, prettier, jest), frontend (typecheck, i18n, prettier, vitest, build), e2e (Postgres service, seeds, `test:e2e`, Playwright; report artifact `rapport-playwright`).
 
 **Working conventions**
 - The user usually runs `ng serve` (4200) and the API in watch mode (3000) themselves — don't start servers on those ports; reuse them for browser checks.
@@ -141,7 +145,7 @@ best practices 100, SEO 91.
 
 ### Remaining / ideas
 - Mobile Lighthouse ~89: the remaining LCP cost is client-side rendering (prerender/SSR of the home page would be the next step).
-- Deployment (public URL), Playwright e2e tests + CI, `core/` split into subfolders.
+- Deployment (public URL), `core/` split into subfolders.
 - Speakers and webcams are in the catalogue but not in the 3D desk (only monitor/keyboard/mouse/headset).
 - Configurator could add cooler compatibility checks (socket support, AIO radiator vs case top-mount size, tower height vs case clearance) — currently cooler is only "present or warning".
 - Frontend has only a few unit tests (app creation, i18n); backend e2e tests require the dev DB.

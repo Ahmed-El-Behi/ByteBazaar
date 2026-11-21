@@ -1,11 +1,14 @@
 # ByteBazaar
 
+[![CI](https://github.com/Ahmed-El-Behi/ByteBazaar/actions/workflows/ci.yml/badge.svg)](https://github.com/Ahmed-El-Behi/ByteBazaar/actions/workflows/ci.yml)
+
 Boutique en ligne de composants PC et de périphériques pour la Tunisie (prix en TND), en français et en anglais.
 
 | Dossier     | Technologie                                                     | Port |
 | ----------- | --------------------------------------------------------------- | ---- |
 | `backend/`  | NestJS 12 · Prisma 7 · PostgreSQL · Nodemailer                  | 3000 |
 | `frontend/` | Angular 22 (composants standalone, signals) · Three.js · Lucide | 4200 |
+| `e2e/`      | Playwright (tests de bout en bout)                              | —    |
 
 ## Fonctionnalités
 
@@ -65,6 +68,42 @@ UPDATE "User" SET role = 'ADMIN' WHERE email = 'vous@exemple.tn';
 cd backend && npm run lint && npm test && npm run test:e2e   # test:e2e : base de développement requise
 cd frontend && npm run typecheck && npm run i18n:check && npm run format:check && npm test && npm run build
 ```
+
+### Tests de bout en bout (Playwright)
+
+`e2e/tests/` rejoue les parcours réels dans Chrome : accueil, catalogue et recherche, panier invité, parcours client
+complet (inscription → panier → commande → suivi → annulation → reconnexion), erreurs de l'API affichées et traduites,
+configurateur (choix d'une pièce, pièces compatibles), langue, thème, absence de défilement horizontal sur téléphone,
+Swagger, et administration (tableau de bord, commandes, stock ; accès refusé aux visiteurs).
+
+Les tests écrivent en base (comptes `@e2e.bytebazaar.test`, commandes) : utiliser une **base de test**, pas la base de développement.
+
+```bash
+# base de test : migrations + catalogue + stock + commandes de démonstration
+cd backend
+DATABASE_URL=postgresql://…/bytebazaar_e2e npx prisma migrate deploy --config prisma7.config.ts
+DATABASE_URL=postgresql://…/bytebazaar_e2e npm run seed && npm run seed:stock && npm run seed:demo-orders
+npm run build && DATABASE_URL=postgresql://…/bytebazaar_e2e PORT=3001 node dist/main
+
+# site (build de production, relaie /api vers l'API de test)
+cd frontend && npm run build && API_TARGET=http://localhost:3001 npm run serve   # port 4300
+
+# tests (Chrome installé en local ; E2E_ADMIN_* : un compte ADMIN de la base de test, sinon les tests admin sont ignorés)
+cd e2e && npm install
+E2E_ADMIN_EMAIL=… E2E_ADMIN_PASSWORD=… npm test          # rapport : npm run report
+```
+
+Les inscriptions sont limitées à 10 par IP et par quart d'heure : une exécution en fait 3 ; après plusieurs exécutions
+d'affilée, redémarrer l'API de test (compteur en mémoire).
+
+### Intégration continue
+
+`.github/workflows/ci.yml`, à chaque push et pull request :
+
+1. **backend** — oxlint, `tsc`, Prettier, tests unitaires Jest ;
+2. **frontend** — `typecheck`, traductions, Prettier, tests Vitest, build de production (budget 500 kB) ;
+3. **e2e** — PostgreSQL jetable, migrations et données de démonstration, tests e2e Jest de l'API, puis Playwright sur
+   le build de production ; rapport HTML téléchargeable dans l'onglet *Actions* (`rapport-playwright`).
 
 ## Catalogue
 
