@@ -21,8 +21,8 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -41,8 +41,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -56,7 +56,8 @@ jobs:
 
   e2e:
     name: Tests de bout en bout (Playwright)
-    runs-on: ubuntu-latest
+    # Version d'Ubuntu prise en charge par Playwright 1.56 (dépendances système du navigateur)
+    runs-on: ubuntu-24.04
     needs: [backend, frontend]
     services:
       postgres:
@@ -80,8 +81,8 @@ jobs:
       E2E_ADMIN_EMAIL: admin@e2e.bytebazaar.test
       E2E_ADMIN_PASSWORD: admin-e2e-ci-123
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -128,18 +129,23 @@ jobs:
           PORT=4300 nohup node scripts/serve.mjs > ../site.log 2>&1 &
           npx --yes wait-on@8.0.3 -t 60000 http-get://localhost:4300/api/health
 
-      - name: Playwright
+      - name: Playwright — installation
         working-directory: e2e
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
-          npx playwright test
+        run: npm ci
+
+      - name: Playwright — navigateur Chromium
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright — tests
+        working-directory: e2e
+        run: npx playwright test
 
       - name: Journaux de l'API et du site
         if: failure()
         run: tail -n 100 api.log site.log
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: rapport-playwright
